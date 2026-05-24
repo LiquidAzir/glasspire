@@ -3381,10 +3381,20 @@
   function drawPlayer() {
     const p = game.world.player;
     const cls = CLASSES[game.char.classId];
+    const c = game.char;
     const s = w2s(p.x, p.y);
     const now = performance.now();
     ctx.save();
     ctx.translate(s.x, s.y);
+
+    // Determine equipped item rarities for glow effects
+    const wepItem = c.equip.weapon;
+    const armItem = c.equip.armor;
+    const wepRarity = wepItem ? wepItem.rarity : 'common';
+    const armRarity = armItem ? armItem.rarity : 'common';
+    const bestRarity = (['unique','rare','magic','common'].find(r => r === wepRarity || r === armRarity)) || 'common';
+    const hasUniqueGear = wepRarity === 'unique' || armRarity === 'unique';
+    const hasRareGear = wepRarity === 'rare' || armRarity === 'rare';
 
     // player light radius (subtle radial glow) — cached gradient
     if (!drawPlayer._grad || drawPlayer._gradColor !== cls.color) {
@@ -3398,6 +3408,35 @@
     ctx.arc(0, 0, 80, 0, PI2);
     ctx.fill();
 
+    // Unique gear: orbiting particles
+    if (hasUniqueGear) {
+      const uCol = rarityColor('unique');
+      ctx.shadowColor = uCol;
+      ctx.shadowBlur = 6;
+      ctx.fillStyle = uCol;
+      ctx.globalAlpha = 0.6;
+      for (let i = 0; i < 3; i++) {
+        const ang = now / 800 + i * PI2 / 3;
+        const ox = Math.cos(ang) * 16, oy = Math.sin(ang) * 8;
+        ctx.beginPath();
+        ctx.arc(ox, oy, 1.5, 0, PI2);
+        ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+      ctx.shadowBlur = 0;
+    }
+    // Rare gear: pulsing aura ring
+    if (hasRareGear && !hasUniqueGear) {
+      const rCol = rarityColor('rare');
+      ctx.strokeStyle = rCol;
+      ctx.lineWidth = 1.5;
+      ctx.globalAlpha = 0.15 + 0.1 * Math.sin(now / 400);
+      ctx.beginPath();
+      ctx.arc(0, 0, 18, 0, PI2);
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+    }
+
     // soft ground shadow
     ctx.fillStyle = '#000';
     ctx.globalAlpha = 0.35;
@@ -3406,9 +3445,10 @@
     ctx.fill();
     ctx.globalAlpha = 1;
 
-    // rim-light ground glow
-    ctx.fillStyle = cls.color;
-    ctx.globalAlpha = 0.2 + (p.attackingFor > 0 ? 0.15 : 0);
+    // rim-light ground glow — color changes with unique gear
+    const glowCol = hasUniqueGear ? rarityColor('unique') : (hasRareGear ? rarityColor('rare') : cls.color);
+    ctx.fillStyle = glowCol;
+    ctx.globalAlpha = 0.2 + (p.attackingFor > 0 ? 0.15 : 0) + (hasUniqueGear ? 0.1 : 0);
     ctx.beginPath();
     ctx.ellipse(0, 9, 14, 5, 0, 0, PI2);
     ctx.fill();
@@ -3425,30 +3465,69 @@
     const bob = Math.sin(now / 220) * 1.5;
     const isWalking = (game.keys.up || game.keys.down || game.keys.left || game.keys.right);
     const walk = isWalking ? Math.sin(now / 120) * 2 : 0;
+    const c = game.char;
+    const wepItem = c.equip.weapon;
+    const armItem = c.equip.armor;
+    const wepBase = wepItem ? ITEM_BASES[wepItem.baseId] : null;
+    const wepRarity = wepItem ? wepItem.rarity : 'common';
+    const armRarity = armItem ? armItem.rarity : 'common';
+    const wepColor = rarityColor(wepRarity);
+    const armColor = armRarity !== 'common' ? rarityColor(armRarity) : color;
 
     ctx.shadowColor = color;
     ctx.shadowBlur = 14;
 
-    // legs (animated when walking)
-    ctx.fillStyle = color;
+    // legs (animated when walking) — armor tinted
+    ctx.fillStyle = armRarity !== 'common' ? armColor : color;
     ctx.globalAlpha = 0.7;
     ctx.fillRect(-4, 4 + bob, 3, 7 + walk * 0.5);
     ctx.fillRect(1, 4 + bob, 3, 7 - walk * 0.5);
     ctx.globalAlpha = 1;
 
-    // torso
+    // torso — shows armor rarity
     ctx.fillStyle = color;
     ctx.fillRect(-5, -4 + bob, 10, 9);
-    // darker inner torso
-    ctx.fillStyle = '#000';
-    ctx.globalAlpha = 0.3;
-    ctx.fillRect(-3, -2 + bob, 6, 6);
-    ctx.globalAlpha = 1;
+    // armor overlay (based on equipped armor rarity)
+    if (armRarity === 'unique') {
+      ctx.fillStyle = armColor;
+      ctx.globalAlpha = 0.4;
+      ctx.fillRect(-5, -4 + bob, 10, 9);
+      // armor detail lines
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 0.8;
+      ctx.globalAlpha = 0.4;
+      ctx.beginPath();
+      ctx.moveTo(-4, -1 + bob); ctx.lineTo(4, -1 + bob);
+      ctx.moveTo(-4, 2 + bob); ctx.lineTo(4, 2 + bob);
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+    } else if (armRarity === 'rare') {
+      ctx.fillStyle = armColor;
+      ctx.globalAlpha = 0.3;
+      ctx.fillRect(-5, -4 + bob, 10, 9);
+      ctx.globalAlpha = 1;
+    } else {
+      ctx.fillStyle = '#000';
+      ctx.globalAlpha = 0.3;
+      ctx.fillRect(-3, -2 + bob, 6, 6);
+      ctx.globalAlpha = 1;
+    }
 
-    // shoulders / pauldrons
-    ctx.fillStyle = color;
-    ctx.fillRect(-8, -4 + bob, 4, 4);
-    ctx.fillRect(4, -4 + bob, 4, 4);
+    // shoulders / pauldrons — bigger/glowing with better armor
+    ctx.fillStyle = armRarity !== 'common' ? armColor : color;
+    const pSize = armRarity === 'unique' ? 5 : (armRarity === 'rare' ? 4.5 : 4);
+    ctx.fillRect(-8, -4 + bob, pSize, pSize);
+    ctx.fillRect(4, -4 + bob, pSize, pSize);
+    // pauldron spike for unique
+    if (armRarity === 'unique') {
+      ctx.fillStyle = '#ffffff';
+      ctx.globalAlpha = 0.6;
+      ctx.beginPath();
+      ctx.moveTo(-7, -4 + bob); ctx.lineTo(-6, -8 + bob); ctx.lineTo(-5, -4 + bob); ctx.fill();
+      ctx.beginPath();
+      ctx.moveTo(5, -4 + bob); ctx.lineTo(6, -8 + bob); ctx.lineTo(7, -4 + bob); ctx.fill();
+      ctx.globalAlpha = 1;
+    }
 
     // head
     ctx.fillStyle = color;
@@ -3463,96 +3542,174 @@
     ctx.fill();
     ctx.globalAlpha = 1;
 
-    // class-specific weapon / accessory
+    // Weapon rendering — based on actual equipped weapon type
     const armX = dirX >= 0 ? 7 : -7;
-    if (classId === 'warrior') {
-      // sword
-      ctx.strokeStyle = '#ffffff';
-      ctx.lineWidth = 2.5;
-      ctx.shadowBlur = 8;
-      const swingAngle = attacking ? Math.sin(now / 60) * 0.8 : -0.3;
+    const swingAngle = attacking ? Math.sin(now / 60) * 0.8 : -0.3;
+    const wepIcon = wepBase ? wepBase.icon : null;
+
+    if (wepIcon === '⚔' || (!wepBase && classId === 'warrior')) {
+      // SWORD — blade with crossguard, rarity colors the blade
       ctx.save();
       ctx.translate(armX, -2 + bob);
       ctx.rotate(swingAngle);
+      // blade
+      ctx.strokeStyle = wepRarity === 'common' ? '#c0c0d0' : wepColor;
+      ctx.lineWidth = 2.5;
+      ctx.shadowColor = wepColor;
+      ctx.shadowBlur = wepRarity === 'unique' ? 14 : (wepRarity === 'rare' ? 10 : 6);
       ctx.beginPath();
       ctx.moveTo(0, 0);
       ctx.lineTo(0, -14);
       ctx.stroke();
-      // crossguard
-      ctx.strokeStyle = color;
-      ctx.lineWidth = 2;
+      // blade edge highlight
+      ctx.strokeStyle = '#ffffff';
+      ctx.globalAlpha = 0.4;
+      ctx.lineWidth = 1;
       ctx.beginPath();
-      ctx.moveTo(-4, -2);
-      ctx.lineTo(4, -2);
+      ctx.moveTo(1, -2); ctx.lineTo(1, -13);
       ctx.stroke();
+      ctx.globalAlpha = 1;
+      // crossguard
+      ctx.fillStyle = wepRarity !== 'common' ? wepColor : '#888888';
+      ctx.fillRect(-4, -2, 8, 2.5);
+      // pommel
+      ctx.beginPath(); ctx.arc(0, 2, 1.5, 0, PI2); ctx.fill();
+      // tip
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.moveTo(-1.2, -14); ctx.lineTo(0, -17); ctx.lineTo(1.2, -14);
+      ctx.fill();
       ctx.restore();
-    } else if (classId === 'mage') {
-      // staff with orb
-      ctx.strokeStyle = '#a0a0c0';
-      ctx.lineWidth = 2;
+    } else if (wepIcon === '✦' || (!wepBase && classId === 'mage')) {
+      // STAFF — tall staff with glowing orb/crystal on top
       ctx.save();
       ctx.translate(armX, 0 + bob);
+      // shaft
+      ctx.strokeStyle = wepRarity === 'unique' ? '#c0a0ff' : '#a0a0c0';
+      ctx.lineWidth = 2.2;
       ctx.beginPath();
       ctx.moveTo(0, 6);
       ctx.lineTo(0, -12);
       ctx.stroke();
-      // orb on top
-      ctx.fillStyle = '#6df1ff';
-      ctx.shadowColor = '#6df1ff';
+      // staff head — ornate top piece
+      ctx.fillStyle = wepRarity !== 'common' ? wepColor : '#6df1ff';
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 1;
+      ctx.shadowColor = wepRarity !== 'common' ? wepColor : '#6df1ff';
       ctx.shadowBlur = 10 + 4 * Math.sin(now / 300);
+      // orb
       ctx.beginPath();
-      ctx.arc(0, -14, 3.5, 0, PI2);
+      ctx.arc(0, -14, wepRarity === 'unique' ? 4 : 3.5, 0, PI2);
       ctx.fill();
+      // inner sparkle
+      ctx.fillStyle = '#ffffff';
+      ctx.globalAlpha = 0.5 + 0.3 * Math.sin(now / 200);
+      ctx.beginPath();
+      ctx.arc(0, -14, 1.5, 0, PI2);
+      ctx.fill();
+      ctx.globalAlpha = 1;
+      // prongs around orb for rare+
+      if (wepRarity === 'rare' || wepRarity === 'unique') {
+        ctx.strokeStyle = wepColor;
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(-3, -11); ctx.lineTo(-2, -14);
+        ctx.moveTo(3, -11); ctx.lineTo(2, -14);
+        ctx.stroke();
+      }
       ctx.restore();
-    } else if (classId === 'ranger') {
-      // bow
-      ctx.strokeStyle = '#8b6b3a';
-      ctx.lineWidth = 2;
+    } else if (wepIcon === '➹' || (!wepBase && classId === 'ranger')) {
+      // BOW — curved limbs with string, rarity affects color
       ctx.save();
       ctx.translate(armX, -2 + bob);
+      // bow limbs
+      ctx.strokeStyle = wepRarity !== 'common' ? wepColor : '#8b6b3a';
+      ctx.lineWidth = 2.5;
+      ctx.shadowColor = wepColor;
+      ctx.shadowBlur = wepRarity === 'unique' ? 10 : 4;
       ctx.beginPath();
       ctx.arc(0, 0, 10, -1.2, 1.2);
       ctx.stroke();
+      // limb tips
+      ctx.fillStyle = wepRarity !== 'common' ? wepColor : '#aa8844';
+      ctx.beginPath();
+      ctx.arc(10 * Math.cos(-1.2), 10 * Math.sin(-1.2), 1.5, 0, PI2); ctx.fill();
+      ctx.beginPath();
+      ctx.arc(10 * Math.cos(1.2), 10 * Math.sin(1.2), 1.5, 0, PI2); ctx.fill();
       // bowstring
       ctx.strokeStyle = '#ffffff';
       ctx.lineWidth = 0.8;
+      const pull = attacking ? 3 : 0;
       ctx.beginPath();
       ctx.moveTo(10 * Math.cos(-1.2), 10 * Math.sin(-1.2));
+      if (attacking) {
+        ctx.lineTo(-pull, 0);
+      }
       ctx.lineTo(10 * Math.cos(1.2), 10 * Math.sin(1.2));
       ctx.stroke();
+      // arrow nocked (when attacking)
+      if (attacking) {
+        ctx.strokeStyle = wepRarity !== 'common' ? wepColor : '#dddddd';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(-pull, 0); ctx.lineTo(8, 0);
+        ctx.stroke();
+        // arrowhead
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath();
+        ctx.moveTo(8, -2); ctx.lineTo(11, 0); ctx.lineTo(8, 2); ctx.fill();
+      }
       ctx.restore();
-    } else if (classId === 'summoner') {
-      // skull staff
-      ctx.strokeStyle = '#7a5a9a';
-      ctx.lineWidth = 2;
+    } else if (wepIcon === '☠' || (!wepBase && classId === 'summoner')) {
+      // WAND / BONE WAND — short twisted rod with skull/gem
       ctx.save();
       ctx.translate(armX, 0 + bob);
+      ctx.rotate(attacking ? Math.sin(now / 80) * 0.3 : 0);
+      // twisted shaft
+      ctx.strokeStyle = wepRarity !== 'common' ? wepColor : '#7a5a9a';
+      ctx.lineWidth = 2;
       ctx.beginPath();
-      ctx.moveTo(0, 6);
-      ctx.lineTo(0, -10);
+      ctx.moveTo(0, 4);
+      // wavy line for twisted appearance
+      ctx.quadraticCurveTo(1.5, -1, -1, -5);
+      ctx.quadraticCurveTo(1, -8, 0, -10);
       ctx.stroke();
-      // skull
-      ctx.fillStyle = '#c489ff';
-      ctx.shadowColor = '#c489ff';
-      ctx.shadowBlur = 8;
+      // skull top
+      ctx.fillStyle = wepRarity !== 'common' ? wepColor : '#c489ff';
+      ctx.shadowColor = wepRarity !== 'common' ? wepColor : '#c489ff';
+      ctx.shadowBlur = 8 + (wepRarity === 'unique' ? 6 : 0);
       ctx.beginPath();
       ctx.arc(0, -12, 3.5, 0, PI2);
       ctx.fill();
-      // eye sockets
+      // skull detail
       ctx.fillStyle = '#000';
+      ctx.shadowBlur = 0;
       ctx.beginPath();
       ctx.arc(-1.2, -12.5, 1, 0, PI2);
       ctx.arc(1.2, -12.5, 1, 0, PI2);
       ctx.fill();
+      // jaw
+      ctx.fillStyle = wepRarity !== 'common' ? wepColor : '#c489ff';
+      ctx.globalAlpha = 0.6;
+      ctx.fillRect(-2, -10, 4, 2);
+      ctx.globalAlpha = 1;
+      // soul glow for rare+
+      if (wepRarity === 'rare' || wepRarity === 'unique') {
+        ctx.fillStyle = wepColor;
+        ctx.globalAlpha = 0.3 + 0.2 * Math.sin(now / 250);
+        ctx.beginPath(); ctx.arc(0, -12, 5, 0, PI2); ctx.fill();
+        ctx.globalAlpha = 1;
+      }
       ctx.restore();
     }
     ctx.shadowBlur = 0;
 
-    // attack arc effect
+    // attack arc effect — colored by weapon rarity
     if (attacking) {
-      ctx.strokeStyle = color;
+      const arcCol = wepRarity !== 'common' ? wepColor : color;
+      ctx.strokeStyle = arcCol;
       ctx.lineWidth = 2.5;
-      ctx.shadowColor = color;
+      ctx.shadowColor = arcCol;
       ctx.shadowBlur = 12;
       ctx.globalAlpha = 0.7;
       const arcAngle = Math.atan2(dirY, dirX);
@@ -4176,6 +4333,103 @@
     }
   }
 
+  function drawItemShape(icon, col, pulse, now) {
+    // Draw a distinct shape based on item type icon
+    ctx.fillStyle = col;
+    ctx.strokeStyle = col;
+    ctx.shadowColor = col;
+    ctx.shadowBlur = 10 * pulse;
+    switch (icon) {
+      case '⚔': // Sword
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        ctx.moveTo(0, 8); ctx.lineTo(0, -8); ctx.stroke(); // blade
+        ctx.fillRect(-4, 2, 8, 2); // crossguard
+        ctx.fillStyle = '#ffffff'; ctx.globalAlpha = 0.5;
+        ctx.beginPath(); ctx.moveTo(-1, -8); ctx.lineTo(0, -11); ctx.lineTo(1, -8); ctx.fill(); // tip
+        ctx.globalAlpha = 1;
+        break;
+      case '✦': // Staff
+        ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.moveTo(0, 8); ctx.lineTo(0, -6); ctx.stroke(); // shaft
+        ctx.beginPath(); ctx.arc(0, -8, 3.5, 0, PI2); ctx.fill(); // orb
+        ctx.fillStyle = '#ffffff'; ctx.globalAlpha = 0.6;
+        ctx.beginPath(); ctx.arc(0, -8, 1.5, 0, PI2); ctx.fill();
+        ctx.globalAlpha = 1;
+        break;
+      case '➹': // Bow
+        ctx.lineWidth = 2.5;
+        ctx.beginPath(); ctx.arc(-2, 0, 8, -1.3, 1.3); ctx.stroke(); // limbs
+        ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 0.8;
+        ctx.beginPath();
+        ctx.moveTo(-2 + 8 * Math.cos(-1.3), 8 * Math.sin(-1.3));
+        ctx.lineTo(-2 + 8 * Math.cos(1.3), 8 * Math.sin(1.3));
+        ctx.stroke(); // string
+        break;
+      case '☠': // Wand
+        ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.moveTo(0, 6); ctx.quadraticCurveTo(1.5, 0, 0, -5); ctx.stroke(); // twisted shaft
+        ctx.beginPath(); ctx.arc(0, -7, 3, 0, PI2); ctx.fill(); // skull
+        ctx.fillStyle = '#000';
+        ctx.beginPath(); ctx.arc(-1, -7.5, 0.8, 0, PI2); ctx.arc(1, -7.5, 0.8, 0, PI2); ctx.fill();
+        break;
+      case '◇': // Armor (chestplate shape)
+        ctx.beginPath();
+        ctx.moveTo(0, -7); ctx.lineTo(6, -4); ctx.lineTo(6, 4);
+        ctx.lineTo(3, 7); ctx.lineTo(-3, 7); ctx.lineTo(-6, 4);
+        ctx.lineTo(-6, -4); ctx.closePath();
+        ctx.fill();
+        ctx.fillStyle = '#000'; ctx.globalAlpha = 0.3;
+        ctx.fillRect(-3, -3, 6, 5); // inner
+        ctx.globalAlpha = 1;
+        break;
+      case '◆': // Helmet
+        ctx.beginPath();
+        ctx.arc(0, 0, 6, Math.PI, 0); ctx.fill(); // dome
+        ctx.fillRect(-6, 0, 12, 3); // brim
+        // visor slit
+        ctx.fillStyle = '#000'; ctx.globalAlpha = 0.5;
+        ctx.fillRect(-3, -2, 6, 2);
+        ctx.globalAlpha = 1;
+        break;
+      case '⊡': // Shield
+        ctx.beginPath();
+        ctx.moveTo(0, -8); ctx.lineTo(6, -4); ctx.lineTo(6, 4);
+        ctx.lineTo(0, 8); ctx.lineTo(-6, 4); ctx.lineTo(-6, -4);
+        ctx.closePath(); ctx.fill();
+        // shield boss
+        ctx.fillStyle = '#ffffff'; ctx.globalAlpha = 0.4;
+        ctx.beginPath(); ctx.arc(0, 0, 2.5, 0, PI2); ctx.fill();
+        ctx.globalAlpha = 1;
+        break;
+      case '◈': // Boots (or amulet — same icon)
+        // draw as gem/amulet shape
+        ctx.beginPath();
+        ctx.moveTo(0, -5); ctx.lineTo(5, 0); ctx.lineTo(0, 5); ctx.lineTo(-5, 0);
+        ctx.closePath(); ctx.fill();
+        ctx.fillStyle = '#ffffff'; ctx.globalAlpha = 0.4;
+        ctx.beginPath(); ctx.arc(0, -1, 1.5, 0, PI2); ctx.fill();
+        ctx.globalAlpha = 1;
+        break;
+      case '○': // Ring
+        ctx.lineWidth = 2.5;
+        ctx.beginPath(); ctx.arc(0, 0, 5, 0, PI2); ctx.stroke();
+        // gemstone on top
+        ctx.fillStyle = col;
+        ctx.beginPath(); ctx.arc(0, -5, 2, 0, PI2); ctx.fill();
+        ctx.fillStyle = '#ffffff'; ctx.globalAlpha = 0.5;
+        ctx.beginPath(); ctx.arc(0, -5.5, 0.8, 0, PI2); ctx.fill();
+        ctx.globalAlpha = 1;
+        break;
+      default: // fallback diamond
+        ctx.beginPath();
+        ctx.moveTo(0, -6); ctx.lineTo(6, 0); ctx.lineTo(0, 6); ctx.lineTo(-6, 0);
+        ctx.closePath(); ctx.fill();
+        break;
+    }
+    ctx.shadowBlur = 0;
+  }
+
   function drawItems() {
     const now = performance.now();
     for (const gi of game.items) {
@@ -4197,25 +4451,21 @@
       if (gi.item.rarity === 'rare' || gi.item.rarity === 'unique') {
         ctx.strokeStyle = col;
         ctx.globalAlpha = 0.15 + 0.1 * Math.sin(now / 300);
-        ctx.lineWidth = 1.5;
+        ctx.lineWidth = gi.item.rarity === 'unique' ? 2.5 : 1.5;
         ctx.beginPath();
-        ctx.moveTo(0, -20);
+        ctx.moveTo(0, -22);
         ctx.lineTo(0, 12);
         ctx.stroke();
+        // unique: add side beams
+        if (gi.item.rarity === 'unique') {
+          ctx.beginPath();
+          ctx.moveTo(-4, -16); ctx.lineTo(0, -22); ctx.lineTo(4, -16);
+          ctx.stroke();
+        }
         ctx.globalAlpha = 1;
       }
-      // item icon with glow
-      ctx.shadowColor = col;
-      ctx.shadowBlur = 14 * pulse;
-      ctx.fillStyle = col;
-      ctx.font = 'bold 18px sans-serif';
-      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.fillText(r ? r.icon : '◆', 0, 0);
-      // white highlight
-      ctx.fillStyle = '#ffffff';
-      ctx.globalAlpha = 0.3 * pulse;
-      ctx.font = 'bold 18px sans-serif';
-      ctx.fillText(r ? r.icon : '◆', 0, 0);
+      // Draw the actual item shape
+      drawItemShape(r ? r.icon : '◆', col, pulse, now);
       ctx.globalAlpha = 1;
       ctx.restore();
     }
@@ -4371,6 +4621,80 @@
     return ({ common: '#cfcfcf', magic: '#6db4ff', rare: '#ffe066', unique: '#ff8c42' })[r] || '#fff';
   }
 
+  function itemTypeLabel(base) {
+    const icon = base.icon;
+    if (icon === '⚔') return 'Sword';
+    if (icon === '✦') return 'Staff';
+    if (icon === '➹') return 'Bow';
+    if (icon === '☠') return 'Wand';
+    if (icon === '◇') return 'Armor';
+    if (icon === '◆') return 'Helmet';
+    if (icon === '⊡') return 'Shield';
+    if (icon === '◈') return base.type === 'amulet' ? 'Amulet' : 'Boots';
+    if (icon === '○') return 'Ring';
+    return base.type;
+  }
+
+  function renderItemIcon(icon, color, rarity) {
+    // Returns an SVG string for the item icon used in inventory UI
+    const w = 28, h = 28;
+    const cx = w/2, cy = h/2;
+    const glow = rarity === 'unique' ? `filter="url(#glow)"` : (rarity === 'rare' ? `filter="url(#glowSm)"` : '');
+    let shape = '';
+    switch (icon) {
+      case '⚔': // Sword
+        shape = `<line x1="${cx}" y1="${cy+8}" x2="${cx}" y2="${cy-8}" stroke="${color}" stroke-width="2.5" stroke-linecap="round" ${glow}/>` +
+          `<line x1="${cx-4}" y1="${cy+2}" x2="${cx+4}" y2="${cy+2}" stroke="${color}" stroke-width="2"/>` +
+          `<polygon points="${cx-1},${cy-8} ${cx},${cy-11} ${cx+1},${cy-8}" fill="#fff" opacity="0.7"/>`;
+        break;
+      case '✦': // Staff
+        shape = `<line x1="${cx}" y1="${cy+8}" x2="${cx}" y2="${cy-4}" stroke="${color}" stroke-width="2" ${glow}/>` +
+          `<circle cx="${cx}" cy="${cy-7}" r="4" fill="${color}" ${glow}/>` +
+          `<circle cx="${cx}" cy="${cy-7}" r="1.5" fill="#fff" opacity="0.7"/>`;
+        break;
+      case '➹': // Bow
+        shape = `<path d="M${cx-2},${cy-7} Q${cx+6},${cy} ${cx-2},${cy+7}" fill="none" stroke="${color}" stroke-width="2.5" ${glow}/>` +
+          `<line x1="${cx-2}" y1="${cy-6}" x2="${cx-2}" y2="${cy+6}" stroke="#fff" stroke-width="0.8" opacity="0.6"/>`;
+        break;
+      case '☠': // Wand
+        shape = `<path d="M${cx},${cy+6} Q${cx+2},${cy} ${cx},${cy-4}" fill="none" stroke="${color}" stroke-width="2" ${glow}/>` +
+          `<circle cx="${cx}" cy="${cy-6}" r="3.5" fill="${color}" ${glow}/>` +
+          `<circle cx="${cx-1}" cy="${cy-6.5}" r="0.8" fill="#000"/>` +
+          `<circle cx="${cx+1}" cy="${cy-6.5}" r="0.8" fill="#000"/>`;
+        break;
+      case '◇': // Armor
+        shape = `<polygon points="${cx},${cy-8} ${cx+6},${cy-4} ${cx+6},${cy+3} ${cx+3},${cy+7} ${cx-3},${cy+7} ${cx-6},${cy+3} ${cx-6},${cy-4}" fill="${color}" ${glow}/>` +
+          `<rect x="${cx-3}" y="${cy-3}" width="6" height="4" fill="#000" opacity="0.3"/>`;
+        break;
+      case '◆': // Helmet
+        shape = `<path d="M${cx-6},${cy+2} L${cx-6},${cy-2} Q${cx},${cy-9} ${cx+6},${cy-2} L${cx+6},${cy+2} Z" fill="${color}" ${glow}/>` +
+          `<rect x="${cx-3}" y="${cy-1}" width="6" height="2" fill="#000" opacity="0.4"/>`;
+        break;
+      case '⊡': // Shield
+        shape = `<polygon points="${cx},${cy-8} ${cx+6},${cy-4} ${cx+6},${cy+3} ${cx},${cy+8} ${cx-6},${cy+3} ${cx-6},${cy-4}" fill="${color}" ${glow}/>` +
+          `<circle cx="${cx}" cy="${cy}" r="2.5" fill="#fff" opacity="0.35"/>`;
+        break;
+      case '◈': // Boots/Amulet (diamond gem)
+        shape = `<polygon points="${cx},${cy-6} ${cx+5},${cy} ${cx},${cy+6} ${cx-5},${cy}" fill="${color}" ${glow}/>` +
+          `<circle cx="${cx}" cy="${cy-1}" r="1.5" fill="#fff" opacity="0.4"/>`;
+        break;
+      case '○': // Ring
+        shape = `<circle cx="${cx}" cy="${cy}" r="5" fill="none" stroke="${color}" stroke-width="2.5" ${glow}/>` +
+          `<circle cx="${cx}" cy="${cy-5}" r="2.2" fill="${color}"/>` +
+          `<circle cx="${cx}" cy="${cy-5.5}" r="0.8" fill="#fff" opacity="0.6"/>`;
+        break;
+      default:
+        shape = `<polygon points="${cx},${cy-6} ${cx+6},${cy} ${cx},${cy+6} ${cx-6},${cy}" fill="${color}" ${glow}/>`;
+    }
+    return `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <filter id="glow"><feGaussianBlur stdDeviation="2" result="g"/><feMerge><feMergeNode in="g"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+        <filter id="glowSm"><feGaussianBlur stdDeviation="1.2" result="g"/><feMerge><feMergeNode in="g"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+      </defs>
+      ${shape}
+    </svg>`;
+  }
+
   // ============================================================
   // MINIMAP
   // ============================================================
@@ -4516,11 +4840,14 @@
       row.dataset.action = 'inv-open';
       row.dataset.idx = idx;
       const equipped = isEquipped(it);
+      const rCol = rarityColor(it.rarity);
+      // Create mini canvas icon for item
+      const iconHtml = renderItemIcon(base.icon, rCol, it.rarity);
       row.innerHTML = `
-        <div class="inv-icon">${base.icon}</div>
+        <div class="inv-icon" style="border-color:${rCol}40;box-shadow:0 0 6px ${rCol}30, inset 0 2px 4px rgba(0,0,0,0.3)">${iconHtml}</div>
         <div class="inv-meta">
           <div class="inv-name rarity-${it.rarity}">${it.name}</div>
-          <div class="inv-sub">${base.type} · ilvl ${it.ilvl}</div>
+          <div class="inv-sub">${itemTypeLabel(base)} · ilvl ${it.ilvl}</div>
         </div>
         ${equipped ? '<div class="inv-equipped">EQ</div>' : ''}
       `;
