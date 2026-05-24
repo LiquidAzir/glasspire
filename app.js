@@ -2439,6 +2439,11 @@
       } else if (biomeId === 'infernal') {
         a.color = '#ff7043'; a.vy = -0.6 - rand() * 0.4; a.vx = (rand() - 0.5) * 0.5;
         a.kind = 'ember'; a.size = 1 + rand() * 1.5; a.alpha = 0.4 + rand() * 0.3;
+      } else if (biomeId === 'voidspire') {
+        a.color = rand() > 0.5 ? '#b388ff' : '#00e5ff';
+        a.vy = (rand() - 0.5) * 0.4; a.vx = (rand() - 0.5) * 0.4;
+        a.kind = 'void'; a.size = 1 + rand() * 2; a.alpha = 0.2 + rand() * 0.25;
+        a.life = 2 + rand() * 3;
       } else if (isTown) {
         a.color = '#ffc857'; a.vy = -0.15 - rand() * 0.2; a.kind = 'firefly';
         a.size = 1.5; a.alpha = 0.2 + rand() * 0.2;
@@ -2454,6 +2459,10 @@
       if (p.kind === 'firefly') {
         p.vx = Math.sin(p.age * 2 + p.x) * 0.3;
       }
+      if (p.kind === 'void') {
+        p.vx = Math.sin(p.age * 1.5 + p.y) * 0.25;
+        p.vy = Math.cos(p.age * 1.2 + p.x) * 0.25;
+      }
       if (p.age >= p.life) ambientParticles.splice(i, 1);
     }
   }
@@ -2467,7 +2476,7 @@
       ctx.save();
       ctx.globalAlpha = alpha;
       ctx.fillStyle = p.color;
-      if (p.kind === 'ember' || p.kind === 'wisp') {
+      if (p.kind === 'ember' || p.kind === 'wisp' || p.kind === 'void') {
         ctx.shadowColor = p.color;
         ctx.shadowBlur = 6;
       }
@@ -2479,6 +2488,14 @@
         ctx.translate(s.x, s.y);
         ctx.rotate(p.age * 1.5);
         ctx.fillRect(-p.size * 0.5, -1, p.size, 2);
+      } else if (p.kind === 'void') {
+        // Pulsing diamond shapes for void biome
+        ctx.translate(s.x, s.y);
+        ctx.rotate(p.age * 0.8);
+        const sz = p.size * 0.6;
+        ctx.beginPath();
+        ctx.moveTo(0, -sz); ctx.lineTo(sz, 0); ctx.lineTo(0, sz); ctx.lineTo(-sz, 0);
+        ctx.closePath(); ctx.fill();
       } else {
         ctx.beginPath();
         ctx.arc(s.x, s.y, p.size * 0.5, 0, PI2);
@@ -2535,85 +2552,640 @@
     const endY = Math.min(w.h, Math.ceil(game.cam.y + CFG.canvas / t) + 1);
     const biome = w.biomeId || 'town';
     const now = performance.now();
+    const isFloorAt = (nx, ny) => ny >= 0 && ny < w.h && nx >= 0 && nx < w.w && w.grid[ny][nx] === 0;
 
-    // ---- Floor tiles with procedural patterns ----
+    // ---- WALL FILL — solid walls with biome-specific textures ----
+    for (let y = startY; y < endY; y++) {
+      for (let x = startX; x < endX; x++) {
+        if (w.grid[y][x] !== 0 && w.grid[y][x] !== 2) {
+          const s = w2s(x, y);
+          const hash = (x * 73 + y * 41) & 0xFF;
+          const hash2 = (x * 137 + y * 59) & 0xFF;
+
+          // Only draw walls that are adjacent to visible floor
+          const nearFloor = isFloorAt(x,y-1)||isFloorAt(x,y+1)||isFloorAt(x-1,y)||isFloorAt(x+1,y);
+          if (!nearFloor) continue;
+
+          switch (biome) {
+            case 'crypts':
+            case 'town':
+              // Dark stone bricks with mortar lines
+              ctx.fillStyle = '#1a2233';
+              ctx.fillRect(s.x, s.y, t, t);
+              // Brick pattern (2 rows of offset bricks)
+              ctx.strokeStyle = '#0d1520';
+              ctx.lineWidth = 1;
+              ctx.globalAlpha = 0.7;
+              ctx.beginPath();
+              ctx.moveTo(s.x, s.y + t * 0.5); ctx.lineTo(s.x + t, s.y + t * 0.5); // horizontal mortar
+              ctx.moveTo(s.x + t * 0.5, s.y); ctx.lineTo(s.x + t * 0.5, s.y + t * 0.5); // top brick split
+              ctx.moveTo(s.x + t * 0.25, s.y + t * 0.5); ctx.lineTo(s.x + t * 0.25, s.y + t); // bottom brick split left
+              ctx.moveTo(s.x + t * 0.75, s.y + t * 0.5); ctx.lineTo(s.x + t * 0.75, s.y + t); // bottom brick split right
+              ctx.stroke();
+              ctx.globalAlpha = 1;
+              // Occasional skull carving
+              if (hash % 18 === 0 && biome === 'crypts') {
+                ctx.fillStyle = '#3a4a5a';
+                ctx.globalAlpha = 0.4;
+                ctx.beginPath();
+                ctx.arc(s.x + t * 0.5, s.y + t * 0.4, t * 0.15, 0, PI2); ctx.fill();
+                ctx.fillRect(s.x + t * 0.4, s.y + t * 0.5, t * 0.2, t * 0.15);
+                ctx.globalAlpha = 1;
+              }
+              break;
+
+            case 'overgrowth':
+              // Crumbling stone covered in moss and vines
+              ctx.fillStyle = '#1a3020';
+              ctx.fillRect(s.x, s.y, t, t);
+              // Irregular stone blocks
+              ctx.strokeStyle = '#0d1a10';
+              ctx.lineWidth = 1.2;
+              ctx.globalAlpha = 0.6;
+              ctx.beginPath();
+              ctx.moveTo(s.x + t * 0.3, s.y); ctx.lineTo(s.x + t * 0.35, s.y + t * 0.55);
+              ctx.moveTo(s.x, s.y + t * 0.4); ctx.lineTo(s.x + t, s.y + t * 0.45);
+              ctx.moveTo(s.x + t * 0.7, s.y + t * 0.4); ctx.lineTo(s.x + t * 0.65, s.y + t);
+              ctx.stroke();
+              ctx.globalAlpha = 1;
+              // Moss growth on top
+              if (hash % 3 === 0) {
+                ctx.fillStyle = '#2d7a3a';
+                ctx.globalAlpha = 0.5;
+                for (let i = 0; i < 3; i++) {
+                  const mx = s.x + ((hash2 + i * 37) % t);
+                  const my = s.y + ((hash + i * 23) % (t * 0.5));
+                  ctx.beginPath(); ctx.arc(mx, my, 2 + (hash2 % 3), 0, PI2); ctx.fill();
+                }
+                ctx.globalAlpha = 1;
+              }
+              // Hanging vine from wall edge
+              if (hash % 9 === 0 && isFloorAt(x, y + 1)) {
+                ctx.strokeStyle = '#3a9a4a';
+                ctx.lineWidth = 1.5;
+                ctx.globalAlpha = 0.6;
+                ctx.beginPath();
+                const vx = s.x + (hash % t);
+                ctx.moveTo(vx, s.y + t);
+                ctx.quadraticCurveTo(vx + Math.sin(now/800) * 3, s.y + t + 10, vx - 2, s.y + t + 18);
+                ctx.stroke();
+                // tiny leaf
+                ctx.fillStyle = '#4aba5a';
+                ctx.beginPath(); ctx.arc(vx - 2, s.y + t + 18, 2, 0, PI2); ctx.fill();
+                ctx.globalAlpha = 1;
+              }
+              break;
+
+            case 'frostpeak':
+              // Ice-covered rock with frost patterns
+              ctx.fillStyle = '#1a2535';
+              ctx.fillRect(s.x, s.y, t, t);
+              // Ice layer on surface
+              ctx.fillStyle = '#3a6080';
+              ctx.globalAlpha = 0.4;
+              ctx.fillRect(s.x + 2, s.y + 2, t - 4, t - 4);
+              ctx.globalAlpha = 1;
+              // Frost crystal formations
+              if (hash % 4 === 0) {
+                ctx.strokeStyle = '#a0e0ff';
+                ctx.lineWidth = 1;
+                ctx.globalAlpha = 0.35;
+                ctx.beginPath();
+                const cx = s.x + t * 0.5, cy = s.y + t * 0.5;
+                for (let i = 0; i < 4; i++) {
+                  const a = (hash2 + i * 60) * Math.PI / 180;
+                  ctx.moveTo(cx, cy);
+                  ctx.lineTo(cx + Math.cos(a) * t * 0.4, cy + Math.sin(a) * t * 0.4);
+                  // branch
+                  const bx = cx + Math.cos(a) * t * 0.25;
+                  const by = cy + Math.sin(a) * t * 0.25;
+                  ctx.moveTo(bx, by);
+                  ctx.lineTo(bx + Math.cos(a + 0.7) * t * 0.15, by + Math.sin(a + 0.7) * t * 0.15);
+                }
+                ctx.stroke();
+                ctx.globalAlpha = 1;
+              }
+              // Icicle hanging from bottom edge
+              if (hash % 6 === 0 && isFloorAt(x, y + 1)) {
+                ctx.fillStyle = '#80c8ee';
+                ctx.globalAlpha = 0.6;
+                const ix = s.x + (hash % (t - 6)) + 3;
+                ctx.beginPath();
+                ctx.moveTo(ix - 2, s.y + t);
+                ctx.lineTo(ix, s.y + t + 8 + (hash2 % 6));
+                ctx.lineTo(ix + 2, s.y + t);
+                ctx.fill();
+                ctx.globalAlpha = 1;
+              }
+              break;
+
+            case 'infernal':
+              // Charred obsidian with glowing magma veins
+              ctx.fillStyle = '#1a0808';
+              ctx.fillRect(s.x, s.y, t, t);
+              // Obsidian cracks
+              ctx.strokeStyle = '#2a1010';
+              ctx.lineWidth = 1.5;
+              ctx.globalAlpha = 0.7;
+              ctx.beginPath();
+              ctx.moveTo(s.x + hash % t, s.y); ctx.lineTo(s.x + hash2 % t, s.y + t);
+              ctx.stroke();
+              ctx.globalAlpha = 1;
+              // Glowing magma vein
+              if (hash % 5 === 0) {
+                ctx.strokeStyle = '#ff4400';
+                ctx.lineWidth = 2;
+                ctx.globalAlpha = 0.4 + 0.2 * Math.sin(now / 600 + hash);
+                ctx.shadowColor = '#ff4400';
+                ctx.shadowBlur = 6;
+                ctx.beginPath();
+                ctx.moveTo(s.x + (hash % (t-4)) + 2, s.y);
+                ctx.quadraticCurveTo(s.x + t * 0.5, s.y + t * 0.5, s.x + (hash2 % (t-4)) + 2, s.y + t);
+                ctx.stroke();
+                ctx.shadowBlur = 0;
+                ctx.globalAlpha = 1;
+              }
+              // Ember glow near floor edge
+              if (hash % 8 === 0 && isFloorAt(x, y + 1)) {
+                ctx.fillStyle = '#ff6600';
+                ctx.globalAlpha = 0.3 + 0.15 * Math.sin(now / 400 + hash2);
+                ctx.beginPath();
+                ctx.arc(s.x + t * 0.5, s.y + t, 4, 0, PI2); ctx.fill();
+                ctx.globalAlpha = 1;
+              }
+              break;
+
+            case 'voidspire':
+              // Alien crystalline void stone
+              ctx.fillStyle = '#0a0a1a';
+              ctx.fillRect(s.x, s.y, t, t);
+              // Purple veins running through
+              ctx.strokeStyle = '#6a3aaa';
+              ctx.lineWidth = 1;
+              ctx.globalAlpha = 0.5;
+              ctx.beginPath();
+              ctx.moveTo(s.x, s.y + (hash % t));
+              ctx.bezierCurveTo(s.x + t * 0.3, s.y + t * 0.2, s.x + t * 0.7, s.y + t * 0.8, s.x + t, s.y + (hash2 % t));
+              ctx.stroke();
+              ctx.globalAlpha = 1;
+              // Floating crystal shards
+              if (hash % 5 === 0) {
+                ctx.fillStyle = '#b388ff';
+                ctx.globalAlpha = 0.3 + 0.2 * Math.sin(now / 700 + hash);
+                ctx.save();
+                ctx.translate(s.x + t * 0.5, s.y + t * 0.5);
+                ctx.rotate(hash * 0.05 + now / 3000);
+                ctx.fillRect(-3, -6, 6, 12);
+                ctx.restore();
+                ctx.globalAlpha = 1;
+              }
+              // Void rune markings
+              if (hash % 12 === 0) {
+                ctx.strokeStyle = '#00e5ff';
+                ctx.lineWidth = 1;
+                ctx.globalAlpha = 0.25 + 0.15 * Math.sin(now / 1000 + hash2);
+                ctx.beginPath();
+                ctx.arc(s.x + t * 0.5, s.y + t * 0.5, t * 0.25, 0, Math.PI * 1.3);
+                ctx.stroke();
+                ctx.globalAlpha = 1;
+              }
+              break;
+          }
+        }
+      }
+    }
+
+    // ---- Floor tiles with biome-specific detail ----
     for (let y = startY; y < endY; y++) {
       for (let x = startX; x < endX; x++) {
         if (w.grid[y][x] === 0) {
           const s = w2s(x, y);
+          const hash = (x * 73 + y * 41) & 0xFF;
+          const hash2 = (x * 137 + y * 59) & 0xFF;
+
           // base floor fill
           ctx.fillStyle = w.palette.floor;
           ctx.globalAlpha = 0.6;
           ctx.fillRect(s.x, s.y, t, t);
           ctx.globalAlpha = 1;
 
-          // Biome-specific floor details (stone cracks, tiles, etc.)
-          const hash = (x * 73 + y * 41) & 0xFF;
-          if (biome === 'crypts' || biome === 'town') {
-            // stone floor — grid lines
-            ctx.strokeStyle = w.palette.wall;
-            ctx.globalAlpha = 0.08;
-            ctx.lineWidth = 0.5;
-            ctx.strokeRect(s.x + 0.5, s.y + 0.5, t - 1, t - 1);
-            // random cracks
-            if (hash % 7 === 0) {
-              ctx.globalAlpha = 0.12;
-              ctx.beginPath();
-              ctx.moveTo(s.x + t * 0.2, s.y + t * 0.3);
-              ctx.lineTo(s.x + t * 0.6, s.y + t * 0.7);
-              ctx.stroke();
-            }
-            ctx.globalAlpha = 1;
-          } else if (biome === 'overgrowth') {
-            // mossy patches
-            if (hash % 5 === 0) {
-              ctx.fillStyle = '#2a5a2a';
-              ctx.globalAlpha = 0.25;
-              ctx.beginPath();
-              ctx.arc(s.x + t * 0.5, s.y + t * 0.5, t * 0.3, 0, PI2);
-              ctx.fill();
-              ctx.globalAlpha = 1;
-            }
-            // vine tendrils
-            if (hash % 11 === 0) {
-              ctx.strokeStyle = '#3a8a3a';
+          switch (biome) {
+            case 'crypts':
+            case 'town':
+              // Flagstone floor with mortar gaps
+              ctx.strokeStyle = '#2a3a4a';
               ctx.globalAlpha = 0.2;
-              ctx.lineWidth = 1;
-              ctx.beginPath();
-              ctx.moveTo(s.x, s.y + t * (hash % 3) * 0.3);
-              ctx.quadraticCurveTo(s.x + t * 0.5, s.y + t * 0.5, s.x + t, s.y + t * 0.7);
-              ctx.stroke();
-              ctx.globalAlpha = 1;
-            }
-          } else if (biome === 'frostpeak') {
-            // ice crystal patterns
-            if (hash % 8 === 0) {
-              ctx.strokeStyle = '#a0e0ff';
-              ctx.globalAlpha = 0.12;
-              ctx.lineWidth = 0.5;
-              ctx.beginPath();
-              const cx = s.x + t * 0.5, cy = s.y + t * 0.5;
-              for (let a = 0; a < 6; a++) {
-                const angle = a * Math.PI / 3;
-                ctx.moveTo(cx, cy);
-                ctx.lineTo(cx + Math.cos(angle) * t * 0.35, cy + Math.sin(angle) * t * 0.35);
+              ctx.lineWidth = 0.8;
+              // Large flagstone pattern (offset per row)
+              if (y % 2 === 0) {
+                ctx.strokeRect(s.x + 1, s.y + 1, t - 2, t - 2);
+              } else {
+                ctx.strokeRect(s.x - t * 0.3 + 1, s.y + 1, t - 2, t - 2);
               }
-              ctx.stroke();
               ctx.globalAlpha = 1;
-            }
-          } else if (biome === 'infernal') {
-            // lava cracks
-            if (hash % 6 === 0) {
-              ctx.strokeStyle = '#ff4400';
-              ctx.globalAlpha = 0.25 + 0.1 * Math.sin(now / 500 + hash);
-              ctx.lineWidth = 1.5;
-              ctx.beginPath();
-              ctx.moveTo(s.x + t * 0.1, s.y + t * 0.5);
-              ctx.lineTo(s.x + t * 0.4, s.y + t * 0.3);
-              ctx.lineTo(s.x + t * 0.8, s.y + t * 0.6);
-              ctx.stroke();
+              // Worn surface marks
+              if (hash % 5 === 0) {
+                ctx.fillStyle = '#1a2a3a';
+                ctx.globalAlpha = 0.15;
+                ctx.fillRect(s.x + hash % (t-8) + 2, s.y + hash2 % (t-4) + 2, 6 + hash % 4, 2);
+                ctx.globalAlpha = 1;
+              }
+              // Bone fragments scattered
+              if (hash % 13 === 0 && biome === 'crypts') {
+                ctx.strokeStyle = '#8a8a7a';
+                ctx.lineWidth = 1.5;
+                ctx.globalAlpha = 0.25;
+                ctx.beginPath();
+                ctx.moveTo(s.x + t * 0.2, s.y + t * 0.6);
+                ctx.lineTo(s.x + t * 0.5, s.y + t * 0.65);
+                ctx.stroke();
+                // tiny skull
+                if (hash2 % 3 === 0) {
+                  ctx.beginPath();
+                  ctx.arc(s.x + t * 0.55, s.y + t * 0.63, 2, 0, PI2);
+                  ctx.stroke();
+                }
+                ctx.globalAlpha = 1;
+              }
+              break;
+
+            case 'overgrowth':
+              // Overgrown stone tiles breaking through dirt
+              ctx.fillStyle = '#1a3318';
+              ctx.globalAlpha = 0.3;
+              ctx.fillRect(s.x, s.y, t, t);
               ctx.globalAlpha = 1;
-            }
+              // Cracked paving with grass through cracks
+              if (hash % 3 !== 0) {
+                ctx.strokeStyle = '#2a4a20';
+                ctx.lineWidth = 0.7;
+                ctx.globalAlpha = 0.3;
+                ctx.strokeRect(s.x + 2, s.y + 2, t - 4, t - 4);
+                ctx.globalAlpha = 1;
+              }
+              // Grass tufts
+              if (hash % 4 === 0) {
+                ctx.strokeStyle = '#4aba5a';
+                ctx.lineWidth = 1;
+                ctx.globalAlpha = 0.4;
+                const gx = s.x + (hash % (t - 8)) + 4;
+                const gy = s.y + (hash2 % (t - 6)) + t * 0.5;
+                ctx.beginPath();
+                ctx.moveTo(gx, gy); ctx.lineTo(gx - 2, gy - 6);
+                ctx.moveTo(gx + 2, gy); ctx.lineTo(gx + 3, gy - 5);
+                ctx.moveTo(gx + 4, gy); ctx.lineTo(gx + 2, gy - 7);
+                ctx.stroke();
+                ctx.globalAlpha = 1;
+              }
+              // Small mushrooms
+              if (hash % 11 === 0) {
+                ctx.fillStyle = '#ff9944';
+                ctx.globalAlpha = 0.5;
+                const mx = s.x + (hash2 % (t - 6)) + 3;
+                const my = s.y + (hash % (t - 8)) + 6;
+                // stem
+                ctx.fillRect(mx, my, 2, 4);
+                // cap
+                ctx.beginPath(); ctx.arc(mx + 1, my, 3, Math.PI, 0); ctx.fill();
+                ctx.globalAlpha = 1;
+              }
+              // Flower
+              if (hash % 17 === 0) {
+                ctx.fillStyle = '#ffc857';
+                ctx.globalAlpha = 0.5;
+                const fx = s.x + hash2 % (t - 4) + 2;
+                const fy = s.y + hash % (t - 4) + 2;
+                for (let i = 0; i < 5; i++) {
+                  const a = i * PI2 / 5;
+                  ctx.beginPath();
+                  ctx.arc(fx + Math.cos(a) * 2, fy + Math.sin(a) * 2, 1.2, 0, PI2);
+                  ctx.fill();
+                }
+                ctx.globalAlpha = 1;
+              }
+              break;
+
+            case 'frostpeak':
+              // Frozen stone with ice patches
+              ctx.fillStyle = '#1a2535';
+              ctx.globalAlpha = 0.2;
+              ctx.fillRect(s.x, s.y, t, t);
+              ctx.globalAlpha = 1;
+              // Ice patch on floor
+              if (hash % 4 === 0) {
+                ctx.fillStyle = '#4a8ab0';
+                ctx.globalAlpha = 0.15;
+                ctx.beginPath();
+                ctx.ellipse(s.x + t * 0.5, s.y + t * 0.5, t * 0.35, t * 0.25, hash * 0.1, 0, PI2);
+                ctx.fill();
+                ctx.globalAlpha = 1;
+              }
+              // Snow dusting
+              if (hash % 3 === 0) {
+                ctx.fillStyle = '#ffffff';
+                ctx.globalAlpha = 0.08;
+                ctx.fillRect(s.x + hash % (t-6), s.y + hash2 % (t-3), 4 + hash % 5, 2 + hash2 % 2);
+                ctx.globalAlpha = 1;
+              }
+              // Frost crystal on floor
+              if (hash % 9 === 0) {
+                ctx.strokeStyle = '#a0e0ff';
+                ctx.lineWidth = 0.8;
+                ctx.globalAlpha = 0.3;
+                const cx = s.x + t * 0.5, cy = s.y + t * 0.5;
+                ctx.beginPath();
+                for (let i = 0; i < 6; i++) {
+                  const a = i * Math.PI / 3 + hash2 * 0.02;
+                  ctx.moveTo(cx, cy);
+                  ctx.lineTo(cx + Math.cos(a) * t * 0.3, cy + Math.sin(a) * t * 0.3);
+                }
+                ctx.stroke();
+                ctx.globalAlpha = 1;
+              }
+              break;
+
+            case 'infernal':
+              // Charred stone with glowing cracks
+              ctx.fillStyle = '#1a0505';
+              ctx.globalAlpha = 0.25;
+              ctx.fillRect(s.x, s.y, t, t);
+              ctx.globalAlpha = 1;
+              // Lava crack network
+              if (hash % 4 === 0) {
+                ctx.strokeStyle = '#ff4400';
+                ctx.lineWidth = 1.2;
+                ctx.globalAlpha = 0.2 + 0.12 * Math.sin(now / 600 + hash * 0.3);
+                ctx.shadowColor = '#ff4400';
+                ctx.shadowBlur = 4;
+                ctx.beginPath();
+                ctx.moveTo(s.x + hash % t, s.y + hash2 % (t * 0.5));
+                ctx.lineTo(s.x + t * 0.5, s.y + t * 0.5);
+                ctx.lineTo(s.x + hash2 % t, s.y + t * 0.5 + hash % (t * 0.5));
+                ctx.stroke();
+                ctx.shadowBlur = 0;
+                ctx.globalAlpha = 1;
+              }
+              // Charred debris/ash piles
+              if (hash % 7 === 0) {
+                ctx.fillStyle = '#3a2020';
+                ctx.globalAlpha = 0.3;
+                ctx.beginPath();
+                ctx.ellipse(s.x + hash2 % (t-6) + 3, s.y + hash % (t-6) + 3, 4, 2.5, 0, 0, PI2);
+                ctx.fill();
+                ctx.globalAlpha = 1;
+              }
+              // Lava pool (rare)
+              if (hash % 19 === 0) {
+                ctx.fillStyle = '#ff6600';
+                ctx.globalAlpha = 0.25 + 0.1 * Math.sin(now / 400 + hash);
+                ctx.shadowColor = '#ff4400';
+                ctx.shadowBlur = 8;
+                ctx.beginPath();
+                ctx.ellipse(s.x + t * 0.5, s.y + t * 0.5, t * 0.3, t * 0.2, 0, 0, PI2);
+                ctx.fill();
+                ctx.shadowBlur = 0;
+                ctx.globalAlpha = 1;
+              }
+              break;
+
+            case 'voidspire':
+              // Alien glass-like floor with floating runes
+              ctx.fillStyle = '#0a0a18';
+              ctx.globalAlpha = 0.3;
+              ctx.fillRect(s.x, s.y, t, t);
+              ctx.globalAlpha = 1;
+              // Glowing grid lines (like a circuit board)
+              ctx.strokeStyle = '#3a2a6a';
+              ctx.lineWidth = 0.5;
+              ctx.globalAlpha = 0.25;
+              ctx.strokeRect(s.x + 1, s.y + 1, t - 2, t - 2);
+              ctx.globalAlpha = 1;
+              // Void energy pools
+              if (hash % 6 === 0) {
+                ctx.fillStyle = '#b388ff';
+                ctx.globalAlpha = 0.12 + 0.08 * Math.sin(now / 500 + hash);
+                ctx.beginPath();
+                ctx.arc(s.x + t * 0.5, s.y + t * 0.5, t * 0.25, 0, PI2);
+                ctx.fill();
+                ctx.globalAlpha = 1;
+              }
+              // Floating rune glyph
+              if (hash % 14 === 0) {
+                ctx.strokeStyle = '#00e5ff';
+                ctx.lineWidth = 1;
+                ctx.globalAlpha = 0.2 + 0.15 * Math.sin(now / 900 + hash2);
+                ctx.beginPath();
+                const rx = s.x + t * 0.5, ry = s.y + t * 0.5;
+                // small triangle rune
+                ctx.moveTo(rx, ry - 4);
+                ctx.lineTo(rx + 4, ry + 3);
+                ctx.lineTo(rx - 4, ry + 3);
+                ctx.closePath();
+                ctx.stroke();
+                ctx.globalAlpha = 1;
+              }
+              // Star-like sparkle
+              if (hash % 10 === 0) {
+                ctx.fillStyle = '#e0e0ff';
+                ctx.globalAlpha = 0.3 + 0.2 * Math.sin(now / 350 + hash2 * 0.7);
+                const sx2 = s.x + hash % (t-4) + 2;
+                const sy2 = s.y + hash2 % (t-4) + 2;
+                ctx.fillRect(sx2 - 0.5, sy2 - 2, 1, 4);
+                ctx.fillRect(sx2 - 2, sy2 - 0.5, 4, 1);
+                ctx.globalAlpha = 1;
+              }
+              break;
+          }
+        }
+      }
+    }
+
+    // ---- Biome ambient decorations (torches, crystals, etc.) on wall edges ----
+    for (let y = startY; y < endY; y++) {
+      for (let x = startX; x < endX; x++) {
+        if (w.grid[y][x] !== 0 && w.grid[y][x] !== 2) {
+          const hash = (x * 73 + y * 41) & 0xFF;
+          const adjacentFloor = isFloorAt(x, y + 1); // wall with floor below
+          if (!adjacentFloor) continue;
+          const s = w2s(x, y);
+
+          switch (biome) {
+            case 'crypts':
+              // Wall-mounted torches
+              if (hash % 10 === 0) {
+                const tx = s.x + t * 0.5, ty = s.y + t - 2;
+                // bracket
+                ctx.fillStyle = '#5a4a3a';
+                ctx.fillRect(tx - 1, ty - 4, 2, 5);
+                // flame (animated)
+                const flicker = Math.sin(now / 100 + hash) * 1.5;
+                ctx.fillStyle = '#ff9933';
+                ctx.globalAlpha = 0.8;
+                ctx.beginPath();
+                ctx.moveTo(tx, ty - 10 + flicker);
+                ctx.quadraticCurveTo(tx + 3, ty - 6, tx + 2, ty - 4);
+                ctx.lineTo(tx - 2, ty - 4);
+                ctx.quadraticCurveTo(tx - 3, ty - 6, tx, ty - 10 + flicker);
+                ctx.fill();
+                // glow
+                ctx.fillStyle = '#ff6600';
+                ctx.shadowColor = '#ff6600';
+                ctx.shadowBlur = 12;
+                ctx.globalAlpha = 0.2 + 0.1 * Math.sin(now / 150 + hash);
+                ctx.beginPath(); ctx.arc(tx, ty - 6, 6, 0, PI2); ctx.fill();
+                ctx.shadowBlur = 0;
+                ctx.globalAlpha = 1;
+              }
+              // Cobwebs in corners
+              if (hash % 15 === 0 && isFloorAt(x - 1, y)) {
+                ctx.strokeStyle = '#ffffff';
+                ctx.lineWidth = 0.5;
+                ctx.globalAlpha = 0.12;
+                ctx.beginPath();
+                ctx.moveTo(s.x, s.y + t);
+                ctx.quadraticCurveTo(s.x + 4, s.y + t - 6, s.x, s.y + t - 12);
+                ctx.moveTo(s.x, s.y + t);
+                ctx.quadraticCurveTo(s.x + 6, s.y + t - 4, s.x + 12, s.y + t);
+                ctx.stroke();
+                ctx.globalAlpha = 1;
+              }
+              break;
+
+            case 'overgrowth':
+              // Glowing mushroom clusters on wall base
+              if (hash % 7 === 0) {
+                const mx = s.x + (hash % (t - 10)) + 5;
+                const my = s.y + t;
+                // stems
+                ctx.fillStyle = '#3a6a3a';
+                ctx.fillRect(mx - 1, my - 6, 2, 6);
+                ctx.fillRect(mx + 3, my - 4, 2, 4);
+                // glowing caps
+                ctx.fillStyle = '#44dd88';
+                ctx.globalAlpha = 0.6 + 0.2 * Math.sin(now / 600 + hash);
+                ctx.shadowColor = '#44dd88';
+                ctx.shadowBlur = 6;
+                ctx.beginPath(); ctx.arc(mx, my - 7, 3, Math.PI, 0); ctx.fill();
+                ctx.beginPath(); ctx.arc(mx + 4, my - 5, 2.5, Math.PI, 0); ctx.fill();
+                ctx.shadowBlur = 0;
+                ctx.globalAlpha = 1;
+              }
+              // Hanging roots
+              if (hash % 8 === 0) {
+                ctx.strokeStyle = '#5a3a1a';
+                ctx.lineWidth = 1.2;
+                ctx.globalAlpha = 0.4;
+                for (let r = 0; r < 2; r++) {
+                  const rx = s.x + 5 + r * 12 + (hash % 5);
+                  ctx.beginPath();
+                  ctx.moveTo(rx, s.y + t);
+                  ctx.quadraticCurveTo(rx + Math.sin(now/600+r) * 2, s.y + t + 7, rx - 1, s.y + t + 12 + (hash % 5));
+                  ctx.stroke();
+                }
+                ctx.globalAlpha = 1;
+              }
+              break;
+
+            case 'frostpeak':
+              // Ice crystal formations jutting from walls
+              if (hash % 6 === 0) {
+                ctx.fillStyle = '#80c8ee';
+                ctx.globalAlpha = 0.5;
+                const ix = s.x + (hash % (t - 8)) + 4;
+                const iy = s.y + t;
+                // crystal cluster (3 shards)
+                ctx.beginPath();
+                ctx.moveTo(ix - 3, iy); ctx.lineTo(ix - 1, iy - 10); ctx.lineTo(ix + 1, iy); ctx.fill();
+                ctx.beginPath();
+                ctx.moveTo(ix + 1, iy); ctx.lineTo(ix + 3, iy - 7); ctx.lineTo(ix + 5, iy); ctx.fill();
+                ctx.beginPath();
+                ctx.moveTo(ix - 5, iy); ctx.lineTo(ix - 4, iy - 6); ctx.lineTo(ix - 3, iy); ctx.fill();
+                // shimmer
+                ctx.fillStyle = '#ffffff';
+                ctx.globalAlpha = 0.4 + 0.3 * Math.sin(now / 400 + hash);
+                ctx.beginPath(); ctx.arc(ix - 1, iy - 8, 1, 0, PI2); ctx.fill();
+                ctx.globalAlpha = 1;
+              }
+              // Snow pile at base
+              if (hash % 9 === 0) {
+                ctx.fillStyle = '#d0e8f8';
+                ctx.globalAlpha = 0.2;
+                ctx.beginPath();
+                ctx.ellipse(s.x + t * 0.5, s.y + t + 2, t * 0.4, 3, 0, 0, PI2);
+                ctx.fill();
+                ctx.globalAlpha = 1;
+              }
+              break;
+
+            case 'infernal':
+              // Wall-mounted fire brazier
+              if (hash % 8 === 0) {
+                const bx = s.x + t * 0.5, by = s.y + t;
+                // brazier bowl
+                ctx.fillStyle = '#3a2020';
+                ctx.beginPath();
+                ctx.moveTo(bx - 5, by - 3); ctx.lineTo(bx - 3, by);
+                ctx.lineTo(bx + 3, by); ctx.lineTo(bx + 5, by - 3);
+                ctx.fill();
+                // fire (animated)
+                const f1 = Math.sin(now / 80 + hash) * 2;
+                const f2 = Math.cos(now / 120 + hash) * 1.5;
+                ctx.fillStyle = '#ff4400';
+                ctx.shadowColor = '#ff4400';
+                ctx.shadowBlur = 10;
+                ctx.globalAlpha = 0.8;
+                ctx.beginPath();
+                ctx.moveTo(bx, by - 12 + f1);
+                ctx.quadraticCurveTo(bx + 4 + f2, by - 7, bx + 3, by - 3);
+                ctx.lineTo(bx - 3, by - 3);
+                ctx.quadraticCurveTo(bx - 4 - f2, by - 7, bx, by - 12 + f1);
+                ctx.fill();
+                // inner yellow
+                ctx.fillStyle = '#ffaa00';
+                ctx.beginPath();
+                ctx.moveTo(bx, by - 9 + f1 * 0.5);
+                ctx.quadraticCurveTo(bx + 2, by - 6, bx + 1.5, by - 3);
+                ctx.lineTo(bx - 1.5, by - 3);
+                ctx.quadraticCurveTo(bx - 2, by - 6, bx, by - 9 + f1 * 0.5);
+                ctx.fill();
+                ctx.shadowBlur = 0;
+                ctx.globalAlpha = 1;
+              }
+              break;
+
+            case 'voidspire':
+              // Floating void crystal
+              if (hash % 7 === 0) {
+                const cx = s.x + t * 0.5, cy = s.y + t - 4;
+                const floatY = Math.sin(now / 500 + hash) * 3;
+                ctx.fillStyle = '#b388ff';
+                ctx.shadowColor = '#b388ff';
+                ctx.shadowBlur = 8;
+                ctx.globalAlpha = 0.6;
+                ctx.save();
+                ctx.translate(cx, cy + floatY);
+                ctx.rotate(now / 2000 + hash);
+                // diamond crystal
+                ctx.beginPath();
+                ctx.moveTo(0, -6); ctx.lineTo(4, 0); ctx.lineTo(0, 6); ctx.lineTo(-4, 0);
+                ctx.closePath(); ctx.fill();
+                ctx.restore();
+                ctx.shadowBlur = 0;
+                ctx.globalAlpha = 1;
+              }
+              // Void tendril
+              if (hash % 11 === 0) {
+                ctx.strokeStyle = '#6a3aaa';
+                ctx.lineWidth = 1.5;
+                ctx.globalAlpha = 0.35;
+                const tx = s.x + hash % (t - 4) + 2;
+                ctx.beginPath();
+                ctx.moveTo(tx, s.y + t);
+                ctx.quadraticCurveTo(tx + Math.sin(now/400+hash) * 5, s.y + t + 8, tx + Math.sin(now/600+hash) * 3, s.y + t + 16);
+                ctx.stroke();
+                ctx.globalAlpha = 1;
+              }
+              break;
           }
         }
       }
@@ -2645,12 +3217,10 @@
       for (let x = startX; x < endX; x++) {
         if (w.grid[y][x] !== 0 && w.grid[y][x] !== 2) {
           const s = w2s(x, y);
-          const isFloor = (nx, ny) =>
-            ny >= 0 && ny < w.h && nx >= 0 && nx < w.w && w.grid[ny][nx] === 0;
-          const top = isFloor(x, y - 1);
-          const bottom = isFloor(x, y + 1);
-          const left = isFloor(x - 1, y);
-          const right = isFloor(x + 1, y);
+          const top = isFloorAt(x, y - 1);
+          const bottom = isFloorAt(x, y + 1);
+          const left = isFloorAt(x - 1, y);
+          const right = isFloorAt(x + 1, y);
           if (top) { ctx.beginPath(); ctx.moveTo(s.x, s.y); ctx.lineTo(s.x + t, s.y); ctx.stroke(); }
           if (bottom) { ctx.beginPath(); ctx.moveTo(s.x, s.y + t); ctx.lineTo(s.x + t, s.y + t); ctx.stroke(); }
           if (left) { ctx.beginPath(); ctx.moveTo(s.x, s.y); ctx.lineTo(s.x, s.y + t); ctx.stroke(); }
