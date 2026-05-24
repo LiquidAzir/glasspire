@@ -60,7 +60,7 @@
       attackSpeed: 1.05,      // attacks/sec
       damage: 12,
       attackKind: 'cleave',   // hits all enemies in arc
-      skills: ['whirlwind', 'leapslam', 'warcry'],
+      skills: ['whirlwind', 'leapslam', 'warcry', 'shieldwall'],
       activeSkill: 'whirlwind',
       activeSkillCost: 12,
     },
@@ -75,7 +75,7 @@
       attackSpeed: 1.2,
       damage: 9,
       attackKind: 'projectile-bolt',
-      skills: ['frostnova', 'chainlightning', 'meteor'],
+      skills: ['frostnova', 'chainlightning', 'meteor', 'blinkstrike'],
       activeSkill: 'frostnova',
       activeSkillCost: 24,
     },
@@ -90,7 +90,7 @@
       attackSpeed: 1.6,
       damage: 7,
       attackKind: 'projectile-arrow',
-      skills: ['multishot', 'poisontrap', 'piercingshot'],
+      skills: ['multishot', 'poisontrap', 'piercingshot', 'volley'],
       activeSkill: 'multishot',
       activeSkillCost: 18,
     },
@@ -105,7 +105,7 @@
       attackSpeed: 1.0,
       damage: 6,
       attackKind: 'projectile-bone',
-      skills: ['raisedead', 'souldrain', 'corpseexplosion'],
+      skills: ['raisedead', 'souldrain', 'corpseexplosion', 'boneprison'],
       activeSkill: 'raisedead',
       activeSkillCost: 20,
     },
@@ -119,6 +119,8 @@
       desc: 'Leap forward 3 tiles and slam the ground, dealing 280% damage in a 2-tile radius on landing.' },
     warcry: { name: 'War Cry', cooldown: 12, cost: 10,
       desc: 'Roar with fury — gain +50% damage for 8 seconds and stagger all enemies within 2.5 tiles.' },
+    shieldwall: { name: 'Shield Wall', cooldown: 15, cost: 8,
+      desc: 'Brace yourself — reduce all incoming damage by 70% for 5 seconds. Immovable.' },
 
     // Mage skills
     frostnova: { name: 'Frost Nova', cooldown: 8, cost: 24,
@@ -127,6 +129,8 @@
       desc: 'Lightning bolt bounces between up to 5 enemies within 4 tiles, dealing 150% damage to each.' },
     meteor: { name: 'Meteor', cooldown: 14, cost: 35,
       desc: 'Call a meteor to a spot 3 tiles ahead. After 0.6s it impacts for 400% damage in a 2.5-tile radius.' },
+    blinkstrike: { name: 'Blink Strike', cooldown: 4, cost: 15,
+      desc: 'Teleport to the nearest enemy and blast them for 300% damage. Chains to a second target if one is nearby.' },
 
     // Ranger skills
     multishot: { name: 'Multishot', cooldown: 5, cost: 18,
@@ -135,6 +139,8 @@
       desc: 'Drop a toxic cloud at your position. Enemies in the 2-tile zone take 60% damage every 0.5s for 5 seconds.' },
     piercingshot: { name: 'Piercing Shot', cooldown: 6, cost: 22,
       desc: 'Fire a powerful bolt that pierces all enemies in a line, dealing 250% weapon damage to each.' },
+    volley: { name: 'Arrow Volley', cooldown: 10, cost: 26,
+      desc: 'Rain 12 arrows over a 3-tile area around you, each dealing 120% damage. Great for crowds.' },
 
     // Summoner skills
     raisedead: { name: 'Raise Dead', cooldown: 10, cost: 20,
@@ -143,6 +149,8 @@
       desc: 'Drain life from the nearest enemy for 3 seconds, dealing 100% damage/sec and healing you for 50% of damage dealt.' },
     corpseexplosion: { name: 'Corpse Explosion', cooldown: 8, cost: 22,
       desc: 'Detonate all recent corpse positions within 5 tiles, dealing 200% damage in a 1.8-tile radius around each.' },
+    boneprison: { name: 'Bone Prison', cooldown: 11, cost: 20,
+      desc: 'Imprison the nearest enemy in bone — they are stunned for 4 seconds and take 150% damage on impact.' },
   };
 
   const BIOMES = [
@@ -302,6 +310,43 @@
     'void-amulet':        { type: 'amulet', name: 'Void Amulet',        icon: '◈', base: { hp: 20 }, ilvl: 17 },
     'glasspire-heart':    { type: 'amulet', name: 'Glasspire Heart',    icon: '◈', base: {}, ilvl: 20 },
     'eye-of-the-spire':   { type: 'amulet', name: 'Eye of the Spire',  icon: '◈', base: { hp: 15, mp: 15 }, ilvl: 22 },
+
+    // ===== LEGENDARY WEAPONS =====
+    'demonslayer':        { type: 'weapon', name: 'Demonslayer',         icon: '⚔', base: { dmg: 42, hp: 30, str: 3 }, ilvl: 23, glyph: 'wep' },
+    'frostbite-edge':     { type: 'weapon', name: 'Frostbite Edge',      icon: '⚔', base: { dmg: 38, def: 8 },  ilvl: 21, glyph: 'wep' },
+    'starfall-staff':     { type: 'weapon', name: 'Starfall Staff',      icon: '✦', base: { dmg: 44, mp: 50, int: 3 }, ilvl: 23, glyph: 'wep' },
+    'voidweaver':         { type: 'weapon', name: 'Voidweaver',          icon: '✦', base: { dmg: 40, mp: 35 }, ilvl: 22, glyph: 'wep' },
+    'typhoon-bow':        { type: 'weapon', name: 'Typhoon Bow',         icon: '➹', base: { dmg: 38, dex: 3 }, ilvl: 23, glyph: 'wep' },
+    'shadowpiercer':      { type: 'weapon', name: 'Shadowpiercer',       icon: '➹', base: { dmg: 34, crit: 8 }, ilvl: 21, glyph: 'wep' },
+    'soulreaper':         { type: 'weapon', name: 'Soulreaper',          icon: '☠', base: { dmg: 40, mp: 25, hp: 15 }, ilvl: 23, glyph: 'wep' },
+    'gravecaller':        { type: 'weapon', name: 'Gravecaller',         icon: '☠', base: { dmg: 36, mp: 18 }, ilvl: 21, glyph: 'wep' },
+
+    // ===== ELITE ARMOR =====
+    'dragonscale-plate':  { type: 'armor', name: 'Dragonscale Plate',    icon: '◇', base: { def: 42, hp: 30 }, ilvl: 22 },
+    'abyssal-robe':       { type: 'armor', name: 'Abyssal Robe',         icon: '◇', base: { def: 24, mp: 65 }, ilvl: 22 },
+    'nightstalker-coat':  { type: 'armor', name: 'Nightstalker Coat',    icon: '◇', base: { def: 30, dex: 2 }, ilvl: 21 },
+    'bonelord-mantle':    { type: 'armor', name: 'Bonelord Mantle',      icon: '◇', base: { def: 26, mp: 40, hp: 20 }, ilvl: 22 },
+
+    // ===== ELITE HELMETS =====
+    'crown-of-ashes':     { type: 'armor', name: 'Crown of Ashes',       icon: '◆', base: { def: 18, dmg: 5 }, ilvl: 20 },
+    'mindshatter-circlet':{ type: 'armor', name: 'Mindshatter Circlet',  icon: '◆', base: { def: 12, mp: 30, int: 2 }, ilvl: 19 },
+
+    // ===== ELITE SHIELDS =====
+    'aegis-of-the-spire': { type: 'armor', name: 'Aegis of the Spire',  icon: '⊡', base: { def: 38, hp: 35 }, ilvl: 21 },
+
+    // ===== ELITE BOOTS =====
+    'voidstep-boots':     { type: 'armor', name: 'Voidstep Boots',       icon: '◈', base: { def: 14, dex: 2 }, ilvl: 19 },
+    'flamewalk-greaves':  { type: 'armor', name: 'Flamewalk Greaves',    icon: '◈', base: { def: 18, hp: 20, str: 1 }, ilvl: 21 },
+
+    // ===== LEGENDARY RINGS =====
+    'ring-of-the-archdemon': { type: 'ring', name: 'Ring of the Archdemon', icon: '○', base: { dmg: 6, crit: 5 }, ilvl: 22 },
+    'frostfire-band':     { type: 'ring', name: 'Frostfire Band',        icon: '○', base: { mp: 18, hp: 10 }, ilvl: 20 },
+    'blood-signet':       { type: 'ring', name: 'Blood Signet',          icon: '○', base: { hp: 25, vit: 3 }, ilvl: 21 },
+
+    // ===== LEGENDARY AMULETS =====
+    'heart-of-the-wyrm':  { type: 'amulet', name: 'Heart of the Wyrm',  icon: '◈', base: { hp: 30, def: 8, vit: 2 }, ilvl: 22 },
+    'pendant-of-souls':   { type: 'amulet', name: 'Pendant of Souls',   icon: '◈', base: { mp: 25, dmg: 4, int: 2 }, ilvl: 21 },
+    'stormcaller-chain':  { type: 'amulet', name: 'Stormcaller Chain',   icon: '◈', base: { dmg: 6, aspd: 8, dex: 2 }, ilvl: 23 },
   };
 
   // affixes by rarity tier
@@ -1363,6 +1408,132 @@
         if (totalHits > 0) showHudToast(`${corpses.length} corpse(s) detonated!`);
       }
     }
+    // --- Shield Wall (Warrior) ---
+    else if (skillId === 'shieldwall') {
+      p.shieldWall = 5.0; // seconds of 70% damage reduction
+      showHudToast('Shield Wall! 70% DR for 5s');
+      // defensive particle ring
+      for (let i = 0; i < 20; i++) {
+        const a = (i / 20) * PI2;
+        addParticle({
+          x: p.x + Math.cos(a) * 1.2, y: p.y + Math.sin(a) * 1.2,
+          vx: Math.cos(a) * 0.5, vy: Math.sin(a) * 0.5,
+          color: '#ffc857', life: 1.0 + rand() * 0.5, age: 0, size: 2 + rand(),
+        });
+      }
+      burst(p.x, p.y, '#ffc857', 12);
+      game.screenShake = Math.max(game.screenShake, 0.08);
+    }
+    // --- Blink Strike (Mage) ---
+    else if (skillId === 'blinkstrike') {
+      const d = derived(c);
+      const dmg = Math.floor(d.dmg * 3.0);
+      // find nearest enemy within 6 tiles
+      let near = null, nd = 6;
+      for (const e of game.enemies) {
+        const dd = dist(e, p);
+        if (dd < nd) { nd = dd; near = e; }
+      }
+      if (!near) {
+        showHudToast('No target in range');
+        c.mp += Math.floor(cost * 0.7);
+        p.skillCd = 1.0;
+      } else {
+        // trail from old position
+        const ox = p.x, oy = p.y;
+        // teleport next to target
+        const ang = Math.atan2(p.y - near.y, p.x - near.x);
+        p.x = near.x + Math.cos(ang) * 0.6;
+        p.y = near.y + Math.sin(ang) * 0.6;
+        // blink trail particles
+        for (let i = 0; i < 8; i++) {
+          pushParticle(lerp(ox, p.x, i / 8), lerp(oy, p.y, i / 8), '#6df1ff', 0.4);
+        }
+        // hit primary target
+        hitEnemy(near, dmg, d.crit);
+        burst(near.x, near.y, '#6df1ff', 14);
+        game.screenShake = Math.max(game.screenShake, 0.15);
+        // chain to second target if nearby
+        let second = null, sd = 3;
+        for (const e of game.enemies) {
+          if (e === near || e.hp <= 0) continue;
+          const dd = dist(e, p);
+          if (dd < sd) { sd = dd; second = e; }
+        }
+        if (second) {
+          hitEnemy(second, Math.floor(dmg * 0.6), d.crit);
+          burst(second.x, second.y, '#6df1ff', 8);
+          // lightning between targets
+          for (let i = 0; i < 5; i++) {
+            addParticle({
+              x: lerp(near.x, second.x, i / 5) + (rand() - 0.5) * 0.3,
+              y: lerp(near.y, second.y, i / 5) + (rand() - 0.5) * 0.3,
+              vx: (rand() - 0.5) * 2, vy: (rand() - 0.5) * 2,
+              color: '#ffffff', life: 0.2, age: 0, size: 1.5,
+            });
+          }
+        }
+      }
+    }
+    // --- Arrow Volley (Ranger) ---
+    else if (skillId === 'volley') {
+      const d = derived(c);
+      const dmg = Math.floor(d.dmg * 1.2);
+      const radius = 3.0;
+      // rain 12 arrows in the area around the player
+      const targets = game.enemies.filter(e => dist(e, p) <= radius);
+      for (const e of targets) {
+        hitEnemy(e, dmg, d.crit);
+        hitEnemy(e, dmg, d.crit); // double-hit simulates multiple arrows
+      }
+      // visual: arrows raining down
+      for (let i = 0; i < 12; i++) {
+        const a = rand() * PI2;
+        const r = rand() * radius;
+        const tx = p.x + Math.cos(a) * r;
+        const ty = p.y + Math.sin(a) * r;
+        addParticle({
+          x: tx, y: ty - 2, vx: 0, vy: 6,
+          color: '#51e6a4', life: 0.3 + rand() * 0.15, age: 0, size: 2,
+        });
+      }
+      burst(p.x, p.y, '#51e6a4', 10);
+      burst(p.x, p.y, '#ffffff', 6);
+      game.screenShake = Math.max(game.screenShake, 0.18);
+      if (targets.length > 0) showHudToast(`Volley hit ${targets.length} enemies!`);
+    }
+    // --- Bone Prison (Summoner) ---
+    else if (skillId === 'boneprison') {
+      const d = derived(c);
+      const dmg = Math.floor(d.dmg * 1.5);
+      // find nearest enemy within 5 tiles
+      let near = null, nd = 5;
+      for (const e of game.enemies) {
+        const dd = dist(e, p);
+        if (dd < nd) { nd = dd; near = e; }
+      }
+      if (!near) {
+        showHudToast('No target in range');
+        c.mp += Math.floor(cost * 0.7);
+        p.skillCd = 1.0;
+      } else {
+        // deal impact damage and stun
+        hitEnemy(near, dmg, d.crit);
+        near.frozen = Math.max(near.frozen || 0, 4.0); // 4s stun
+        near.stagger = Math.max(near.stagger || 0, 4.0);
+        // bone cage visual — ring of bone particles
+        for (let i = 0; i < 16; i++) {
+          const a = (i / 16) * PI2;
+          addParticle({
+            x: near.x + Math.cos(a) * 0.7, y: near.y + Math.sin(a) * 0.7,
+            vx: 0, vy: -1.5 - rand(),
+            color: i % 2 === 0 ? '#c489ff' : '#ffffff', life: 1.5 + rand() * 0.5, age: 0, size: 2 + rand(),
+          });
+        }
+        burst(near.x, near.y, '#c489ff', 12);
+        game.screenShake = Math.max(game.screenShake, 0.1);
+      }
+    }
     updateHud();
   }
 
@@ -1657,7 +1828,12 @@
   function damagePlayer(rawDmg) {
     if (game.char.hp <= 0) return; // already dead — prevent multiple death triggers
     const d = derived(game.char);
-    const dmg = Math.max(1, Math.floor(rawDmg - d.def * 0.5));
+    let dmg = Math.max(1, Math.floor(rawDmg - d.def * 0.5));
+    // Shield Wall: 70% damage reduction
+    const p = game.world.player;
+    if (p.shieldWall && p.shieldWall > 0) {
+      dmg = Math.max(1, Math.floor(dmg * 0.3));
+    }
     game.char.hp -= dmg;
     floatText(`-${dmg}`, game.world.player.x + (rand() - 0.5) * 0.3, game.world.player.y - 0.4, 'crit');
     game.screenShake = Math.max(game.screenShake, 0.1);
@@ -1778,6 +1954,11 @@
     if (p.warcryBuff !== undefined && p.warcryBuff > 0) {
       p.warcryBuff -= dt;
       if (p.warcryBuff <= 0) { p.warcryBuff = 0; showHudToast('War Cry faded.'); }
+    }
+    // Shield Wall buff countdown
+    if (p.shieldWall !== undefined && p.shieldWall > 0) {
+      p.shieldWall -= dt;
+      if (p.shieldWall <= 0) { p.shieldWall = 0; showHudToast('Shield Wall ended.'); }
     }
   }
 
