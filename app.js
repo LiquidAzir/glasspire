@@ -789,13 +789,13 @@
 
   // Procedural dungeon: rooms-and-corridors
   function generateDungeon(biome, floor) {
-    const W = 36, H = 36;
+    const W = 40, H = 40;
     const grid = makeGrid(W, H, 1);
     const rooms = [];
-    const tries = 28;
+    const tries = 30;
     for (let i = 0; i < tries; i++) {
-      const rw = irand(5, 9);
-      const rh = irand(5, 9);
+      const rw = irand(6, 10);
+      const rh = irand(6, 10);
       const rx = irand(1, W - rw - 2);
       const ry = irand(1, H - rh - 2);
       const r = { x: rx, y: ry, w: rw, h: rh, cx: rx + (rw >> 1), cy: ry + (rh >> 1) };
@@ -813,12 +813,28 @@
             grid[y][x] = 0;
       }
     }
-    // Connect rooms by L-shaped corridors
+    // Helper: carve a floor tile if within bounds (keep 1-tile border)
+    function carve(cx, cy) {
+      if (cx > 0 && cx < W - 1 && cy > 0 && cy < H - 1) grid[cy][cx] = 0;
+    }
+    // Connect rooms by 3-tile-wide L-shaped corridors
     for (let i = 1; i < rooms.length; i++) {
       const a = rooms[i - 1], b = rooms[i];
       let x = a.cx, y = a.cy;
-      while (x !== b.cx) { grid[y][x] = 0; x += Math.sign(b.cx - x); }
-      while (y !== b.cy) { grid[y][x] = 0; y += Math.sign(b.cy - y); }
+      // Horizontal leg — carve 3 tiles tall (y-1, y, y+1)
+      while (x !== b.cx) {
+        carve(x, y - 1); carve(x, y); carve(x, y + 1);
+        x += Math.sign(b.cx - x);
+      }
+      // Vertical leg — carve 3 tiles wide (x-1, x, x+1)
+      while (y !== b.cy) {
+        carve(x - 1, y); carve(x, y); carve(x + 1, y);
+        y += Math.sign(b.cy - y);
+      }
+      // Carve the corner junction as a 3x3 block for smooth turning
+      for (let dy = -1; dy <= 1; dy++)
+        for (let dx = -1; dx <= 1; dx++)
+          carve(x + dx, y + dy);
     }
     // Pick spawn (player) and exit
     const first = rooms[0];
