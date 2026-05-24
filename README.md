@@ -11,12 +11,11 @@ python -m http.server 5187 --directory .
 
 Arrow keys move, Enter is the pinch, Escape opens the in-game menu.
 
-Combo gestures (taps within ~400ms while not held-walking):
+Combo gestures (deliberate multi-tap patterns):
 
-- `↑↓` — open menu
-- `←→` — swap skill (placeholder)
-- `↓↑` — drink potion
-- `↑↑` — dash
+- `↑↓↑↓` — open menu (inventory, skills, quests)
+- `←→←→` — drink a health potion
+- `↑↑↑` — dash forward (2s cooldown)
 
 ## Deploy to Render
 
