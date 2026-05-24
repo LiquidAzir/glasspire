@@ -15,8 +15,8 @@
     canvas: 600,
     tile: 28,                 // pixels per tile
     viewTiles: 21,            // 21 * 28 ≈ 588, with 6px margin per side
-    playerSpeed: 12,          // tiles/sec — fast for glasses D-pad
-    stepImpulse: 0.22,        // sec — minimum movement time per tap (guarantees ~2.5 tiles per tap)
+    playerSpeed: 10,          // tiles/sec — fast but controllable in corridors
+    stepImpulse: 0.18,        // sec — minimum movement time per tap (~1.8 tiles per tap)
     comboWindow: 500,         // ms — taps within this count as a combo sequence
     minComboGap: 30,          // ms — to reject key repeat ghosts
     biomeFloors: 4,           // floors per biome before boss
