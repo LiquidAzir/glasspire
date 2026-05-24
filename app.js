@@ -15,8 +15,8 @@
     canvas: 600,
     tile: 28,                 // pixels per tile
     viewTiles: 21,            // 21 * 28 ≈ 588, with 6px margin per side
-    playerSpeed: 4.2,         // tiles/sec
-    comboWindow: 420,         // ms — taps within this count as a combo
+    playerSpeed: 7.0,         // tiles/sec — fast for glasses
+    comboWindow: 500,         // ms — taps within this count as a combo sequence
     minComboGap: 30,          // ms — to reject key repeat ghosts
     biomeFloors: 4,           // floors per biome before boss
     autoAttackPad: 0.15,      // tile padding on attack range for forgiveness
@@ -732,24 +732,16 @@
     }
 
     if (inGame) {
-      // record raw arrow tap into combo buffer
-      // only register combos from taps — not while a directional key is already held
+      // record arrow taps into combo buffer (4-tap patterns won't fire accidentally)
       if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(key) && !e.repeat) {
         const now = performance.now();
         const ch = key.replace('Arrow','').toLowerCase();
-        // skip combo registration if another arrow key is currently held (held-walking)
-        const otherHeld = (ch !== 'up' && game.keys.up) ||
-                          (ch !== 'down' && game.keys.down) ||
-                          (ch !== 'left' && game.keys.left) ||
-                          (ch !== 'right' && game.keys.right);
-        if (!otherHeld) {
-          // gap filter
-          if (game.comboBuffer.length === 0 || (now - game.lastKeyTime) > CFG.minComboGap) {
-            if ((now - game.lastKeyTime) > CFG.comboWindow) game.comboBuffer.length = 0;
-            game.comboBuffer.push({ ch, t: now });
-            game.lastKeyTime = now;
-            tryCombo();
-          }
+        // gap filter to reject key-repeat ghosts
+        if (game.comboBuffer.length === 0 || (now - game.lastKeyTime) > CFG.minComboGap) {
+          if ((now - game.lastKeyTime) > CFG.comboWindow) game.comboBuffer.length = 0;
+          game.comboBuffer.push({ ch, t: now });
+          game.lastKeyTime = now;
+          tryCombo();
         }
       }
       // movement keys
@@ -784,30 +776,40 @@
   }
 
   function tryCombo() {
-    // last two characters define the combo
     const b = game.comboBuffer;
-    if (b.length < 2) return;
-    const k1 = b[b.length - 2].ch;
-    const k2 = b[b.length - 1].ch;
-    const dt = b[b.length - 1].t - b[b.length - 2].t;
-    if (dt > CFG.comboWindow) return;
+    if (b.length < 3) return;
+    // prune stale entries outside combo window
+    const now = b[b.length - 1].t;
+    while (b.length > 0 && (now - b[0].t) > CFG.comboWindow * 2) b.shift();
 
-    const combo = k1 + k2;
     let matched = false;
-    if (combo === 'updown')      { matched = true; openInGameMenu(); }
-    else if (combo === 'leftright') { matched = true; swapSkill(); }
-    else if (combo === 'downup') { matched = true; drinkPotion(); }
-    else if (combo === 'upup')   { matched = true; tryDash(); }
+
+    // 4-tap patterns: require intentional wiggle so normal movement never triggers
+    if (b.length >= 4) {
+      const last4 = b.slice(-4).map(e => e.ch).join(',');
+      const span = b[b.length - 1].t - b[b.length - 4].t;
+      if (span <= CFG.comboWindow * 2) {
+        if (last4 === 'up,down,up,down')       { matched = true; openInGameMenu(); }
+        else if (last4 === 'left,right,left,right') { matched = true; drinkPotion(); }
+      }
+    }
+
+    // 3-tap same direction = dash (must be quick)
+    if (!matched && b.length >= 3) {
+      const last3 = b.slice(-3).map(e => e.ch);
+      const span3 = b[b.length - 1].t - b[b.length - 3].t;
+      if (span3 <= CFG.comboWindow && last3[0] === last3[1] && last3[1] === last3[2]) {
+        matched = true;
+        tryDash();
+      }
+    }
+
     if (matched) {
       game.comboBuffer.length = 0;
     }
   }
 
   function openInGameMenu() { navigateTo('menu'); }
-  function swapSkill() {
-    // single-slot in v1: show a hint
-    showHudToast(`Skill: ${SKILLS[CLASSES[game.char.classId].activeSkill].name}`);
-  }
   function drinkPotion() {
     const c = game.char;
     if (c.potions <= 0) { showHudToast('No potions.'); return; }
@@ -825,12 +827,12 @@
     if (p.dashCd && p.dashCd > 0) return;
     const dx = p.lastDir.x, dy = p.lastDir.y;
     if (dx === 0 && dy === 0) return; // no direction
-    // teleport forward 2.4 tiles — but stop at first wall
-    const steps = 8;
+    // teleport forward 3.5 tiles — but stop at first wall
+    const steps = 10;
     let nx = p.x, ny = p.y;
     for (let i = 1; i <= steps; i++) {
-      const tx = p.x + dx * 2.4 * (i / steps);
-      const ty = p.y + dy * 2.4 * (i / steps);
+      const tx = p.x + dx * 3.5 * (i / steps);
+      const ty = p.y + dy * 3.5 * (i / steps);
       const gx = Math.floor(clamp(tx, 0, game.world.w - 1));
       const gy = Math.floor(clamp(ty, 0, game.world.h - 1));
       if (game.world.grid[gy][gx] !== 0) break;
@@ -842,7 +844,7 @@
       pushParticle(lerp(p.x, nx, i / 10), lerp(p.y, ny, i / 10), '#6df1ff', 0.4);
     }
     p.x = nx; p.y = ny;
-    p.dashCd = 3.5;
+    p.dashCd = 2.0;
   }
 
   // ============================================================
