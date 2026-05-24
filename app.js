@@ -313,8 +313,39 @@
   // ============================================================
   // SAVE / LOAD
   // ============================================================
+  function makeStarterItem(baseId) {
+    const base = ITEM_BASES[baseId];
+    return {
+      id: 'i_' + Math.random().toString(36).slice(2, 9),
+      baseId,
+      rarity: 'common',
+      affixes: [],
+      ilvl: 1,
+      name: base.name,
+    };
+  }
+  function starterGear(classId) {
+    // each class gets a thematic weapon + armor to start
+    const weapons = {
+      warrior: 'rusted-sword',
+      mage: 'apprentice-staff',
+      ranger: 'short-bow',
+      summoner: 'bone-wand',
+    };
+    const armors = {
+      warrior: 'leather',
+      mage: 'robe',
+      ranger: 'leather',
+      summoner: 'robe',
+    };
+    return {
+      weapon: makeStarterItem(weapons[classId]),
+      armor: makeStarterItem(armors[classId]),
+    };
+  }
   function defaultSave(classId) {
     const cls = CLASSES[classId];
+    const gear = starterGear(classId);
     return {
       v: 2,
       classId,
@@ -327,9 +358,9 @@
         stats: Object.assign({}, cls.stats),
         hp: cls.hp, hpMax: cls.hp,
         mp: cls.mp, mpMax: cls.mp,
-        gold: 0,
-        equip: { weapon: null, armor: null, ring: null, amulet: null },
-        inventory: [],
+        gold: 10,
+        equip: { weapon: gear.weapon, armor: gear.armor, ring: null, amulet: null },
+        inventory: [gear.weapon, gear.armor],
         potions: 3,
       },
       stash: [],
@@ -346,6 +377,14 @@
       if (!raw) return null;
       const obj = JSON.parse(raw);
       if (!obj || obj.v !== 2) return null;
+      // migrate: give starter gear if player has nothing equipped (old saves)
+      if (obj.char && !obj.char.equip.weapon) {
+        const gear = starterGear(obj.char.classId);
+        obj.char.equip.weapon = gear.weapon;
+        obj.char.equip.armor = gear.armor;
+        if (!obj.char.inventory) obj.char.inventory = [];
+        obj.char.inventory.push(gear.weapon, gear.armor);
+      }
       return obj;
     } catch (e) { return null; }
   }
