@@ -15,7 +15,8 @@
     canvas: 600,
     tile: 28,                 // pixels per tile
     viewTiles: 21,            // 21 * 28 ≈ 588, with 6px margin per side
-    playerSpeed: 9.5,         // tiles/sec — fast for glasses
+    playerSpeed: 12,          // tiles/sec — fast for glasses D-pad
+    stepImpulse: 0.22,        // sec — minimum movement time per tap (guarantees ~2.5 tiles per tap)
     comboWindow: 500,         // ms — taps within this count as a combo sequence
     minComboGap: 30,          // ms — to reject key repeat ghosts
     biomeFloors: 4,           // floors per biome before boss
@@ -668,6 +669,14 @@
   // ============================================================
   // ENTERING WORLDS
   // ============================================================
+  function snapCamera() {
+    // instantly position camera on player (no lerp) for zone transitions
+    const p = game.world.player;
+    const halfW = CFG.canvas / 2 / CFG.tile;
+    const halfH = CFG.canvas / 2 / CFG.tile;
+    game.cam.x = clamp(p.x - halfW, 0, Math.max(0, game.world.w - halfW * 2));
+    game.cam.y = clamp(p.y - halfH, 0, Math.max(0, game.world.h - halfH * 2));
+  }
   function enterTown() {
     game.world = generateTown();
     game.enemies = [];
@@ -679,6 +688,7 @@
     ambientParticles.length = 0;
     game.activeBiomeId = null;
     game.activeFloor = 0;
+    snapCamera();
     navigateTo('game');
     showZoneToast('SANCTUARY');
     updateHud();
@@ -697,6 +707,7 @@
     ambientParticles.length = 0;
     game.activeBiomeId = biomeId;
     game.activeFloor = floor;
+    snapCamera();
     navigateTo('game');
     showZoneToast(`${biome.shortName} — FLOOR ${floor}`);
     updateHud();
@@ -1309,22 +1320,42 @@
   }
 
   // ============================================================
-  // MOVEMENT
+  // MOVEMENT — step impulse ensures each tap moves a meaningful distance
   // ============================================================
   function tickPlayer(dt) {
     const p = game.world.player;
     let vx = 0, vy = 0;
+
+    // Track active input direction
     if (game.keys.up)    vy -= 1;
     if (game.keys.down)  vy += 1;
     if (game.keys.left)  vx -= 1;
     if (game.keys.right) vx += 1;
+
+    // Step impulse: when a key is pressed, guarantee movement for at least stepImpulse seconds
+    // even if the key is released immediately (common with glasses D-pad taps)
     if (vx !== 0 || vy !== 0) {
       const len = Math.sqrt(vx * vx + vy * vy);
-      vx /= len; vy /= len;
-      p.lastDir.x = vx; p.lastDir.y = vy;
-      const sp = CFG.playerSpeed * dt;
-      tryMove(p, vx * sp, vy * sp);
+      p._impulseX = vx / len;
+      p._impulseY = vy / len;
+      p._impulseT = CFG.stepImpulse;
     }
+
+    // Apply movement: either from held keys or remaining impulse
+    if (p._impulseT > 0) {
+      const mx = p._impulseX || 0;
+      const my = p._impulseY || 0;
+      if (mx !== 0 || my !== 0) {
+        p.lastDir.x = mx; p.lastDir.y = my;
+        const sp = CFG.playerSpeed * dt;
+        tryMove(p, mx * sp, my * sp);
+      }
+      // Only consume impulse when keys are released
+      if (vx === 0 && vy === 0) {
+        p._impulseT -= dt;
+      }
+    }
+
     p.skillCd = Math.max(0, p.skillCd - dt);
     if (p.dashCd !== undefined) p.dashCd = Math.max(0, p.dashCd - dt);
     p.attackingFor = Math.max(0, p.attackingFor - dt);
@@ -1374,17 +1405,20 @@
   function pickupItem() { /* handled by tickInteraction auto-pickup */ }
 
   // ============================================================
-  // CAMERA
+  // CAMERA — smooth lerp so it doesn't jerk at boundaries
   // ============================================================
   function updateCamera() {
     const p = game.world.player;
     const halfW = CFG.canvas / 2 / CFG.tile;
     const halfH = CFG.canvas / 2 / CFG.tile;
-    let cx = p.x - halfW;
-    let cy = p.y - halfH;
-    cx = clamp(cx, 0, game.world.w - halfW * 2);
-    cy = clamp(cy, 0, game.world.h - halfH * 2);
-    game.cam.x = cx; game.cam.y = cy;
+    let tx = p.x - halfW;
+    let ty = p.y - halfH;
+    tx = clamp(tx, 0, Math.max(0, game.world.w - halfW * 2));
+    ty = clamp(ty, 0, Math.max(0, game.world.h - halfH * 2));
+    // smooth follow — fast enough to feel locked but prevents jerky snaps
+    const speed = 0.18; // lower = smoother, higher = snappier
+    game.cam.x += (tx - game.cam.x) * speed;
+    game.cam.y += (ty - game.cam.y) * speed;
   }
 
   // ============================================================
