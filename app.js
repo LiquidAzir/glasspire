@@ -184,7 +184,7 @@
   const ENEMIES = {
     // crypts
     skeleton: { name: 'Skeleton',   glyph: '☠', color: '#cfcfcf', hp: 22,  dmg: 6,  speed: 2.2, range: 1.1, attackKind: 'melee', xp: 8,  goldRange: [1, 4],
-      trait: 'shamble', shape: 'skeleton' },
+      trait: null, shape: 'skeleton' },
     ghoul:    { name: 'Ghoul',      glyph: 'ɣ', color: '#9bbf95', hp: 35,  dmg: 9,  speed: 2.8, range: 1.1, attackKind: 'melee', xp: 12, goldRange: [2, 5],
       trait: 'lunge', shape: 'hunched' },
     wraith:   { name: 'Wraith',     glyph: '∽', color: '#c489ff', hp: 18,  dmg: 7,  speed: 2.0, range: 4.5, attackKind: 'ranged-soul', xp: 14, goldRange: [3, 6],
@@ -905,7 +905,6 @@
       lunging: 0,
       charging: 0,
       phased: 0,
-      silenced: 0,
     };
   }
 
@@ -1693,7 +1692,11 @@
     if (e.trait === 'split' && !e._isSplit && game.enemies.length < 24) {
       for (let i = 0; i < 2; i++) {
         const ang = rand() * PI2;
-        const child = makeEnemy('voidling', e.x + Math.cos(ang) * 0.8, e.y + Math.sin(ang) * 0.8, Math.max(1, e.ilvl - 1));
+        const cx = e.x + Math.cos(ang) * 0.8, cy = e.y + Math.sin(ang) * 0.8;
+        const cgx = Math.floor(cx), cgy = Math.floor(cy);
+        // Only spawn on valid floor
+        if (cgx < 0 || cgx >= game.world.w || cgy < 0 || cgy >= game.world.h || game.world.grid[cgy][cgx] !== 0) continue;
+        const child = makeEnemy('voidling', cx, cy, Math.max(1, e.ilvl - 1));
         child.hp = Math.floor(child.hp * 0.4);
         child.hpMax = child.hp;
         child.dmg = Math.floor(child.dmg * 0.5);
@@ -1777,7 +1780,10 @@
       if (p.friendly) {
         if (p.piercing) {
           // Piercing projectile — hits each enemy once, doesn't stop
-          for (const e of game.enemies) {
+          // Use snapshot to avoid issues with array modification during iteration
+          const snapshot = game.enemies.slice();
+          for (const e of snapshot) {
+            if (e.hp <= 0) continue;
             if (p.hitList.has(e)) continue;
             if (dist(e, p) < 0.45) {
               p.hitList.add(e);
@@ -1791,14 +1797,16 @@
             }
           }
         } else {
-          for (const e of game.enemies) {
-            if (dist(e, p) < 0.45) {
-              hitEnemy(e, p.dmg, derived(game.char).crit);
-              game.projectiles.splice(i, 1);
-              burst(p.x, p.y, p.color, 8);
-              removed = true;
-              break;
-            }
+          // Find first hit — don't iterate with for-of since hitEnemy can splice
+          let hitTarget = null;
+          for (let ei = 0; ei < game.enemies.length; ei++) {
+            if (dist(game.enemies[ei], p) < 0.45) { hitTarget = game.enemies[ei]; break; }
+          }
+          if (hitTarget) {
+            hitEnemy(hitTarget, p.dmg, derived(game.char).crit);
+            game.projectiles.splice(i, 1);
+            burst(p.x, p.y, p.color, 8);
+            removed = true;
           }
         }
         if (removed) continue;
@@ -1868,8 +1876,12 @@
             if (game.enemies.length < 20) {
               const ang = rand() * PI2;
               const sx = e.x + Math.cos(ang) * 2, sy = e.y + Math.sin(ang) * 2;
-              game.enemies.push(makeEnemy('skeleton', sx, sy, e.ilvl));
-              burst(sx, sy, '#cfcfcf', 10);
+              const sgx = Math.floor(sx), sgy = Math.floor(sy);
+              // Only spawn on valid floor tiles
+              if (sgx > 0 && sgx < game.world.w && sgy > 0 && sgy < game.world.h && game.world.grid[sgy][sgx] === 0) {
+                game.enemies.push(makeEnemy('skeleton', sx, sy, e.ilvl));
+                burst(sx, sy, '#cfcfcf', 10);
+              }
               e.traitCd = 6.0 + rand() * 3;
             }
             break;
@@ -2020,7 +2032,11 @@
               // emit ring particles
               for (let i = 0; i < 12; i++) {
                 const ang = i * PI2 / 12;
-                addParticle(e.x + Math.cos(ang) * 3, e.y + Math.sin(ang) * 3, '#b388ff', 0.8);
+                addParticle({
+                  x: e.x + Math.cos(ang) * 3, y: e.y + Math.sin(ang) * 3,
+                  vx: Math.cos(ang) * 2, vy: Math.sin(ang) * 2,
+                  color: '#b388ff', life: 0.8, age: 0, size: 2,
+                });
               }
               e.traitCd = 5.0 + rand() * 2;
             }
@@ -3392,7 +3408,6 @@
     const armItem = c.equip.armor;
     const wepRarity = wepItem ? wepItem.rarity : 'common';
     const armRarity = armItem ? armItem.rarity : 'common';
-    const bestRarity = (['unique','rare','magic','common'].find(r => r === wepRarity || r === armRarity)) || 'common';
     const hasUniqueGear = wepRarity === 'unique' || armRarity === 'unique';
     const hasRareGear = wepRarity === 'rare' || armRarity === 'rare';
 
@@ -4835,6 +4850,7 @@
     }
     c.inventory.forEach((it, idx) => {
       const base = ITEM_BASES[it.baseId];
+      if (!base) return; // skip corrupted items
       const row = document.createElement('button');
       row.className = 'inv-row focusable';
       row.dataset.action = 'inv-open';
