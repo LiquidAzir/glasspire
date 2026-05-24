@@ -897,6 +897,30 @@ html, body {
   color: var(--text-dim);
   line-height: 1.5;
 }
+.skill-card .skill-meta {
+  font-size: 11px;
+  color: var(--text-dim);
+  margin-top: 6px;
+  opacity: 0.7;
+}
+.skill-card.skill-active {
+  border-color: var(--gold);
+  box-shadow: 0 0 8px rgba(255, 200, 87, 0.25);
+}
+.skill-card:focus {
+  outline: 2px solid var(--gold);
+  outline-offset: 2px;
+}
+.skill-card + .skill-card {
+  margin-top: 10px;
+}
+.skill-header {
+  font-size: 13px;
+  color: var(--text-dim);
+  margin-bottom: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
 
 /* =========================================================
    QUESTS

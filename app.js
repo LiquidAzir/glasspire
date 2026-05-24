@@ -60,6 +60,7 @@
       attackSpeed: 1.05,      // attacks/sec
       damage: 12,
       attackKind: 'cleave',   // hits all enemies in arc
+      skills: ['whirlwind', 'leapslam', 'warcry'],
       activeSkill: 'whirlwind',
       activeSkillCost: 12,
     },
@@ -74,6 +75,7 @@
       attackSpeed: 1.2,
       damage: 9,
       attackKind: 'projectile-bolt',
+      skills: ['frostnova', 'chainlightning', 'meteor'],
       activeSkill: 'frostnova',
       activeSkillCost: 24,
     },
@@ -88,6 +90,7 @@
       attackSpeed: 1.6,
       damage: 7,
       attackKind: 'projectile-arrow',
+      skills: ['multishot', 'poisontrap', 'piercingshot'],
       activeSkill: 'multishot',
       activeSkillCost: 18,
     },
@@ -102,20 +105,44 @@
       attackSpeed: 1.0,
       damage: 6,
       attackKind: 'projectile-bone',
+      skills: ['raisedead', 'souldrain', 'corpseexplosion'],
       activeSkill: 'raisedead',
       activeSkillCost: 20,
     },
   };
 
   const SKILLS = {
-    whirlwind: { name: 'Whirlwind', cooldown: 6,
+    // Warrior skills
+    whirlwind: { name: 'Whirlwind', cooldown: 6, cost: 12,
       desc: 'Spin to hit every enemy within 2.2 tiles for 220% weapon damage.' },
-    frostnova: { name: 'Frost Nova', cooldown: 8,
+    leapslam: { name: 'Leap Slam', cooldown: 7, cost: 14,
+      desc: 'Leap forward 3 tiles and slam the ground, dealing 280% damage in a 2-tile radius on landing.' },
+    warcry: { name: 'War Cry', cooldown: 12, cost: 10,
+      desc: 'Roar with fury — gain +50% damage for 8 seconds and stagger all enemies within 2.5 tiles.' },
+
+    // Mage skills
+    frostnova: { name: 'Frost Nova', cooldown: 8, cost: 24,
       desc: 'Frost shockwave hits all enemies within 3.5 tiles for 180% damage and freezes them briefly.' },
-    multishot: { name: 'Multishot', cooldown: 5,
+    chainlightning: { name: 'Chain Lightning', cooldown: 5, cost: 20,
+      desc: 'Lightning bolt bounces between up to 5 enemies within 4 tiles, dealing 150% damage to each.' },
+    meteor: { name: 'Meteor', cooldown: 14, cost: 35,
+      desc: 'Call a meteor to a spot 3 tiles ahead. After 0.6s it impacts for 400% damage in a 2.5-tile radius.' },
+
+    // Ranger skills
+    multishot: { name: 'Multishot', cooldown: 5, cost: 18,
       desc: 'Fire five arrows in a fan. Each does 80% weapon damage.' },
-    raisedead: { name: 'Raise Dead', cooldown: 10,
+    poisontrap: { name: 'Poison Trap', cooldown: 9, cost: 16,
+      desc: 'Drop a toxic cloud at your position. Enemies in the 2-tile zone take 60% damage every 0.5s for 5 seconds.' },
+    piercingshot: { name: 'Piercing Shot', cooldown: 6, cost: 22,
+      desc: 'Fire a powerful bolt that pierces all enemies in a line, dealing 250% weapon damage to each.' },
+
+    // Summoner skills
+    raisedead: { name: 'Raise Dead', cooldown: 10, cost: 20,
       desc: 'Summon two skeleton warriors to fight for you for 12 seconds.' },
+    souldrain: { name: 'Soul Drain', cooldown: 7, cost: 18,
+      desc: 'Drain life from the nearest enemy for 3 seconds, dealing 100% damage/sec and healing you for 50% of damage dealt.' },
+    corpseexplosion: { name: 'Corpse Explosion', cooldown: 8, cost: 22,
+      desc: 'Detonate all recent corpse positions within 5 tiles, dealing 200% damage in a 1.8-tile radius around each.' },
   };
 
   const BIOMES = [
@@ -169,34 +196,112 @@
 
   // ITEM BASES — weapon, armor, ring, amulet
   const ITEM_BASES = {
-    // weapons (class-flavored but cross-usable)
-    'rusted-sword':   { type: 'weapon', name: 'Rusted Sword',   icon: '⚔', base: { dmg: 4 },  ilvl: 1, glyph: 'wep' },
-    'iron-sword':     { type: 'weapon', name: 'Iron Sword',     icon: '⚔', base: { dmg: 8 },  ilvl: 4, glyph: 'wep' },
-    'runed-blade':    { type: 'weapon', name: 'Runed Blade',    icon: '⚔', base: { dmg: 14 }, ilvl: 8, glyph: 'wep' },
-    'apprentice-staff': { type: 'weapon', name: 'Apprentice Staff', icon: '✦', base: { dmg: 4, mp: 4 }, ilvl: 1, glyph: 'wep' },
-    'crystal-staff':  { type: 'weapon', name: 'Crystal Staff',  icon: '✦', base: { dmg: 9, mp: 8 }, ilvl: 5, glyph: 'wep' },
-    'arcane-staff':   { type: 'weapon', name: 'Arcane Staff',   icon: '✦', base: { dmg: 15, mp: 14 }, ilvl: 9, glyph: 'wep' },
-    'short-bow':      { type: 'weapon', name: 'Short Bow',      icon: '➹', base: { dmg: 3 }, ilvl: 1, glyph: 'wep' },
-    'recurve-bow':    { type: 'weapon', name: 'Recurve Bow',    icon: '➹', base: { dmg: 6 }, ilvl: 4, glyph: 'wep' },
-    'longbow':        { type: 'weapon', name: 'Longbow',        icon: '➹', base: { dmg: 11 }, ilvl: 8, glyph: 'wep' },
-    'bone-wand':      { type: 'weapon', name: 'Bone Wand',      icon: '☠', base: { dmg: 4 }, ilvl: 1, glyph: 'wep' },
-    'death-wand':     { type: 'weapon', name: 'Death Wand',     icon: '☠', base: { dmg: 8 }, ilvl: 4, glyph: 'wep' },
-    'lich-scepter':   { type: 'weapon', name: 'Lich Scepter',   icon: '☠', base: { dmg: 13 }, ilvl: 8, glyph: 'wep' },
+    // ===== WEAPONS — Swords (Warrior) =====
+    'rusted-sword':       { type: 'weapon', name: 'Rusted Sword',       icon: '⚔', base: { dmg: 4 },  ilvl: 1, glyph: 'wep' },
+    'iron-sword':         { type: 'weapon', name: 'Iron Sword',         icon: '⚔', base: { dmg: 8 },  ilvl: 4, glyph: 'wep' },
+    'runed-blade':        { type: 'weapon', name: 'Runed Blade',        icon: '⚔', base: { dmg: 14 }, ilvl: 8, glyph: 'wep' },
+    'glassfang':          { type: 'weapon', name: 'Glassfang',          icon: '⚔', base: { dmg: 18 }, ilvl: 11, glyph: 'wep' },
+    'spire-cleaver':      { type: 'weapon', name: 'Spire Cleaver',      icon: '⚔', base: { dmg: 24 }, ilvl: 14, glyph: 'wep' },
+    'shatterpoint':       { type: 'weapon', name: 'Shatterpoint',       icon: '⚔', base: { dmg: 30 }, ilvl: 17, glyph: 'wep' },
+    'prism-edge':         { type: 'weapon', name: 'Prism Edge',         icon: '⚔', base: { dmg: 36, hp: 20 }, ilvl: 20, glyph: 'wep' },
 
-    // armor
-    'leather':        { type: 'armor', name: 'Leather Vest',  icon: '◇', base: { def: 4 },  ilvl: 1 },
-    'chain':          { type: 'armor', name: 'Chain Mail',    icon: '◇', base: { def: 9 },  ilvl: 4 },
-    'plate':          { type: 'armor', name: 'Plate Mail',    icon: '◇', base: { def: 16 }, ilvl: 8 },
-    'robe':           { type: 'armor', name: 'Acolyte Robe',  icon: '◇', base: { def: 3, mp: 10 }, ilvl: 1 },
-    'mage-robe':      { type: 'armor', name: 'Mage Robe',     icon: '◇', base: { def: 6, mp: 20 }, ilvl: 5 },
+    // ===== WEAPONS — Staves (Mage) =====
+    'apprentice-staff':   { type: 'weapon', name: 'Apprentice Staff',   icon: '✦', base: { dmg: 4, mp: 4 }, ilvl: 1, glyph: 'wep' },
+    'crystal-staff':      { type: 'weapon', name: 'Crystal Staff',      icon: '✦', base: { dmg: 9, mp: 8 }, ilvl: 5, glyph: 'wep' },
+    'arcane-staff':       { type: 'weapon', name: 'Arcane Staff',       icon: '✦', base: { dmg: 15, mp: 14 }, ilvl: 9, glyph: 'wep' },
+    'vitreous-scepter':   { type: 'weapon', name: 'Vitreous Scepter',   icon: '✦', base: { dmg: 20, mp: 18 }, ilvl: 12, glyph: 'wep' },
+    'spire-conductor':    { type: 'weapon', name: 'Spire Conductor',    icon: '✦', base: { dmg: 26, mp: 24 }, ilvl: 15, glyph: 'wep' },
+    'crystalweave-staff': { type: 'weapon', name: 'Crystalweave Staff', icon: '✦', base: { dmg: 32, mp: 30 }, ilvl: 18, glyph: 'wep' },
+    'glasspire-focus':    { type: 'weapon', name: 'Glasspire Focus',    icon: '✦', base: { dmg: 38, mp: 40 }, ilvl: 21, glyph: 'wep' },
 
-    // rings & amulets
-    'copper-ring':    { type: 'ring', name: 'Copper Ring',    icon: '○', base: {}, ilvl: 1 },
-    'silver-ring':    { type: 'ring', name: 'Silver Ring',    icon: '○', base: {}, ilvl: 5 },
-    'gold-ring':      { type: 'ring', name: 'Gold Ring',      icon: '○', base: {}, ilvl: 9 },
-    'iron-amulet':    { type: 'amulet', name: 'Iron Amulet',  icon: '◈', base: {}, ilvl: 2 },
-    'jade-amulet':    { type: 'amulet', name: 'Jade Amulet',  icon: '◈', base: {}, ilvl: 6 },
-    'star-amulet':    { type: 'amulet', name: 'Star Amulet',  icon: '◈', base: {}, ilvl: 10 },
+    // ===== WEAPONS — Bows (Ranger) =====
+    'short-bow':          { type: 'weapon', name: 'Short Bow',          icon: '➹', base: { dmg: 3 }, ilvl: 1, glyph: 'wep' },
+    'recurve-bow':        { type: 'weapon', name: 'Recurve Bow',        icon: '➹', base: { dmg: 6 }, ilvl: 4, glyph: 'wep' },
+    'longbow':            { type: 'weapon', name: 'Longbow',            icon: '➹', base: { dmg: 11 }, ilvl: 8, glyph: 'wep' },
+    'silkstring-bow':     { type: 'weapon', name: 'Silkstring Bow',     icon: '➹', base: { dmg: 15 }, ilvl: 11, glyph: 'wep' },
+    'glassthorn-bow':     { type: 'weapon', name: 'Glassthorn Bow',     icon: '➹', base: { dmg: 20 }, ilvl: 14, glyph: 'wep' },
+    'refracted-arc':      { type: 'weapon', name: 'Refracted Arc',      icon: '➹', base: { dmg: 26 }, ilvl: 17, glyph: 'wep' },
+    'prismatic-longbow':  { type: 'weapon', name: 'Prismatic Longbow',  icon: '➹', base: { dmg: 32 }, ilvl: 20, glyph: 'wep' },
+
+    // ===== WEAPONS — Wands (Summoner) =====
+    'bone-wand':          { type: 'weapon', name: 'Bone Wand',          icon: '☠', base: { dmg: 4 }, ilvl: 1, glyph: 'wep' },
+    'death-wand':         { type: 'weapon', name: 'Death Wand',         icon: '☠', base: { dmg: 8 }, ilvl: 4, glyph: 'wep' },
+    'lich-scepter':       { type: 'weapon', name: 'Lich Scepter',       icon: '☠', base: { dmg: 13 }, ilvl: 8, glyph: 'wep' },
+    'hollowed-femur':     { type: 'weapon', name: 'Hollowed Femur',     icon: '☠', base: { dmg: 17, mp: 6 }, ilvl: 11, glyph: 'wep' },
+    'soulglass-rod':      { type: 'weapon', name: 'Soulglass Rod',      icon: '☠', base: { dmg: 22, mp: 10 }, ilvl: 14, glyph: 'wep' },
+    'spire-phylactery':   { type: 'weapon', name: 'Spire Phylactery',   icon: '☠', base: { dmg: 28, mp: 14 }, ilvl: 17, glyph: 'wep' },
+    'void-conduit':       { type: 'weapon', name: 'Void Conduit',       icon: '☠', base: { dmg: 34, mp: 20 }, ilvl: 20, glyph: 'wep' },
+
+    // ===== ARMOR — Heavy (Warrior-favored) =====
+    'leather':            { type: 'armor', name: 'Leather Vest',        icon: '◇', base: { def: 4 },  ilvl: 1 },
+    'chain':              { type: 'armor', name: 'Chain Mail',          icon: '◇', base: { def: 9 },  ilvl: 4 },
+    'plate':              { type: 'armor', name: 'Plate Mail',          icon: '◇', base: { def: 16 }, ilvl: 8 },
+    'shard-plate':        { type: 'armor', name: 'Shard Plate',         icon: '◇', base: { def: 22 }, ilvl: 12 },
+    'vitrified-cuirass':  { type: 'armor', name: 'Vitrified Cuirass',   icon: '◇', base: { def: 28, hp: 10 }, ilvl: 15 },
+    'glasspire-aegis':    { type: 'armor', name: 'Glasspire Aegis',     icon: '◇', base: { def: 36, hp: 20 }, ilvl: 19 },
+
+    // ===== ARMOR — Light (Ranger-favored) =====
+    'hide-tunic':         { type: 'armor', name: 'Hide Tunic',          icon: '◇', base: { def: 3 },  ilvl: 1 },
+    'scout-leather':      { type: 'armor', name: 'Scout Leather',       icon: '◇', base: { def: 7 },  ilvl: 4 },
+    'shadow-vest':        { type: 'armor', name: 'Shadow Vest',         icon: '◇', base: { def: 12 }, ilvl: 8 },
+    'serpent-scale':      { type: 'armor', name: 'Serpent Scale',        icon: '◇', base: { def: 16 }, ilvl: 11 },
+    'mirrorweave':        { type: 'armor', name: 'Mirrorweave',         icon: '◇', base: { def: 20 }, ilvl: 14 },
+    'refracted-cloak':    { type: 'armor', name: 'Refracted Cloak',     icon: '◇', base: { def: 26 }, ilvl: 18 },
+
+    // ===== ARMOR — Robes (Mage/Summoner-favored) =====
+    'robe':               { type: 'armor', name: 'Acolyte Robe',        icon: '◇', base: { def: 3, mp: 10 }, ilvl: 1 },
+    'mage-robe':          { type: 'armor', name: 'Mage Robe',           icon: '◇', base: { def: 6, mp: 20 }, ilvl: 5 },
+    'arcane-vestment':    { type: 'armor', name: 'Arcane Vestment',     icon: '◇', base: { def: 9, mp: 28 }, ilvl: 9 },
+    'glassweave-robe':    { type: 'armor', name: 'Glassweave Robe',     icon: '◇', base: { def: 12, mp: 36 }, ilvl: 13 },
+    'spire-mantle':       { type: 'armor', name: 'Spire Mantle',        icon: '◇', base: { def: 16, mp: 44 }, ilvl: 17 },
+    'crystalline-shroud': { type: 'armor', name: 'Crystalline Shroud',  icon: '◇', base: { def: 20, mp: 55 }, ilvl: 20 },
+
+    // ===== HELMETS =====
+    'iron-helm':          { type: 'armor', name: 'Iron Helm',           icon: '◆', base: { def: 3 },  ilvl: 2 },
+    'shard-crown':        { type: 'armor', name: 'Shard Crown',         icon: '◆', base: { def: 6 },  ilvl: 6 },
+    'vitreous-helm':      { type: 'armor', name: 'Vitreous Helm',       icon: '◆', base: { def: 10 }, ilvl: 10 },
+    'prism-circlet':      { type: 'armor', name: 'Prism Circlet',       icon: '◆', base: { def: 5, mp: 12 }, ilvl: 8 },
+    'glasspire-crown':    { type: 'armor', name: 'Glasspire Crown',     icon: '◆', base: { def: 14, hp: 15 }, ilvl: 14 },
+    'hollow-diadem':      { type: 'armor', name: 'Hollow Diadem',       icon: '◆', base: { def: 8, mp: 22 }, ilvl: 16 },
+
+    // ===== SHIELDS (armor type) =====
+    'wooden-buckler':     { type: 'armor', name: 'Wooden Buckler',      icon: '⊡', base: { def: 5 },  ilvl: 2 },
+    'iron-kite':          { type: 'armor', name: 'Iron Kite Shield',    icon: '⊡', base: { def: 10 }, ilvl: 5 },
+    'glass-tower':        { type: 'armor', name: 'Glass Tower Shield',  icon: '⊡', base: { def: 16, hp: 10 }, ilvl: 9 },
+    'mirror-ward':        { type: 'armor', name: 'Mirror Ward',         icon: '⊡', base: { def: 22, hp: 15 }, ilvl: 13 },
+    'spirewall':          { type: 'armor', name: 'Spirewall',           icon: '⊡', base: { def: 30, hp: 25 }, ilvl: 18 },
+
+    // ===== BOOTS =====
+    'worn-boots':         { type: 'armor', name: 'Worn Boots',          icon: '◈', base: { def: 2 },  ilvl: 1 },
+    'iron-greaves':       { type: 'armor', name: 'Iron Greaves',        icon: '◈', base: { def: 5 },  ilvl: 5 },
+    'glass-treads':       { type: 'armor', name: 'Glass Treads',        icon: '◈', base: { def: 8 },  ilvl: 9 },
+    'windwalkers':        { type: 'armor', name: 'Windwalkers',         icon: '◈', base: { def: 6 },  ilvl: 7 },
+    'spire-striders':     { type: 'armor', name: 'Spire Striders',      icon: '◈', base: { def: 12, hp: 10 }, ilvl: 14 },
+    'crystalline-sabatons':{ type: 'armor', name: 'Crystalline Sabatons', icon: '◈', base: { def: 16, hp: 15 }, ilvl: 18 },
+
+    // ===== RINGS =====
+    'copper-ring':        { type: 'ring', name: 'Copper Ring',           icon: '○', base: {}, ilvl: 1 },
+    'silver-ring':        { type: 'ring', name: 'Silver Ring',           icon: '○', base: {}, ilvl: 5 },
+    'gold-ring':          { type: 'ring', name: 'Gold Ring',             icon: '○', base: {}, ilvl: 9 },
+    'glass-band':         { type: 'ring', name: 'Glass Band',            icon: '○', base: {}, ilvl: 3 },
+    'prism-ring':         { type: 'ring', name: 'Prism Ring',            icon: '○', base: { mp: 6 }, ilvl: 7 },
+    'shard-loop':         { type: 'ring', name: 'Shard Loop',            icon: '○', base: { hp: 8 }, ilvl: 6 },
+    'spire-signet':       { type: 'ring', name: 'Spire Signet',          icon: '○', base: {}, ilvl: 12 },
+    'void-ring':          { type: 'ring', name: 'Void Ring',             icon: '○', base: { mp: 12 }, ilvl: 14 },
+    'crystalline-band':   { type: 'ring', name: 'Crystalline Band',      icon: '○', base: { hp: 15 }, ilvl: 16 },
+    'glassheart-ring':    { type: 'ring', name: 'Glassheart Ring',       icon: '○', base: {}, ilvl: 19 },
+
+    // ===== AMULETS =====
+    'iron-amulet':        { type: 'amulet', name: 'Iron Amulet',        icon: '◈', base: {}, ilvl: 2 },
+    'jade-amulet':        { type: 'amulet', name: 'Jade Amulet',        icon: '◈', base: {}, ilvl: 6 },
+    'star-amulet':        { type: 'amulet', name: 'Star Amulet',        icon: '◈', base: {}, ilvl: 10 },
+    'glass-pendant':      { type: 'amulet', name: 'Glass Pendant',      icon: '◈', base: { mp: 6 }, ilvl: 4 },
+    'shard-talisman':     { type: 'amulet', name: 'Shard Talisman',     icon: '◈', base: { hp: 10 }, ilvl: 8 },
+    'spire-locket':       { type: 'amulet', name: 'Spire Locket',       icon: '◈', base: {}, ilvl: 13 },
+    'prismatic-choker':   { type: 'amulet', name: 'Prismatic Choker',   icon: '◈', base: { mp: 14 }, ilvl: 15 },
+    'void-amulet':        { type: 'amulet', name: 'Void Amulet',        icon: '◈', base: { hp: 20 }, ilvl: 17 },
+    'glasspire-heart':    { type: 'amulet', name: 'Glasspire Heart',    icon: '◈', base: {}, ilvl: 20 },
+    'eye-of-the-spire':   { type: 'amulet', name: 'Eye of the Spire',  icon: '◈', base: { hp: 15, mp: 15 }, ilvl: 22 },
   };
 
   // affixes by rarity tier
@@ -362,6 +467,7 @@
         equip: { weapon: gear.weapon, armor: gear.armor, ring: null, amulet: null },
         inventory: [gear.weapon, gear.armor],
         potions: 3,
+        selectedSkill: cls.skills[0],  // track which skill is active
       },
       stash: [],
       unlockedBiomes: { crypts: true, overgrowth: false, frostpeak: false, infernal: false },
@@ -384,6 +490,10 @@
         obj.char.equip.armor = gear.armor;
         if (!obj.char.inventory) obj.char.inventory = [];
         obj.char.inventory.push(gear.weapon, gear.armor);
+      }
+      // migrate: add selectedSkill for old saves
+      if (obj.char && !obj.char.selectedSkill) {
+        obj.char.selectedSkill = CLASSES[obj.char.classId].skills[0];
       }
       return obj;
     } catch (e) { return null; }
@@ -439,6 +549,11 @@
       dmg += Math.floor((char.stats.int + bonusStats.int) / 2);
     }
     hpMax += (char.stats.vit + bonusStats.vit) * 6;
+
+    // War Cry buff: +50% damage
+    if (game.world && game.world.player && game.world.player.warcryBuff > 0) {
+      dmg = Math.floor(dmg * 1.5);
+    }
 
     return { dmg, def, hpMax, mpMax, crit, aspd, bonusStats };
   }
@@ -716,6 +831,12 @@
     game.cam.x = clamp(p.x - halfW, 0, Math.max(0, game.world.w - halfW * 2));
     game.cam.y = clamp(p.y - halfH, 0, Math.max(0, game.world.h - halfH * 2));
   }
+  function clearSkillEffects() {
+    game.pendingMeteors = [];
+    game.poisonZones = [];
+    game.soulDrains = [];
+    game.corpsePositions = [];
+  }
   function enterTown() {
     game.world = generateTown();
     game.enemies = [];
@@ -725,6 +846,7 @@
     game.particles = [];
     game.floatingTexts = [];
     ambientParticles.length = 0;
+    clearSkillEffects();
     game.activeBiomeId = null;
     game.activeFloor = 0;
     snapCamera();
@@ -744,6 +866,7 @@
     game.particles = [];
     game.floatingTexts = [];
     ambientParticles.length = 0;
+    clearSkillEffects();
     game.activeBiomeId = biomeId;
     game.activeFloor = floor;
     snapCamera();
@@ -929,17 +1052,27 @@
   // ============================================================
   // ACTIVE SKILL
   // ============================================================
+  function getActiveSkillId() {
+    const c = game.char;
+    const cls = CLASSES[c.classId];
+    // Use player's selected skill, fall back to class default
+    if (c.selectedSkill && SKILLS[c.selectedSkill]) return c.selectedSkill;
+    return cls.skills[0];
+  }
+
   function castActiveSkill() {
     const c = game.char;
     const cls = CLASSES[c.classId];
-    const skill = SKILLS[cls.activeSkill];
+    const skillId = getActiveSkillId();
+    const skill = SKILLS[skillId];
     const p = game.world.player;
     if (p.skillCd > 0) { showHudToast(`Skill cooling: ${p.skillCd.toFixed(1)}s`); return; }
-    if (c.mp < cls.activeSkillCost) { showHudToast('Not enough mana'); return; }
-    c.mp -= cls.activeSkillCost;
+    const cost = skill.cost || cls.activeSkillCost;
+    if (c.mp < cost) { showHudToast('Not enough mana'); return; }
+    c.mp -= cost;
     p.skillCd = skill.cooldown;
 
-    if (cls.activeSkill === 'whirlwind') {
+    if (skillId === 'whirlwind') {
       const radius = 2.4;
       const d = derived(c);
       const dmg = Math.floor(d.dmg * 2.2);
@@ -958,7 +1091,63 @@
       burst(p.x, p.y, '#ffffff', 10);
       game.screenShake = Math.max(game.screenShake, 0.22);
     }
-    else if (cls.activeSkill === 'frostnova') {
+    else if (skillId === 'leapslam') {
+      const d = derived(c);
+      const dmg = Math.floor(d.dmg * 2.8);
+      const dir = p.lastDir.x || p.lastDir.y ? p.lastDir : { x: 0, y: 1 };
+      // Leap forward 3 tiles (stop at walls)
+      let tx = p.x, ty = p.y;
+      for (let i = 1; i <= 12; i++) {
+        const cx = p.x + dir.x * 3 * (i / 12);
+        const cy = p.y + dir.y * 3 * (i / 12);
+        const gx = Math.floor(clamp(cx, 0, game.world.w - 1));
+        const gy = Math.floor(clamp(cy, 0, game.world.h - 1));
+        if (game.world.grid[gy][gx] !== 0) break;
+        tx = cx; ty = cy;
+      }
+      // trail particles from old pos to new pos
+      for (let i = 0; i < 8; i++) {
+        pushParticle(lerp(p.x, tx, i / 8), lerp(p.y, ty, i / 8), '#ff4d6d', 0.3);
+      }
+      p.x = tx; p.y = ty;
+      // AOE slam on landing
+      const radius = 2.0;
+      const targets = game.enemies.filter(e => dist(e, p) <= radius);
+      for (const e of targets) { hitEnemy(e, dmg, d.crit); e.stagger = Math.max(e.stagger, 0.5); }
+      // ground slam particles
+      for (let i = 0; i < 20; i++) {
+        const a = (i / 20) * PI2;
+        addParticle({
+          x: p.x + Math.cos(a) * 0.3, y: p.y + Math.sin(a) * 0.3,
+          vx: Math.cos(a) * 5, vy: Math.sin(a) * 5,
+          color: i % 2 === 0 ? '#ff4d6d' : '#ffc857', life: 0.4 + rand() * 0.2, age: 0, size: 2 + rand() * 2,
+        });
+      }
+      burst(p.x, p.y, '#ffffff', 14);
+      game.screenShake = Math.max(game.screenShake, 0.3);
+    }
+    else if (skillId === 'warcry') {
+      const d = derived(c);
+      // Buff: +50% damage for 8 seconds (stored on player)
+      p.warcryBuff = 8.0;
+      // Stagger nearby enemies
+      const radius = 2.5;
+      const targets = game.enemies.filter(e => dist(e, p) <= radius);
+      for (const e of targets) { e.stagger = Math.max(e.stagger, 1.5); }
+      // Expanding shockwave ring
+      for (let i = 0; i < 20; i++) {
+        const a = (i / 20) * PI2;
+        addParticle({
+          x: p.x + Math.cos(a) * 0.5, y: p.y + Math.sin(a) * 0.5,
+          vx: Math.cos(a) * 6, vy: Math.sin(a) * 6,
+          color: '#ffc857', life: 0.4 + rand() * 0.2, age: 0, size: 2.5 + rand() * 1.5,
+        });
+      }
+      burst(p.x, p.y, '#ffc857', 12);
+      game.screenShake = Math.max(game.screenShake, 0.18);
+      showHudToast('+50% Damage for 8s!');
+    }
+    else if (skillId === 'frostnova') {
       const radius = 3.5;
       const d = derived(c);
       const dmg = Math.floor(d.dmg * 1.8);
@@ -976,7 +1165,76 @@
       }
       game.screenShake = Math.max(game.screenShake, 0.15);
     }
-    else if (cls.activeSkill === 'multishot') {
+    else if (skillId === 'chainlightning') {
+      const d = derived(c);
+      const dmg = Math.floor(d.dmg * 1.5);
+      const maxBounces = 5;
+      const bounceRange = 4.0;
+      // Find first target — closest enemy
+      let targets = [];
+      let lastPos = { x: p.x, y: p.y };
+      const hitSet = new Set();
+      for (let bounce = 0; bounce < maxBounces; bounce++) {
+        let near = null, nd = Infinity;
+        for (const e of game.enemies) {
+          if (hitSet.has(e)) continue;
+          const dd = dist(e, lastPos);
+          if (dd <= bounceRange && dd < nd) { near = e; nd = dd; }
+        }
+        if (!near) break;
+        hitSet.add(near);
+        targets.push(near);
+        // Draw lightning bolt particles between lastPos and target
+        const steps = 6;
+        for (let i = 0; i < steps; i++) {
+          const t = i / steps;
+          const lx = lerp(lastPos.x, near.x, t) + (rand() - 0.5) * 0.3;
+          const ly = lerp(lastPos.y, near.y, t) + (rand() - 0.5) * 0.3;
+          addParticle({
+            x: lx, y: ly, vx: (rand() - 0.5) * 2, vy: (rand() - 0.5) * 2,
+            color: i % 2 === 0 ? '#ffffff' : '#6df1ff', life: 0.3 + rand() * 0.2, age: 0, size: 1.5 + rand(),
+          });
+        }
+        hitEnemy(near, dmg, d.crit);
+        burst(near.x, near.y, '#6df1ff', 8);
+        lastPos = { x: near.x, y: near.y };
+      }
+      if (targets.length === 0) {
+        // No targets — zap forward
+        const dir = p.lastDir.x || p.lastDir.y ? p.lastDir : { x: 0, y: 1 };
+        for (let i = 0; i < 8; i++) {
+          addParticle({
+            x: p.x + dir.x * i * 0.5, y: p.y + dir.y * i * 0.5,
+            vx: (rand() - 0.5) * 2, vy: (rand() - 0.5) * 2,
+            color: '#6df1ff', life: 0.2 + rand() * 0.15, age: 0, size: 1.5,
+          });
+        }
+      }
+      game.screenShake = Math.max(game.screenShake, 0.12);
+    }
+    else if (skillId === 'meteor') {
+      const d = derived(c);
+      const dmg = Math.floor(d.dmg * 4.0);
+      const dir = p.lastDir.x || p.lastDir.y ? p.lastDir : { x: 0, y: 1 };
+      const targetX = p.x + dir.x * 3;
+      const targetY = p.y + dir.y * 3;
+      // Delayed impact — store meteor for detonation
+      if (!game.pendingMeteors) game.pendingMeteors = [];
+      game.pendingMeteors.push({
+        x: targetX, y: targetY, dmg, crit: d.crit, delay: 0.6, radius: 2.5,
+      });
+      // Warning circle particles (red glow at target)
+      for (let i = 0; i < 12; i++) {
+        const a = (i / 12) * PI2;
+        addParticle({
+          x: targetX + Math.cos(a) * 1.2, y: targetY + Math.sin(a) * 1.2,
+          vx: 0, vy: -0.5,
+          color: '#ff7043', life: 0.55, age: 0, size: 2,
+        });
+      }
+      showHudToast('Meteor incoming!');
+    }
+    else if (skillId === 'multishot') {
       const d = derived(c);
       const dmg = Math.floor(d.dmg * 0.8);
       const dir = p.lastDir.x || p.lastDir.y ? p.lastDir : { x: 0, y: 1 };
@@ -988,7 +1246,43 @@
       // muzzle flash
       burst(p.x + dir.x * 0.3, p.y + dir.y * 0.3, '#51e6a4', 8);
     }
-    else if (cls.activeSkill === 'raisedead') {
+    else if (skillId === 'poisontrap') {
+      const d = derived(c);
+      const dmg = Math.floor(d.dmg * 0.6);
+      // Place a poison zone at current position
+      if (!game.poisonZones) game.poisonZones = [];
+      game.poisonZones.push({
+        x: p.x, y: p.y, radius: 2.0, dmg, crit: d.crit,
+        ttl: 5.0, tickTimer: 0, tickInterval: 0.5,
+      });
+      // Drop effect
+      for (let i = 0; i < 16; i++) {
+        const a = (i / 16) * PI2;
+        addParticle({
+          x: p.x + Math.cos(a) * 0.8, y: p.y + Math.sin(a) * 0.8,
+          vx: Math.cos(a) * 1.5, vy: Math.sin(a) * 1.5,
+          color: '#9be57c', life: 0.5 + rand() * 0.3, age: 0, size: 2 + rand(),
+        });
+      }
+      burst(p.x, p.y, '#51e6a4', 10);
+      showHudToast('Trap placed!');
+    }
+    else if (skillId === 'piercingshot') {
+      const d = derived(c);
+      const dmg = Math.floor(d.dmg * 2.5);
+      const dir = p.lastDir.x || p.lastDir.y ? p.lastDir : { x: 0, y: 1 };
+      // Fire a piercing projectile (special kind that doesn't stop on hit)
+      game.projectiles.push({
+        x: p.x, y: p.y, dx: dir.x, dy: dir.y,
+        speed: 14, dmg, color: '#51e6a4', kind: 'piercing', friendly: true,
+        life: 2.0, age: 0, piercing: true, hitList: new Set(),
+      });
+      // Big muzzle flash
+      burst(p.x + dir.x * 0.4, p.y + dir.y * 0.4, '#51e6a4', 12);
+      burst(p.x + dir.x * 0.4, p.y + dir.y * 0.4, '#ffffff', 6);
+      game.screenShake = Math.max(game.screenShake, 0.08);
+    }
+    else if (skillId === 'raisedead') {
       for (let i = 0; i < 2; i++) {
         const angle = rand() * PI2;
         game.minions.push({
@@ -1013,6 +1307,61 @@
         });
       }
       burst(p.x, p.y, '#c489ff', 12);
+    }
+    else if (skillId === 'souldrain') {
+      const d = derived(c);
+      // Start a soul drain channel (ticks over 3 seconds)
+      // Find nearest enemy
+      let near = null, nd = Infinity;
+      for (const e of game.enemies) {
+        const dd = dist(e, p);
+        if (dd <= 5.0 && dd < nd) { near = e; nd = dd; }
+      }
+      if (near) {
+        if (!game.soulDrains) game.soulDrains = [];
+        game.soulDrains.push({
+          target: near, dmg: Math.floor(d.dmg * 1.0), crit: d.crit,
+          ttl: 3.0, tickTimer: 0, tickInterval: 0.4,
+        });
+        burst(p.x, p.y, '#c489ff', 8);
+        showHudToast('Draining soul...');
+      } else {
+        showHudToast('No target in range');
+        // Refund partial mana
+        c.mp += Math.floor(cost * 0.5);
+        p.skillCd = 1.0; // short cd on miss
+      }
+    }
+    else if (skillId === 'corpseexplosion') {
+      const d = derived(c);
+      const dmg = Math.floor(d.dmg * 2.0);
+      const radius = 1.8;
+      // Get recent corpse positions (stored when enemies die)
+      const corpses = (game.corpsePositions || []).filter(cp => dist(cp, p) <= 5.0);
+      if (corpses.length === 0) {
+        showHudToast('No corpses nearby');
+        c.mp += Math.floor(cost * 0.5);
+        p.skillCd = 1.0;
+      } else {
+        let totalHits = 0;
+        for (const cp of corpses) {
+          const targets = game.enemies.filter(e => dist(e, cp) <= radius);
+          for (const e of targets) { hitEnemy(e, dmg, d.crit); totalHits++; }
+          // Explosion effect at each corpse
+          burst(cp.x, cp.y, '#c489ff', 16);
+          burst(cp.x, cp.y, '#ff4d6d', 10);
+          for (let i = 0; i < 8; i++) {
+            const a = (i / 8) * PI2;
+            addParticle({
+              x: cp.x, y: cp.y, vx: Math.cos(a) * 4, vy: Math.sin(a) * 4,
+              color: '#c489ff', life: 0.35 + rand() * 0.2, age: 0, size: 2 + rand() * 2,
+            });
+          }
+        }
+        game.corpsePositions = (game.corpsePositions || []).filter(cp => dist(cp, p) > 5.0);
+        game.screenShake = Math.max(game.screenShake, 0.25);
+        if (totalHits > 0) showHudToast(`${corpses.length} corpse(s) detonated!`);
+      }
     }
     updateHud();
   }
@@ -1105,6 +1454,10 @@
     burst(e.x, e.y, e.color, e.boss ? 35 : 20);
     burst(e.x, e.y, '#ffffff', e.boss ? 12 : 5);
     game.screenShake = Math.max(game.screenShake, e.boss ? 0.45 : 0.12);
+    // Store corpse position for Corpse Explosion skill (max 12 positions)
+    if (!game.corpsePositions) game.corpsePositions = [];
+    game.corpsePositions.push({ x: e.x, y: e.y });
+    if (game.corpsePositions.length > 12) game.corpsePositions.shift();
     gainXp(e.xp);
     const gold = irand(e.goldRange[0], e.goldRange[1]) * (e.boss ? 3 : 1);
     game.char.gold += gold;
@@ -1173,13 +1526,30 @@
         game.projectiles.splice(i, 1); continue;
       }
       if (p.friendly) {
-        for (const e of game.enemies) {
-          if (dist(e, p) < 0.45) {
-            hitEnemy(e, p.dmg, derived(game.char).crit);
-            game.projectiles.splice(i, 1);
-            burst(p.x, p.y, p.color, 8);
-            removed = true;
-            break;
+        if (p.piercing) {
+          // Piercing projectile — hits each enemy once, doesn't stop
+          for (const e of game.enemies) {
+            if (p.hitList.has(e)) continue;
+            if (dist(e, p) < 0.45) {
+              p.hitList.add(e);
+              hitEnemy(e, p.dmg, derived(game.char).crit);
+              burst(p.x, p.y, p.color, 6);
+              // Trail particles behind piercing shot
+              addParticle({
+                x: p.x, y: p.y, vx: -p.dx * 2, vy: -p.dy * 2,
+                color: '#ffffff', life: 0.2, age: 0, size: 2,
+              });
+            }
+          }
+        } else {
+          for (const e of game.enemies) {
+            if (dist(e, p) < 0.45) {
+              hitEnemy(e, p.dmg, derived(game.char).crit);
+              game.projectiles.splice(i, 1);
+              burst(p.x, p.y, p.color, 8);
+              removed = true;
+              break;
+            }
           }
         }
         if (removed) continue;
@@ -1402,6 +1772,111 @@
     // passive mana regen
     if (game.char.mp < game.char.mpMax) {
       game.char.mp = Math.min(game.char.mpMax, game.char.mp + dt * 2.2);
+    }
+
+    // War Cry buff countdown
+    if (p.warcryBuff !== undefined && p.warcryBuff > 0) {
+      p.warcryBuff -= dt;
+      if (p.warcryBuff <= 0) { p.warcryBuff = 0; showHudToast('War Cry faded.'); }
+    }
+  }
+
+  // ============================================================
+  // SKILL EFFECT TICKS (meteors, poison zones, soul drains)
+  // ============================================================
+  function tickSkillEffects(dt) {
+    const p = game.world ? game.world.player : null;
+    if (!p) return;
+
+    // --- Pending Meteors ---
+    if (game.pendingMeteors) {
+      for (let i = game.pendingMeteors.length - 1; i >= 0; i--) {
+        const m = game.pendingMeteors[i];
+        m.delay -= dt;
+        // Warning particles while waiting
+        if (m.delay > 0 && rand() < 0.4) {
+          addParticle({
+            x: m.x + (rand() - 0.5) * 1.5, y: m.y + (rand() - 0.5) * 1.5,
+            vx: 0, vy: -2, color: '#ff7043', life: 0.3, age: 0, size: 1.5,
+          });
+        }
+        if (m.delay <= 0) {
+          // IMPACT
+          const targets = game.enemies.filter(e => dist(e, m) <= m.radius);
+          for (const e of targets) hitEnemy(e, m.dmg, m.crit);
+          // Massive explosion
+          burst(m.x, m.y, '#ff7043', 30);
+          burst(m.x, m.y, '#ffc857', 20);
+          burst(m.x, m.y, '#ffffff', 10);
+          for (let j = 0; j < 16; j++) {
+            const a = (j / 16) * PI2;
+            addParticle({
+              x: m.x, y: m.y, vx: Math.cos(a) * 6, vy: Math.sin(a) * 6,
+              color: j % 2 === 0 ? '#ff7043' : '#ffc857', life: 0.5 + rand() * 0.3, age: 0, size: 3 + rand() * 2,
+            });
+          }
+          game.screenShake = Math.max(game.screenShake, 0.4);
+          game.pendingMeteors.splice(i, 1);
+        }
+      }
+    }
+
+    // --- Poison Zones ---
+    if (game.poisonZones) {
+      for (let i = game.poisonZones.length - 1; i >= 0; i--) {
+        const z = game.poisonZones[i];
+        z.ttl -= dt;
+        z.tickTimer += dt;
+        // Ambient particles
+        if (rand() < 0.3) {
+          const a = rand() * PI2;
+          const r = rand() * z.radius;
+          addParticle({
+            x: z.x + Math.cos(a) * r, y: z.y + Math.sin(a) * r,
+            vx: 0, vy: -0.8 - rand(), color: '#9be57c', life: 0.4 + rand() * 0.3, age: 0, size: 1.5 + rand(),
+          });
+        }
+        // Damage tick
+        if (z.tickTimer >= z.tickInterval) {
+          z.tickTimer = 0;
+          const targets = game.enemies.filter(e => dist(e, z) <= z.radius);
+          for (const e of targets) hitEnemy(e, z.dmg, z.crit);
+        }
+        if (z.ttl <= 0) game.poisonZones.splice(i, 1);
+      }
+    }
+
+    // --- Soul Drain channels ---
+    if (game.soulDrains) {
+      for (let i = game.soulDrains.length - 1; i >= 0; i--) {
+        const sd = game.soulDrains[i];
+        sd.ttl -= dt;
+        sd.tickTimer += dt;
+        const target = sd.target;
+        // Check if target is still alive and in range
+        if (!target || target.hp <= 0 || dist(target, p) > 6.0 || sd.ttl <= 0) {
+          game.soulDrains.splice(i, 1);
+          continue;
+        }
+        // Visual beam particles
+        if (rand() < 0.6) {
+          const t = rand();
+          addParticle({
+            x: lerp(p.x, target.x, t), y: lerp(p.y, target.y, t),
+            vx: (rand() - 0.5), vy: (rand() - 0.5),
+            color: '#c489ff', life: 0.25, age: 0, size: 1.5,
+          });
+        }
+        // Damage tick
+        if (sd.tickTimer >= sd.tickInterval) {
+          sd.tickTimer = 0;
+          hitEnemy(target, sd.dmg, sd.crit);
+          // Heal player for 50% of damage dealt
+          const heal = Math.floor(sd.dmg * 0.5);
+          game.char.hp = Math.min(game.char.hpMax, game.char.hp + heal);
+          floatText(`+${heal}`, p.x, p.y - 0.4, 'heal');
+        }
+      }
     }
   }
 
@@ -2604,7 +3079,7 @@
     $('hud-mp-fill').style.height = clamp(100 * c.mp / c.mpMax, 0, 100).toFixed(1) + '%';
     $('hud-mp-label').textContent = Math.max(0, Math.ceil(c.mp));
     $('hud-xp-fill').style.width = clamp(100 * c.xp / xpForLevel(c.level), 0, 100).toFixed(1) + '%';
-    const skillName = SKILLS[CLASSES[c.classId].activeSkill].name;
+    const skillName = SKILLS[getActiveSkillId()].name;
     $('hud-skill-name').textContent = skillName;
     const cdEl = $('hud-skill-cd');
     const p = game.world ? game.world.player : null;
@@ -2738,15 +3213,23 @@
   function renderSkills() {
     const c = game.char;
     const cls = CLASSES[c.classId];
-    const s = SKILLS[cls.activeSkill];
+    const activeId = getActiveSkillId();
     const el = $('skills-content');
-    el.innerHTML = `
-      <div class="skill-card">
-        <div class="skill-name">${s.name}</div>
+    el.innerHTML = '<div class="skill-header">Select Active Skill:</div>';
+    for (const skillId of cls.skills) {
+      const s = SKILLS[skillId];
+      const isActive = skillId === activeId;
+      const card = document.createElement('button');
+      card.className = 'skill-card focusable' + (isActive ? ' skill-active' : '');
+      card.dataset.action = 'select-skill';
+      card.dataset.skill = skillId;
+      card.innerHTML = `
+        <div class="skill-name">${s.name}${isActive ? ' ★' : ''}</div>
         <div class="skill-desc">${s.desc}</div>
-      </div>
-      <div class="quest-card empty">More skills unlock as you progress.</div>
-    `;
+        <div class="skill-meta">Cooldown: ${s.cooldown}s · Mana: ${s.cost}</div>
+      `;
+      el.appendChild(card);
+    }
   }
 
   function renderQuests() {
@@ -2968,6 +3451,19 @@
       case 'spend-stat':
         spendStat(el.dataset.stat);
         return;
+
+      // skills — select active skill
+      case 'select-skill': {
+        const skillId = el.dataset.skill;
+        if (SKILLS[skillId]) {
+          game.char.selectedSkill = skillId;
+          saveGame();
+          renderSkills();
+          updateHud();
+          showHudToast(`Skill: ${SKILLS[skillId].name}`);
+        }
+        return;
+      }
 
       // vendor
       case 'vendor-tab-buy':   game.vendorMode = 'buy';  renderVendor(); return;
@@ -3220,6 +3716,7 @@
       tickEnemies(dt);
       tickMinions(dt);
       tickProjectiles(dt);
+      tickSkillEffects(dt);
       tickEffects(dt);
       tickAmbient(dt);
       tickInteraction();
