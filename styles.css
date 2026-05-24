@@ -449,6 +449,11 @@ html, body {
 .about-card strong {
   color: #fff;
 }
+.about-section-title.focusable:focus,
+.about-card.focusable:focus {
+  outline: 1px solid rgba(109, 241, 255, 0.4);
+  outline-offset: 2px;
+}
 
 /* =========================================================
    GAME CANVAS + HUD

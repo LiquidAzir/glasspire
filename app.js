@@ -15,7 +15,7 @@
     canvas: 600,
     tile: 28,                 // pixels per tile
     viewTiles: 21,            // 21 * 28 ≈ 588, with 6px margin per side
-    playerSpeed: 7.0,         // tiles/sec — fast for glasses
+    playerSpeed: 9.5,         // tiles/sec — fast for glasses
     comboWindow: 500,         // ms — taps within this count as a combo sequence
     minComboGap: 30,          // ms — to reject key repeat ghosts
     biomeFloors: 4,           // floors per biome before boss
@@ -794,13 +794,14 @@
       }
     }
 
-    // 3-tap same direction = dash (must be quick)
+    // 3-tap same direction = dash in THAT direction (must be quick)
     if (!matched && b.length >= 3) {
       const last3 = b.slice(-3).map(e => e.ch);
       const span3 = b[b.length - 1].t - b[b.length - 3].t;
       if (span3 <= CFG.comboWindow && last3[0] === last3[1] && last3[1] === last3[2]) {
-        matched = true;
-        tryDash();
+        const dir = last3[0];
+        const dashDir = { up: {x:0,y:-1}, down: {x:0,y:1}, left: {x:-1,y:0}, right: {x:1,y:0} }[dir];
+        if (dashDir) { matched = true; tryDash(dashDir.x, dashDir.y); }
       }
     }
 
@@ -822,10 +823,12 @@
     saveGame();
     updateHud();
   }
-  function tryDash() {
+  function tryDash(dirX, dirY) {
     const p = game.world.player;
     if (p.dashCd && p.dashCd > 0) return;
-    const dx = p.lastDir.x, dy = p.lastDir.y;
+    // use provided direction (from triple-tap), fallback to last facing
+    const dx = dirX !== undefined ? dirX : p.lastDir.x;
+    const dy = dirY !== undefined ? dirY : p.lastDir.y;
     if (dx === 0 && dy === 0) return; // no direction
     // teleport forward 3.5 tiles — but stop at first wall
     const steps = 10;
