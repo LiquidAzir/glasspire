@@ -174,6 +174,11 @@
       enemies: ['imp', 'hellhound', 'demon'],
       boss: 'archdemon',
       unlocked: false },
+    { id: 'voidspire', name: 'The Void Spire',    shortName: 'VOIDSPIRE',
+      palette: { wall: '#b388ff', floor: '#0d0d1a', accent: '#00e5ff' },
+      enemies: ['voidling', 'nullweaver', 'crystalsentinel'],
+      boss: 'voidlord',
+      unlocked: false },
   ];
 
   const ENEMIES = {
@@ -200,6 +205,12 @@
     hellhound:{ name: 'Hellhound',  glyph: '☼', color: '#ff4d6d', hp: 56,  dmg: 16, speed: 4.0, range: 1.1, attackKind: 'melee', xp: 20, goldRange: [5, 10] },
     demon:    { name: 'Demon',      glyph: '⛧', color: '#ff4d6d', hp: 92,  dmg: 20, speed: 2.4, range: 1.2, attackKind: 'melee', xp: 28, goldRange: [6, 14] },
     archdemon:{ name: 'Archdemon',  glyph: '⛤', color: '#ff4d6d', hp: 900, dmg: 28, speed: 2.6, range: 4.5, attackKind: 'ranged-soul', xp: 280, goldRange: [120, 240], boss: true },
+
+    // void spire
+    voidling:       { name: 'Voidling',         glyph: '◬', color: '#b388ff', hp: 42,  dmg: 16, speed: 3.8, range: 1.0, attackKind: 'melee', xp: 22, goldRange: [5, 10] },
+    nullweaver:     { name: 'Nullweaver',       glyph: '◎', color: '#00e5ff', hp: 34,  dmg: 14, speed: 2.8, range: 5.0, attackKind: 'ranged-soul', xp: 26, goldRange: [6, 12] },
+    crystalsentinel:{ name: 'Crystal Sentinel', glyph: '⬡', color: '#e0e0ff', hp: 110, dmg: 22, speed: 1.8, range: 1.3, attackKind: 'melee', xp: 34, goldRange: [8, 16] },
+    voidlord:       { name: 'Void Lord',        glyph: '☆', color: '#b388ff', hp: 1200, dmg: 34, speed: 2.8, range: 5.5, attackKind: 'ranged-soul', xp: 400, goldRange: [180, 360], boss: true },
   };
 
   // ITEM BASES — weapon, armor, ring, amulet
@@ -515,7 +526,7 @@
         selectedSkill: cls.skills[0],  // track which skill is active
       },
       stash: [],
-      unlockedBiomes: { crypts: true, overgrowth: false, frostpeak: false, infernal: false },
+      unlockedBiomes: { crypts: true, overgrowth: false, frostpeak: false, infernal: false, voidspire: false },
       bossesKilled: {},
       quest: null,    // active bounty
       questsCompleted: 0,
@@ -539,6 +550,10 @@
       // migrate: add selectedSkill for old saves
       if (obj.char && !obj.char.selectedSkill) {
         obj.char.selectedSkill = CLASSES[obj.char.classId].skills[0];
+      }
+      // migrate: add voidspire biome for old saves
+      if (obj.unlockedBiomes && !('voidspire' in obj.unlockedBiomes)) {
+        obj.unlockedBiomes.voidspire = false;
       }
       return obj;
     } catch (e) { return null; }

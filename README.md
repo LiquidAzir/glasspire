@@ -54,6 +54,7 @@ Unlock in order by beating each boss:
 2. **Overgrown Ruins** — spiders, thornlings, wisps · boss: Old Druid
 3. **Frozen Peaks** — frostwolves, frost giants, ice bats · boss: Ice Wyrm
 4. **Infernal Depths** — imps, hellhounds, demons · boss: Archdemon
+5. **The Void Spire** — voidlings, nullweavers, crystal sentinels · boss: Void Lord
 
 ## Debug
 
