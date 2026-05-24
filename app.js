@@ -183,34 +183,54 @@
 
   const ENEMIES = {
     // crypts
-    skeleton: { name: 'Skeleton',   glyph: '☠', color: '#cfcfcf', hp: 22,  dmg: 6,  speed: 2.2, range: 1.1, attackKind: 'melee', xp: 8,  goldRange: [1, 4] },
-    ghoul:    { name: 'Ghoul',      glyph: 'ɣ', color: '#9bbf95', hp: 35,  dmg: 9,  speed: 2.8, range: 1.1, attackKind: 'melee', xp: 12, goldRange: [2, 5] },
-    wraith:   { name: 'Wraith',     glyph: '∽', color: '#c489ff', hp: 18,  dmg: 7,  speed: 2.0, range: 4.5, attackKind: 'ranged-soul', xp: 14, goldRange: [3, 6] },
-    lich:     { name: 'Lich Lord',  glyph: '✪', color: '#ff4d6d', hp: 360, dmg: 14, speed: 1.8, range: 5.5, attackKind: 'ranged-soul', xp: 80, goldRange: [40, 80], boss: true },
+    skeleton: { name: 'Skeleton',   glyph: '☠', color: '#cfcfcf', hp: 22,  dmg: 6,  speed: 2.2, range: 1.1, attackKind: 'melee', xp: 8,  goldRange: [1, 4],
+      trait: 'shamble', shape: 'skeleton' },
+    ghoul:    { name: 'Ghoul',      glyph: 'ɣ', color: '#9bbf95', hp: 35,  dmg: 9,  speed: 2.8, range: 1.1, attackKind: 'melee', xp: 12, goldRange: [2, 5],
+      trait: 'lunge', shape: 'hunched' },
+    wraith:   { name: 'Wraith',     glyph: '∽', color: '#c489ff', hp: 18,  dmg: 7,  speed: 2.0, range: 4.5, attackKind: 'ranged-soul', xp: 14, goldRange: [3, 6],
+      trait: 'phase', shape: 'ghost', projColor: '#c489ff' },
+    lich:     { name: 'Lich Lord',  glyph: '✪', color: '#ff4d6d', hp: 360, dmg: 14, speed: 1.8, range: 5.5, attackKind: 'ranged-soul', xp: 80, goldRange: [40, 80], boss: true,
+      trait: 'summon', shape: 'caster', projColor: '#ff4d6d' },
 
     // overgrowth
-    spider:   { name: 'Spider',     glyph: '✶', color: '#51e6a4', hp: 26,  dmg: 8,  speed: 3.5, range: 1.0, attackKind: 'melee', xp: 10, goldRange: [2, 4] },
-    thorn:    { name: 'Thornling',  glyph: '✲', color: '#9be57c', hp: 40,  dmg: 10, speed: 1.6, range: 1.1, attackKind: 'melee', xp: 14, goldRange: [3, 6] },
-    wisp:     { name: 'Wisp',       glyph: '∗', color: '#ffe066', hp: 14,  dmg: 6,  speed: 3.4, range: 4.0, attackKind: 'ranged-soul', xp: 12, goldRange: [3, 6] },
-    druid:    { name: 'Old Druid',  glyph: '❦', color: '#51e6a4', hp: 480, dmg: 18, speed: 2.0, range: 4.5, attackKind: 'ranged-soul', xp: 120, goldRange: [60, 120], boss: true },
+    spider:   { name: 'Spider',     glyph: '✶', color: '#51e6a4', hp: 26,  dmg: 8,  speed: 3.5, range: 1.0, attackKind: 'melee', xp: 10, goldRange: [2, 4],
+      trait: 'swarm', shape: 'spider' },
+    thorn:    { name: 'Thornling',  glyph: '✲', color: '#9be57c', hp: 40,  dmg: 10, speed: 1.6, range: 1.1, attackKind: 'melee', xp: 14, goldRange: [3, 6],
+      trait: 'thorns', shape: 'plant' },
+    wisp:     { name: 'Wisp',       glyph: '∗', color: '#ffe066', hp: 14,  dmg: 6,  speed: 3.4, range: 4.0, attackKind: 'ranged-soul', xp: 12, goldRange: [3, 6],
+      trait: 'erratic', shape: 'orb', projColor: '#ffe066' },
+    druid:    { name: 'Old Druid',  glyph: '❦', color: '#51e6a4', hp: 480, dmg: 18, speed: 2.0, range: 4.5, attackKind: 'ranged-soul', xp: 120, goldRange: [60, 120], boss: true,
+      trait: 'heal', shape: 'caster', projColor: '#51e6a4' },
 
     // frost
-    wolf:     { name: 'Frostwolf',  glyph: '✦', color: '#bcd9ee', hp: 32,  dmg: 11, speed: 4.0, range: 1.0, attackKind: 'melee', xp: 14, goldRange: [3, 6] },
-    frostgiant: { name: 'Frost Giant', glyph: '✷', color: '#ffffff', hp: 70, dmg: 16, speed: 1.5, range: 1.2, attackKind: 'melee', xp: 22, goldRange: [5, 12] },
-    icebat:   { name: 'Ice Bat',    glyph: '✺', color: '#a0e0ff', hp: 18,  dmg: 9,  speed: 3.6, range: 1.0, attackKind: 'melee', xp: 12, goldRange: [3, 6] },
-    wyrm:     { name: 'Ice Wyrm',   glyph: '♅', color: '#a0e0ff', hp: 620, dmg: 22, speed: 2.4, range: 5.5, attackKind: 'ranged-soul', xp: 180, goldRange: [80, 160], boss: true },
+    wolf:     { name: 'Frostwolf',  glyph: '✦', color: '#bcd9ee', hp: 32,  dmg: 11, speed: 4.0, range: 1.0, attackKind: 'melee', xp: 14, goldRange: [3, 6],
+      trait: 'pack', shape: 'beast' },
+    frostgiant: { name: 'Frost Giant', glyph: '✷', color: '#ffffff', hp: 70, dmg: 16, speed: 1.5, range: 1.2, attackKind: 'melee', xp: 22, goldRange: [5, 12],
+      trait: 'slam', shape: 'giant' },
+    icebat:   { name: 'Ice Bat',    glyph: '✺', color: '#a0e0ff', hp: 18,  dmg: 9,  speed: 3.6, range: 1.0, attackKind: 'melee', xp: 12, goldRange: [3, 6],
+      trait: 'flyby', shape: 'bat' },
+    wyrm:     { name: 'Ice Wyrm',   glyph: '♅', color: '#a0e0ff', hp: 620, dmg: 22, speed: 2.4, range: 5.5, attackKind: 'ranged-soul', xp: 180, goldRange: [80, 160], boss: true,
+      trait: 'breath', shape: 'wyrm', projColor: '#a0e0ff' },
 
     // infernal
-    imp:      { name: 'Imp',        glyph: '✦', color: '#ff7043', hp: 28,  dmg: 12, speed: 3.4, range: 3.5, attackKind: 'ranged-soul', xp: 16, goldRange: [4, 8] },
-    hellhound:{ name: 'Hellhound',  glyph: '☼', color: '#ff4d6d', hp: 56,  dmg: 16, speed: 4.0, range: 1.1, attackKind: 'melee', xp: 20, goldRange: [5, 10] },
-    demon:    { name: 'Demon',      glyph: '⛧', color: '#ff4d6d', hp: 92,  dmg: 20, speed: 2.4, range: 1.2, attackKind: 'melee', xp: 28, goldRange: [6, 14] },
-    archdemon:{ name: 'Archdemon',  glyph: '⛤', color: '#ff4d6d', hp: 900, dmg: 28, speed: 2.6, range: 4.5, attackKind: 'ranged-soul', xp: 280, goldRange: [120, 240], boss: true },
+    imp:      { name: 'Imp',        glyph: '✦', color: '#ff7043', hp: 28,  dmg: 12, speed: 3.4, range: 3.5, attackKind: 'ranged-soul', xp: 16, goldRange: [4, 8],
+      trait: 'blink', shape: 'imp', projColor: '#ff7043' },
+    hellhound:{ name: 'Hellhound',  glyph: '☼', color: '#ff4d6d', hp: 56,  dmg: 16, speed: 4.0, range: 1.1, attackKind: 'melee', xp: 20, goldRange: [5, 10],
+      trait: 'charge', shape: 'beast' },
+    demon:    { name: 'Demon',      glyph: '⛧', color: '#ff4d6d', hp: 92,  dmg: 20, speed: 2.4, range: 1.2, attackKind: 'melee', xp: 28, goldRange: [6, 14],
+      trait: 'cleave', shape: 'giant' },
+    archdemon:{ name: 'Archdemon',  glyph: '⛤', color: '#ff4d6d', hp: 900, dmg: 28, speed: 2.6, range: 4.5, attackKind: 'ranged-soul', xp: 280, goldRange: [120, 240], boss: true,
+      trait: 'multiatk', shape: 'demon', projColor: '#ff4d6d' },
 
     // void spire
-    voidling:       { name: 'Voidling',         glyph: '◬', color: '#b388ff', hp: 42,  dmg: 16, speed: 3.8, range: 1.0, attackKind: 'melee', xp: 22, goldRange: [5, 10] },
-    nullweaver:     { name: 'Nullweaver',       glyph: '◎', color: '#00e5ff', hp: 34,  dmg: 14, speed: 2.8, range: 5.0, attackKind: 'ranged-soul', xp: 26, goldRange: [6, 12] },
-    crystalsentinel:{ name: 'Crystal Sentinel', glyph: '⬡', color: '#e0e0ff', hp: 110, dmg: 22, speed: 1.8, range: 1.3, attackKind: 'melee', xp: 34, goldRange: [8, 16] },
-    voidlord:       { name: 'Void Lord',        glyph: '☆', color: '#b388ff', hp: 1200, dmg: 34, speed: 2.8, range: 5.5, attackKind: 'ranged-soul', xp: 400, goldRange: [180, 360], boss: true },
+    voidling:       { name: 'Voidling',         glyph: '◬', color: '#b388ff', hp: 42,  dmg: 16, speed: 3.8, range: 1.0, attackKind: 'melee', xp: 22, goldRange: [5, 10],
+      trait: 'split', shape: 'void' },
+    nullweaver:     { name: 'Nullweaver',       glyph: '◎', color: '#00e5ff', hp: 34,  dmg: 14, speed: 2.8, range: 5.0, attackKind: 'ranged-soul', xp: 26, goldRange: [6, 12],
+      trait: 'silence', shape: 'weaver', projColor: '#00e5ff' },
+    crystalsentinel:{ name: 'Crystal Sentinel', glyph: '⬡', color: '#e0e0ff', hp: 110, dmg: 22, speed: 1.8, range: 1.3, attackKind: 'melee', xp: 34, goldRange: [8, 16],
+      trait: 'reflect', shape: 'crystal' },
+    voidlord:       { name: 'Void Lord',        glyph: '☆', color: '#b388ff', hp: 1200, dmg: 34, speed: 2.8, range: 5.5, attackKind: 'ranged-soul', xp: 400, goldRange: [180, 360], boss: true,
+      trait: 'voidpulse', shape: 'voidlord', projColor: '#b388ff' },
   };
 
   // ITEM BASES — weapon, armor, ring, amulet
@@ -871,12 +891,21 @@
       name: base.name,
       color: base.color,
       glyph: base.glyph,
+      trait: base.trait || null,
+      shape: base.shape || null,
+      projColor: base.projColor || '#c489ff',
       atkCd: 0.8 + rand() * 0.6,
       hitFlash: 0,
       frozen: 0,
       stagger: 0,
       boss: !!base.boss,
       ilvl: levelHint,
+      // trait state
+      traitCd: 0,
+      lunging: 0,
+      charging: 0,
+      phased: 0,
+      silenced: 0,
     };
   }
 
@@ -1126,6 +1155,8 @@
     const skillId = getActiveSkillId();
     const skill = SKILLS[skillId];
     const p = game.world.player;
+    // Nullweaver silence check
+    if (p.silenced && p.silenced > 0) { showHudToast('SILENCED!'); return; }
     if (p.skillCd > 0) { showHudToast(`Skill cooling: ${p.skillCd.toFixed(1)}s`); return; }
     const cost = skill.cost || cls.activeSkillCost;
     if (c.mp < cost) { showHudToast('Not enough mana'); return; }
@@ -1633,6 +1664,24 @@
         });
       }
     }
+    // Passive trait: Thornling reflects thorn damage on hit
+    if (e.trait === 'thorns' && e.hp > 0) {
+      const thornDmg = Math.floor(dmg * 0.25);
+      if (thornDmg > 0) {
+        damagePlayer(thornDmg);
+        burst(e.x, e.y, '#9be57c', 4);
+      }
+    }
+    // Passive trait: Crystal Sentinel reflects 15% damage as a projectile
+    if (e.trait === 'reflect' && e.hp > 0) {
+      const p = game.world.player;
+      const rdx = p.x - e.x, rdy = p.y - e.y;
+      const rd = Math.sqrt(rdx * rdx + rdy * rdy);
+      if (rd > 0.1) {
+        spawnProjectile(e.x, e.y, rdx / rd, rdy / rd, 8, Math.floor(dmg * 0.15), '#e0e0ff', 'soul', false);
+        burst(e.x, e.y, '#e0e0ff', 6);
+      }
+    }
     if (e.hp <= 0) killEnemy(e);
   }
 
@@ -1640,6 +1689,20 @@
     burst(e.x, e.y, e.color, e.boss ? 35 : 20);
     burst(e.x, e.y, '#ffffff', e.boss ? 12 : 5);
     game.screenShake = Math.max(game.screenShake, e.boss ? 0.45 : 0.12);
+    // Voidling split: spawns 2 smaller copies on death (only if not already a split)
+    if (e.trait === 'split' && !e._isSplit && game.enemies.length < 24) {
+      for (let i = 0; i < 2; i++) {
+        const ang = rand() * PI2;
+        const child = makeEnemy('voidling', e.x + Math.cos(ang) * 0.8, e.y + Math.sin(ang) * 0.8, Math.max(1, e.ilvl - 1));
+        child.hp = Math.floor(child.hp * 0.4);
+        child.hpMax = child.hp;
+        child.dmg = Math.floor(child.dmg * 0.5);
+        child.xp = Math.floor(child.xp * 0.3);
+        child._isSplit = true; // prevent infinite splitting
+        game.enemies.push(child);
+        burst(child.x, child.y, '#b388ff', 6);
+      }
+    }
     // Store corpse position for Corpse Explosion skill (max 12 positions)
     if (!game.corpsePositions) game.corpsePositions = [];
     game.corpsePositions.push({ x: e.x, y: e.y });
@@ -1763,19 +1826,216 @@
       e.frozen = Math.max(0, e.frozen - dt);
       e.stagger = Math.max(0, e.stagger - dt);
       e.atkCd = Math.max(0, e.atkCd - dt);
+      e.traitCd = Math.max(0, e.traitCd - dt);
+      e.lunging = Math.max(0, e.lunging - dt);
+      e.charging = Math.max(0, e.charging - dt);
+      e.phased = Math.max(0, e.phased - dt);
       if (e.frozen > 0) continue;
       if (e.stagger > 0) continue;
       const dx = p.x - e.x, dy = p.y - e.y;
       const d = Math.sqrt(dx * dx + dy * dy);
       if (d > 12) continue; // out of awareness
 
-      // melee: chase to range. ranged: keep distance, attack from range.
+      // --- Trait-based special behaviors (fired before basic AI) ---
+      if (e.trait && e.traitCd <= 0) {
+        switch (e.trait) {
+          case 'lunge': // Ghoul: lunges forward dealing bonus damage
+            if (d < 4 && d > 1.5) {
+              e.lunging = 0.3;
+              const lx = dx / d * 2.5, ly = dy / d * 2.5;
+              tryMove(e, lx, ly);
+              if (dist(e, p) < 1.2) { damagePlayer(Math.floor(e.dmg * 1.4)); burst(p.x, p.y, e.color, 10); }
+              e.traitCd = 3.5 + rand();
+              e.atkCd = 1.0;
+              continue;
+            }
+            break;
+          case 'phase': // Wraith: teleports near player periodically
+            if (d > 3) {
+              const ang = rand() * PI2;
+              const nx = p.x + Math.cos(ang) * 2.5, ny = p.y + Math.sin(ang) * 2.5;
+              const gx = Math.floor(nx), gy = Math.floor(ny);
+              if (gx > 0 && gx < game.world.w && gy > 0 && gy < game.world.h && game.world.grid[gy][gx] === 0) {
+                burst(e.x, e.y, e.color, 8);
+                e.x = nx; e.y = ny;
+                e.phased = 0.3;
+                burst(e.x, e.y, e.color, 8);
+              }
+              e.traitCd = 4.0 + rand() * 2;
+            }
+            break;
+          case 'summon': // Lich boss: spawns a skeleton minion
+            if (game.enemies.length < 20) {
+              const ang = rand() * PI2;
+              const sx = e.x + Math.cos(ang) * 2, sy = e.y + Math.sin(ang) * 2;
+              game.enemies.push(makeEnemy('skeleton', sx, sy, e.ilvl));
+              burst(sx, sy, '#cfcfcf', 10);
+              e.traitCd = 6.0 + rand() * 3;
+            }
+            break;
+          case 'swarm': // Spider: bursts of speed when close
+            if (d < 5 && d > 1.5) {
+              const speed = e.speed * dt * 2.5;
+              tryMove(e, dx / d * speed, dy / d * speed);
+              e.traitCd = 2.0;
+            }
+            break;
+          case 'thorns': // Thornling: damages player on being hit (handled in hitEnemy), also roots briefly
+            break; // passive — see hitEnemy
+          case 'erratic': // Wisp: jitters randomly between shots, hard to predict
+            {
+              const jx = (rand() - 0.5) * e.speed * dt * 3;
+              const jy = (rand() - 0.5) * e.speed * dt * 3;
+              tryMove(e, jx, jy);
+              e.traitCd = 0.3;
+            }
+            break;
+          case 'heal': // Old Druid boss: heals self periodically
+            if (e.hp < e.hpMax * 0.8) {
+              const healAmt = Math.floor(e.hpMax * 0.06);
+              e.hp = Math.min(e.hpMax, e.hp + healAmt);
+              burst(e.x, e.y, '#51e6a4', 12);
+              floatText(`+${healAmt}`, e.x, e.y - 0.5, 'heal');
+              e.traitCd = 5.0 + rand() * 2;
+            }
+            break;
+          case 'pack': // Frostwolf: speeds up when other wolves are nearby
+            {
+              let packCount = 0;
+              for (const ally of game.enemies) {
+                if (ally !== e && ally.id === 'wolf' && dist(ally, e) < 4) packCount++;
+              }
+              if (packCount > 0) e.speed = ENEMIES.wolf.speed * (1 + packCount * 0.2);
+              else e.speed = ENEMIES.wolf.speed;
+              e.traitCd = 1.0;
+            }
+            break;
+          case 'slam': // Frost Giant: ground slam AoE when in range
+            if (d < 2.0) {
+              damagePlayer(Math.floor(e.dmg * 1.5));
+              burst(e.x, e.y, '#ffffff', 14);
+              game.screenShake = 0.2;
+              // stun nearby other enemies too (collateral)
+              e.traitCd = 5.0 + rand() * 2;
+              e.atkCd = 2.0;
+              continue;
+            }
+            break;
+          case 'flyby': // Ice Bat: swoops past, damages, then retreats
+            if (d < 3 && d > 1.0) {
+              // swoop toward player
+              const speed = e.speed * dt * 3;
+              tryMove(e, dx / d * speed, dy / d * speed);
+              if (dist(e, p) < 1.1) {
+                damagePlayer(e.dmg);
+                burst(p.x, p.y, e.color, 6);
+                // bounce away
+                tryMove(e, -dx / d * 2, -dy / d * 2);
+                e.traitCd = 2.5 + rand();
+                e.atkCd = 1.5;
+                continue;
+              }
+            }
+            break;
+          case 'breath': // Ice Wyrm boss: fires 3 projectiles in a spread
+            if (d < e.range && d > 2) {
+              for (let i = -1; i <= 1; i++) {
+                const ang = Math.atan2(dy, dx) + i * 0.3;
+                spawnProjectile(e.x, e.y, Math.cos(ang), Math.sin(ang), 5.5, e.dmg, e.projColor, 'soul', false);
+              }
+              e.traitCd = 3.5 + rand();
+              e.atkCd = 2.5;
+            }
+            break;
+          case 'blink': // Imp: teleports to a random spot after attacking
+            if (e.atkCd <= 0.1 && d < e.range) {
+              // attack then blink away
+              spawnProjectile(e.x, e.y, dx / d, dy / d, 7, e.dmg, e.projColor, 'soul', false);
+              const ang = rand() * PI2;
+              const bx = e.x + Math.cos(ang) * 3, by = e.y + Math.sin(ang) * 3;
+              const gx = Math.floor(bx), gy = Math.floor(by);
+              if (gx > 0 && gx < game.world.w && gy > 0 && gy < game.world.h && game.world.grid[gy][gx] === 0) {
+                burst(e.x, e.y, e.projColor, 6);
+                e.x = bx; e.y = by;
+                burst(e.x, e.y, e.projColor, 6);
+              }
+              e.traitCd = 3.0 + rand();
+              e.atkCd = 2.0;
+              continue;
+            }
+            break;
+          case 'charge': // Hellhound: charges in a straight line at high speed
+            if (d < 6 && d > 2) {
+              e.charging = 0.4;
+              const speed = e.speed * dt * 4;
+              tryMove(e, dx / d * speed, dy / d * speed);
+              if (dist(e, p) < 1.2) {
+                damagePlayer(Math.floor(e.dmg * 1.3));
+                burst(p.x, p.y, e.color, 10);
+                e.atkCd = 1.5;
+              }
+              e.traitCd = 4.0 + rand();
+              continue;
+            }
+            break;
+          case 'cleave': // Demon: hits in an arc, damages even if slightly off
+            if (d < 1.8) {
+              damagePlayer(Math.floor(e.dmg * 1.2));
+              burst(p.x, p.y, e.color, 10);
+              // screen shake for impact
+              game.screenShake = Math.max(game.screenShake, 0.15);
+              e.traitCd = 2.5;
+              e.atkCd = 1.8;
+              continue;
+            }
+            break;
+          case 'multiatk': // Archdemon boss: fires 5 projectiles in a fan
+            if (d < e.range && d > 2) {
+              for (let i = -2; i <= 2; i++) {
+                const ang = Math.atan2(dy, dx) + i * 0.2;
+                spawnProjectile(e.x, e.y, Math.cos(ang), Math.sin(ang), 6, Math.floor(e.dmg * 0.7), e.projColor, 'soul', false);
+              }
+              e.traitCd = 4.0 + rand() * 2;
+              e.atkCd = 2.5;
+            }
+            break;
+          case 'split': // Voidling: on death splits into 2 smaller voidlings (handled in killEnemy)
+            break; // passive — see killEnemy
+          case 'silence': // Nullweaver: periodically disables player skills briefly
+            if (d < e.range) {
+              const wp = game.world.player;
+              wp.silenced = 2.5;
+              burst(p.x, p.y, '#00e5ff', 10);
+              floatText('SILENCED', p.x, p.y - 0.6, 'crit');
+              e.traitCd = 8.0 + rand() * 3;
+            }
+            break;
+          case 'reflect': // Crystal Sentinel: reflects a portion of damage back (handled in hitEnemy)
+            break; // passive — see hitEnemy
+          case 'voidpulse': // Void Lord boss: AoE pulse that damages in radius
+            if (d < 5) {
+              damagePlayer(Math.floor(e.dmg * 0.6));
+              burst(e.x, e.y, '#b388ff', 20);
+              game.screenShake = 0.25;
+              // emit ring particles
+              for (let i = 0; i < 12; i++) {
+                const ang = i * PI2 / 12;
+                addParticle(e.x + Math.cos(ang) * 3, e.y + Math.sin(ang) * 3, '#b388ff', 0.8);
+              }
+              e.traitCd = 5.0 + rand() * 2;
+            }
+            break;
+        }
+      }
+
+      // --- Base AI: movement + basic attacks ---
       if (e.attackKind === 'melee') {
         if (d > e.range * 0.9) {
-          const speed = e.speed * dt;
+          let speedMul = 1;
+          if (e.charging > 0) speedMul = 3;
+          const speed = e.speed * dt * speedMul;
           tryMove(e, dx / d * speed, dy / d * speed);
         } else if (e.atkCd <= 0) {
-          // melee swing
           damagePlayer(e.dmg);
           burst(p.x, p.y, '#ff4d6d', 6);
           e.atkCd = 1.2;
@@ -1791,7 +2051,7 @@
           tryMove(e, -dx / d * speed, -dy / d * speed);
         }
         if (d < e.range && e.atkCd <= 0) {
-          spawnProjectile(e.x, e.y, dx / d, dy / d, 6.5, e.dmg, '#c489ff', 'soul', false);
+          spawnProjectile(e.x, e.y, dx / d, dy / d, 6.5, e.dmg, e.projColor || '#c489ff', 'soul', false);
           e.atkCd = 2.0 + rand() * 0.6;
         }
       }
@@ -1974,6 +2234,11 @@
     if (p.shieldWall !== undefined && p.shieldWall > 0) {
       p.shieldWall -= dt;
       if (p.shieldWall <= 0) { p.shieldWall = 0; showHudToast('Shield Wall ended.'); }
+    }
+    // Silence debuff countdown (from Nullweaver)
+    if (p.silenced !== undefined && p.silenced > 0) {
+      p.silenced -= dt;
+      if (p.silenced <= 0) p.silenced = 0;
     }
   }
 
@@ -2750,7 +3015,7 @@
       ctx.save();
       ctx.translate(s.x, s.y);
       const isBoss = e.boss;
-      const scale = isBoss ? 1.5 : 1;
+      const scale = isBoss ? 1.5 : (e._isSplit ? 0.7 : 1);
       const bob = Math.sin(now / 280 + e.x * 5) * 1.2;
 
       // shadow
@@ -2761,56 +3026,396 @@
       ctx.fill();
       ctx.globalAlpha = 1;
 
+      // phased/charging glow
+      if (e.phased > 0) ctx.globalAlpha = 0.4 + 0.3 * Math.sin(now / 80);
+      if (e.charging > 0) ctx.globalAlpha = 0.6 + 0.4 * Math.sin(now / 50);
+
       // flash white on hit
       const col = e.hitFlash > 0 ? '#ffffff' : e.color;
 
-      // pixel-art body
+      // pixel-art body — shape-specific rendering
       ctx.shadowColor = col;
       ctx.shadowBlur = isBoss ? 16 : 10;
       ctx.fillStyle = col;
 
-      // draw based on enemy type
-      if (e.attackKind === 'melee') {
-        // melee enemies — chunky body shape
-        // torso
-        ctx.fillRect(-4 * scale, -3 * scale + bob, 8 * scale, 8 * scale);
-        // head
-        ctx.beginPath();
-        ctx.arc(0, -6 * scale + bob, 4 * scale, 0, PI2);
-        ctx.fill();
-        // arms (threatening pose)
-        ctx.fillRect(-8 * scale, -2 * scale + bob, 3 * scale, 6 * scale);
-        ctx.fillRect(5 * scale, -2 * scale + bob, 3 * scale, 6 * scale);
-        // menacing eye glow
-        ctx.fillStyle = '#ff0000';
-        ctx.globalAlpha = 0.7 + 0.3 * Math.sin(now / 200);
-        ctx.beginPath();
-        ctx.arc(-1.5 * scale, -6.5 * scale + bob, 1 * scale, 0, PI2);
-        ctx.arc(1.5 * scale, -6.5 * scale + bob, 1 * scale, 0, PI2);
-        ctx.fill();
-        ctx.globalAlpha = 1;
-      } else {
-        // ranged enemies — slender/floating look
-        // body (more ethereal)
-        ctx.beginPath();
-        ctx.moveTo(0, -10 * scale + bob);
-        ctx.lineTo(5 * scale, 2 * scale + bob);
-        ctx.lineTo(3 * scale, 8 * scale + bob);
-        ctx.lineTo(-3 * scale, 8 * scale + bob);
-        ctx.lineTo(-5 * scale, 2 * scale + bob);
-        ctx.closePath();
-        ctx.fill();
-        // head / orb
-        ctx.beginPath();
-        ctx.arc(0, -8 * scale + bob, 4 * scale, 0, PI2);
-        ctx.fill();
-        // energy core
-        ctx.fillStyle = '#ffffff';
-        ctx.globalAlpha = 0.5 + 0.3 * Math.sin(now / 200);
-        ctx.beginPath();
-        ctx.arc(0, -2 * scale + bob, 2 * scale, 0, PI2);
-        ctx.fill();
-        ctx.globalAlpha = 1;
+      const shape = e.shape || (e.attackKind === 'melee' ? 'hunched' : 'ghost');
+      switch (shape) {
+        case 'skeleton': // bony thin figure with visible ribs
+          ctx.fillRect(-2 * scale, -4 * scale + bob, 4 * scale, 10 * scale); // spine
+          ctx.beginPath(); ctx.arc(0, -6 * scale + bob, 3.5 * scale, 0, PI2); ctx.fill(); // skull
+          ctx.fillRect(-6 * scale, -3 * scale + bob, 2 * scale, 7 * scale); // left arm
+          ctx.fillRect(4 * scale, -3 * scale + bob, 2 * scale, 7 * scale); // right arm
+          // ribs
+          ctx.fillRect(-4 * scale, -2 * scale + bob, 8 * scale, 1.5 * scale);
+          ctx.fillRect(-3.5 * scale, 0.5 * scale + bob, 7 * scale, 1.5 * scale);
+          // empty eye sockets
+          ctx.fillStyle = '#ff0000';
+          ctx.globalAlpha = 0.8;
+          ctx.fillRect(-2 * scale, -7 * scale + bob, 1.5 * scale, 1.5 * scale);
+          ctx.fillRect(0.5 * scale, -7 * scale + bob, 1.5 * scale, 1.5 * scale);
+          ctx.globalAlpha = 1;
+          break;
+
+        case 'hunched': // crouching bestial shape (ghouls)
+          ctx.beginPath();
+          ctx.ellipse(0, -1 * scale + bob, 6 * scale, 5 * scale, 0.2, 0, PI2);
+          ctx.fill(); // hunched body
+          ctx.beginPath(); ctx.arc(-3 * scale, -5 * scale + bob, 3 * scale, 0, PI2); ctx.fill(); // head forward
+          // claws
+          ctx.fillRect(-7 * scale, 1 * scale + bob, 2.5 * scale, 4 * scale);
+          ctx.fillRect(5 * scale, 1 * scale + bob, 2.5 * scale, 4 * scale);
+          // drooling eye
+          ctx.fillStyle = '#ffe066';
+          ctx.globalAlpha = 0.8;
+          ctx.beginPath(); ctx.arc(-3 * scale, -5.5 * scale + bob, 1.2 * scale, 0, PI2); ctx.fill();
+          ctx.globalAlpha = 1;
+          break;
+
+        case 'ghost': // floating translucent wispy shape (wraiths)
+          ctx.globalAlpha = 0.6 + 0.2 * Math.sin(now / 300);
+          ctx.beginPath();
+          ctx.moveTo(0, -10 * scale + bob);
+          ctx.quadraticCurveTo(6 * scale, -4 * scale + bob, 4 * scale, 4 * scale + bob);
+          ctx.quadraticCurveTo(2 * scale, 8 * scale + bob + Math.sin(now / 200) * 2, 0, 6 * scale + bob);
+          ctx.quadraticCurveTo(-2 * scale, 8 * scale + bob + Math.sin(now / 250) * 2, -4 * scale, 4 * scale + bob);
+          ctx.quadraticCurveTo(-6 * scale, -4 * scale + bob, 0, -10 * scale + bob);
+          ctx.fill();
+          // eerie face
+          ctx.fillStyle = '#ffffff';
+          ctx.globalAlpha = 0.9;
+          ctx.beginPath(); ctx.arc(-1.5 * scale, -5 * scale + bob, 1 * scale, 0, PI2); ctx.fill();
+          ctx.beginPath(); ctx.arc(1.5 * scale, -5 * scale + bob, 1 * scale, 0, PI2); ctx.fill();
+          ctx.globalAlpha = 1;
+          break;
+
+        case 'spider': // eight-legged crawling shape
+          ctx.beginPath(); ctx.ellipse(0, 0 + bob, 5 * scale, 3.5 * scale, 0, 0, PI2); ctx.fill(); // abdomen
+          ctx.beginPath(); ctx.arc(0, -4 * scale + bob, 2.5 * scale, 0, PI2); ctx.fill(); // head
+          // legs (4 per side, angled)
+          ctx.lineWidth = 1.5 * scale; ctx.strokeStyle = col;
+          for (let i = 0; i < 4; i++) {
+            const ly = -2 + i * 2;
+            const lAng = Math.sin(now / 150 + i) * 0.3;
+            ctx.beginPath(); ctx.moveTo(-4 * scale, ly * scale + bob);
+            ctx.lineTo(-8 * scale - Math.cos(lAng) * 2, (ly + 2) * scale + bob);
+            ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(4 * scale, ly * scale + bob);
+            ctx.lineTo(8 * scale + Math.cos(lAng) * 2, (ly + 2) * scale + bob);
+            ctx.stroke();
+          }
+          // multiple eyes
+          ctx.fillStyle = '#ff0000';
+          ctx.globalAlpha = 0.8;
+          for (let i = -1; i <= 1; i++) {
+            ctx.beginPath(); ctx.arc(i * 1.2 * scale, -4.5 * scale + bob, 0.7 * scale, 0, PI2); ctx.fill();
+          }
+          ctx.globalAlpha = 1;
+          break;
+
+        case 'plant': // spiky thornling
+          // body (bulbous)
+          ctx.beginPath(); ctx.ellipse(0, 0 + bob, 5 * scale, 6 * scale, 0, 0, PI2); ctx.fill();
+          // thorns radiating outward
+          ctx.strokeStyle = col; ctx.lineWidth = 2 * scale;
+          for (let i = 0; i < 8; i++) {
+            const a = i * PI2 / 8 + Math.sin(now / 500) * 0.1;
+            ctx.beginPath();
+            ctx.moveTo(Math.cos(a) * 4 * scale, Math.sin(a) * 5 * scale + bob);
+            ctx.lineTo(Math.cos(a) * 8 * scale, Math.sin(a) * 9 * scale + bob);
+            ctx.stroke();
+          }
+          // center eye
+          ctx.fillStyle = '#ffe066'; ctx.beginPath();
+          ctx.arc(0, -1 * scale + bob, 2 * scale, 0, PI2); ctx.fill();
+          break;
+
+        case 'orb': // floating glowing wisp orb
+          ctx.globalAlpha = 0.5 + 0.4 * Math.sin(now / 180);
+          ctx.beginPath(); ctx.arc(0, bob, 5 * scale, 0, PI2); ctx.fill();
+          ctx.fillStyle = '#ffffff';
+          ctx.globalAlpha = 0.8;
+          ctx.beginPath(); ctx.arc(0, bob, 2.5 * scale, 0, PI2); ctx.fill();
+          // trailing particles
+          ctx.globalAlpha = 0.3;
+          ctx.beginPath(); ctx.arc(Math.sin(now / 200) * 3, 4 + bob, 2 * scale, 0, PI2); ctx.fill();
+          ctx.globalAlpha = 1;
+          break;
+
+        case 'beast': // four-legged wolf/hound shape
+          // body horizontal
+          ctx.fillRect(-6 * scale, -2 * scale + bob, 12 * scale, 5 * scale);
+          // head
+          ctx.beginPath(); ctx.arc(6 * scale, -3 * scale + bob, 3.5 * scale, 0, PI2); ctx.fill();
+          // legs (animated)
+          const legPhase = now / 120;
+          ctx.fillRect(-5 * scale, 3 * scale + bob + Math.sin(legPhase) * 1.5, 2 * scale, 4 * scale);
+          ctx.fillRect(-1 * scale, 3 * scale + bob + Math.sin(legPhase + 2) * 1.5, 2 * scale, 4 * scale);
+          ctx.fillRect(2 * scale, 3 * scale + bob + Math.sin(legPhase + 4) * 1.5, 2 * scale, 4 * scale);
+          ctx.fillRect(5 * scale, 3 * scale + bob + Math.sin(legPhase + 6) * 1.5, 2 * scale, 4 * scale);
+          // eye
+          ctx.fillStyle = '#ff4d6d';
+          ctx.beginPath(); ctx.arc(7.5 * scale, -3.5 * scale + bob, 1 * scale, 0, PI2); ctx.fill();
+          break;
+
+        case 'giant': // large humanoid (frost giant, demon)
+          ctx.fillRect(-6 * scale, -5 * scale + bob, 12 * scale, 12 * scale); // massive torso
+          ctx.beginPath(); ctx.arc(0, -8 * scale + bob, 5 * scale, 0, PI2); ctx.fill(); // head
+          ctx.fillRect(-10 * scale, -4 * scale + bob, 4 * scale, 9 * scale); // left arm
+          ctx.fillRect(6 * scale, -4 * scale + bob, 4 * scale, 9 * scale); // right arm
+          // menacing eyes
+          ctx.fillStyle = '#ff0000'; ctx.globalAlpha = 0.9;
+          ctx.fillRect(-2 * scale, -9 * scale + bob, 1.5 * scale, 2 * scale);
+          ctx.fillRect(0.5 * scale, -9 * scale + bob, 1.5 * scale, 2 * scale);
+          ctx.globalAlpha = 1;
+          break;
+
+        case 'bat': // winged flapping creature
+          {
+            const wingFlap = Math.sin(now / 100) * 0.5;
+            // body (small)
+            ctx.beginPath(); ctx.ellipse(0, bob, 3 * scale, 2.5 * scale, 0, 0, PI2); ctx.fill();
+            // wings
+            ctx.beginPath();
+            ctx.moveTo(0, -1 * scale + bob);
+            ctx.quadraticCurveTo(-8 * scale, (-5 + wingFlap * 4) * scale + bob, -10 * scale, 0 + bob);
+            ctx.lineTo(-3 * scale, 1 * scale + bob);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.moveTo(0, -1 * scale + bob);
+            ctx.quadraticCurveTo(8 * scale, (-5 + wingFlap * 4) * scale + bob, 10 * scale, 0 + bob);
+            ctx.lineTo(3 * scale, 1 * scale + bob);
+            ctx.fill();
+            // eyes
+            ctx.fillStyle = '#ff4d6d'; ctx.globalAlpha = 0.9;
+            ctx.beginPath(); ctx.arc(-1 * scale, -0.5 * scale + bob, 0.8 * scale, 0, PI2); ctx.fill();
+            ctx.beginPath(); ctx.arc(1 * scale, -0.5 * scale + bob, 0.8 * scale, 0, PI2); ctx.fill();
+            ctx.globalAlpha = 1;
+          }
+          break;
+
+        case 'wyrm': // serpentine dragon
+          {
+            // sinuous body segments
+            for (let i = 0; i < 6; i++) {
+              const seg = i * 3;
+              const sx = Math.sin(now / 300 + i * 0.8) * 2 * scale;
+              ctx.beginPath();
+              ctx.arc(sx, (-6 + seg) * scale + bob, (4 - i * 0.4) * scale, 0, PI2);
+              ctx.fill();
+            }
+            // horns
+            ctx.fillRect(-4 * scale, -10 * scale + bob, 2 * scale, 3 * scale);
+            ctx.fillRect(2 * scale, -10 * scale + bob, 2 * scale, 3 * scale);
+            // glowing eyes
+            ctx.fillStyle = '#ffffff'; ctx.globalAlpha = 0.9;
+            ctx.beginPath(); ctx.arc(-1.5 * scale, -7 * scale + bob, 1.2 * scale, 0, PI2); ctx.fill();
+            ctx.beginPath(); ctx.arc(1.5 * scale, -7 * scale + bob, 1.2 * scale, 0, PI2); ctx.fill();
+            ctx.globalAlpha = 1;
+          }
+          break;
+
+        case 'imp': // small winged fire creature
+          {
+            ctx.beginPath(); ctx.ellipse(0, bob, 3.5 * scale, 4 * scale, 0, 0, PI2); ctx.fill(); // body
+            ctx.beginPath(); ctx.arc(0, -4.5 * scale + bob, 2.5 * scale, 0, PI2); ctx.fill(); // head
+            // tiny wings
+            const wf = Math.sin(now / 80) * 0.4;
+            ctx.beginPath();
+            ctx.moveTo(-2 * scale, -2 * scale + bob);
+            ctx.lineTo(-7 * scale, (-4 + wf * 3) * scale + bob);
+            ctx.lineTo(-3 * scale, 0 + bob);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.moveTo(2 * scale, -2 * scale + bob);
+            ctx.lineTo(7 * scale, (-4 + wf * 3) * scale + bob);
+            ctx.lineTo(3 * scale, 0 + bob);
+            ctx.fill();
+            // horns
+            ctx.fillRect(-2.5 * scale, -7 * scale + bob, 1.5 * scale, 2.5 * scale);
+            ctx.fillRect(1 * scale, -7 * scale + bob, 1.5 * scale, 2.5 * scale);
+            ctx.fillStyle = '#ffe066'; ctx.globalAlpha = 0.9;
+            ctx.beginPath(); ctx.arc(0, -4.5 * scale + bob, 1 * scale, 0, PI2); ctx.fill();
+            ctx.globalAlpha = 1;
+          }
+          break;
+
+        case 'demon': // large winged demon (archdemon boss)
+          {
+            ctx.fillRect(-7 * scale, -5 * scale + bob, 14 * scale, 13 * scale); // torso
+            ctx.beginPath(); ctx.arc(0, -8 * scale + bob, 5 * scale, 0, PI2); ctx.fill(); // head
+            // large wings
+            ctx.beginPath();
+            ctx.moveTo(-5 * scale, -4 * scale + bob);
+            ctx.lineTo(-14 * scale, -10 * scale + bob);
+            ctx.lineTo(-12 * scale, 2 * scale + bob);
+            ctx.lineTo(-5 * scale, 0 + bob);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.moveTo(5 * scale, -4 * scale + bob);
+            ctx.lineTo(14 * scale, -10 * scale + bob);
+            ctx.lineTo(12 * scale, 2 * scale + bob);
+            ctx.lineTo(5 * scale, 0 + bob);
+            ctx.fill();
+            // horns
+            ctx.fillRect(-5 * scale, -13 * scale + bob, 2 * scale, 5 * scale);
+            ctx.fillRect(3 * scale, -13 * scale + bob, 2 * scale, 5 * scale);
+            // fire eyes
+            ctx.fillStyle = '#ffe066'; ctx.globalAlpha = 0.9;
+            ctx.beginPath(); ctx.arc(-2 * scale, -8.5 * scale + bob, 1.5 * scale, 0, PI2); ctx.fill();
+            ctx.beginPath(); ctx.arc(2 * scale, -8.5 * scale + bob, 1.5 * scale, 0, PI2); ctx.fill();
+            ctx.globalAlpha = 1;
+          }
+          break;
+
+        case 'caster': // robed magic user (lich, druid bosses)
+          {
+            // robe/cloak shape
+            ctx.beginPath();
+            ctx.moveTo(0, -10 * scale + bob);
+            ctx.lineTo(6 * scale, 0 + bob);
+            ctx.lineTo(5 * scale, 8 * scale + bob);
+            ctx.lineTo(-5 * scale, 8 * scale + bob);
+            ctx.lineTo(-6 * scale, 0 + bob);
+            ctx.closePath();
+            ctx.fill();
+            // hood
+            ctx.beginPath(); ctx.arc(0, -8 * scale + bob, 4 * scale, Math.PI, 0); ctx.fill();
+            // staff (line)
+            ctx.strokeStyle = col; ctx.lineWidth = 2 * scale;
+            ctx.beginPath(); ctx.moveTo(6 * scale, -6 * scale + bob); ctx.lineTo(8 * scale, 6 * scale + bob); ctx.stroke();
+            // orb on staff
+            ctx.fillStyle = '#ffffff'; ctx.globalAlpha = 0.7 + 0.3 * Math.sin(now / 200);
+            ctx.beginPath(); ctx.arc(6 * scale, -7 * scale + bob, 2 * scale, 0, PI2); ctx.fill();
+            // glowing eyes under hood
+            ctx.fillStyle = e.color; ctx.globalAlpha = 0.9;
+            ctx.beginPath(); ctx.arc(-1.5 * scale, -7 * scale + bob, 1 * scale, 0, PI2); ctx.fill();
+            ctx.beginPath(); ctx.arc(1.5 * scale, -7 * scale + bob, 1 * scale, 0, PI2); ctx.fill();
+            ctx.globalAlpha = 1;
+          }
+          break;
+
+        case 'void': // shifting amorphous void creature
+          {
+            ctx.globalAlpha = 0.7 + 0.2 * Math.sin(now / 200);
+            // shifting blob shape
+            ctx.beginPath();
+            for (let i = 0; i < 8; i++) {
+              const a = i * PI2 / 8 + now / 1000;
+              const r = (4 + Math.sin(now / 200 + i * 2) * 1.5) * scale;
+              if (i === 0) ctx.moveTo(Math.cos(a) * r, Math.sin(a) * r + bob);
+              else ctx.lineTo(Math.cos(a) * r, Math.sin(a) * r + bob);
+            }
+            ctx.closePath(); ctx.fill();
+            // void eye
+            ctx.fillStyle = '#ffffff'; ctx.globalAlpha = 0.8;
+            ctx.beginPath(); ctx.arc(0, -1 * scale + bob, 2 * scale, 0, PI2); ctx.fill();
+            ctx.fillStyle = '#0d0d1a'; ctx.beginPath(); ctx.arc(0, -1 * scale + bob, 1 * scale, 0, PI2); ctx.fill();
+            ctx.globalAlpha = 1;
+          }
+          break;
+
+        case 'weaver': // geometric nullweaver with rotating rings
+          {
+            // central diamond body
+            ctx.beginPath();
+            ctx.moveTo(0, -7 * scale + bob);
+            ctx.lineTo(5 * scale, 0 + bob);
+            ctx.lineTo(0, 7 * scale + bob);
+            ctx.lineTo(-5 * scale, 0 + bob);
+            ctx.closePath(); ctx.fill();
+            // rotating ring
+            ctx.strokeStyle = col; ctx.lineWidth = 1.5 * scale;
+            ctx.beginPath();
+            ctx.ellipse(0, bob, 7 * scale, 7 * scale, now / 1000, 0, PI2);
+            ctx.stroke();
+            // inner eye
+            ctx.fillStyle = '#ffffff'; ctx.globalAlpha = 0.8;
+            ctx.beginPath(); ctx.arc(0, bob, 2 * scale, 0, PI2); ctx.fill();
+            ctx.globalAlpha = 1;
+          }
+          break;
+
+        case 'crystal': // geometric hexagonal crystal sentinel
+          {
+            // hexagon body
+            ctx.beginPath();
+            for (let i = 0; i < 6; i++) {
+              const a = i * PI2 / 6 - Math.PI / 6;
+              const r = 6 * scale;
+              if (i === 0) ctx.moveTo(Math.cos(a) * r, Math.sin(a) * r + bob);
+              else ctx.lineTo(Math.cos(a) * r, Math.sin(a) * r + bob);
+            }
+            ctx.closePath(); ctx.fill();
+            // inner hex (darker)
+            ctx.fillStyle = '#8888cc';
+            ctx.beginPath();
+            for (let i = 0; i < 6; i++) {
+              const a = i * PI2 / 6 + now / 2000;
+              const r = 3 * scale;
+              if (i === 0) ctx.moveTo(Math.cos(a) * r, Math.sin(a) * r + bob);
+              else ctx.lineTo(Math.cos(a) * r, Math.sin(a) * r + bob);
+            }
+            ctx.closePath(); ctx.fill();
+            // glow point
+            ctx.fillStyle = '#ffffff'; ctx.globalAlpha = 0.6 + 0.4 * Math.sin(now / 300);
+            ctx.beginPath(); ctx.arc(0, bob, 1.5 * scale, 0, PI2); ctx.fill();
+            ctx.globalAlpha = 1;
+          }
+          break;
+
+        case 'voidlord': // massive void entity with tentacles
+          {
+            // main body orb
+            ctx.globalAlpha = 0.8;
+            ctx.beginPath(); ctx.arc(0, bob, 7 * scale, 0, PI2); ctx.fill();
+            // tentacles
+            ctx.strokeStyle = col; ctx.lineWidth = 2.5 * scale; ctx.globalAlpha = 0.6;
+            for (let i = 0; i < 6; i++) {
+              const a = i * PI2 / 6 + now / 800;
+              const r1 = 7 * scale, r2 = 13 * scale;
+              const wobble = Math.sin(now / 250 + i * 2) * 2;
+              ctx.beginPath();
+              ctx.moveTo(Math.cos(a) * r1, Math.sin(a) * r1 + bob);
+              ctx.quadraticCurveTo(
+                Math.cos(a + 0.3) * (r1 + r2) / 2 + wobble,
+                Math.sin(a + 0.3) * (r1 + r2) / 2 + bob,
+                Math.cos(a) * r2, Math.sin(a) * r2 + bob
+              );
+              ctx.stroke();
+            }
+            ctx.globalAlpha = 1;
+            // crown of eyes
+            ctx.fillStyle = '#ffffff';
+            for (let i = 0; i < 5; i++) {
+              const a = i * PI2 / 5 + now / 1200;
+              ctx.beginPath(); ctx.arc(Math.cos(a) * 3.5 * scale, Math.sin(a) * 3.5 * scale + bob, 1.2 * scale, 0, PI2); ctx.fill();
+            }
+            // central void eye
+            ctx.fillStyle = '#0d0d1a';
+            ctx.beginPath(); ctx.arc(0, bob, 3 * scale, 0, PI2); ctx.fill();
+            ctx.fillStyle = '#b388ff'; ctx.globalAlpha = 0.9;
+            ctx.beginPath(); ctx.arc(0, bob, 1.5 * scale, 0, PI2); ctx.fill();
+            ctx.globalAlpha = 1;
+          }
+          break;
+
+        default: // fallback — basic melee/ranged shapes
+          if (e.attackKind === 'melee') {
+            ctx.fillRect(-4 * scale, -3 * scale + bob, 8 * scale, 8 * scale);
+            ctx.beginPath(); ctx.arc(0, -6 * scale + bob, 4 * scale, 0, PI2); ctx.fill();
+            ctx.fillRect(-8 * scale, -2 * scale + bob, 3 * scale, 6 * scale);
+            ctx.fillRect(5 * scale, -2 * scale + bob, 3 * scale, 6 * scale);
+          } else {
+            ctx.beginPath();
+            ctx.moveTo(0, -10 * scale + bob);
+            ctx.lineTo(5 * scale, 2 * scale + bob);
+            ctx.lineTo(3 * scale, 8 * scale + bob);
+            ctx.lineTo(-3 * scale, 8 * scale + bob);
+            ctx.lineTo(-5 * scale, 2 * scale + bob);
+            ctx.closePath(); ctx.fill();
+            ctx.beginPath(); ctx.arc(0, -8 * scale + bob, 4 * scale, 0, PI2); ctx.fill();
+          }
+          break;
       }
       ctx.shadowBlur = 0;
 
