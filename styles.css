@@ -414,6 +414,41 @@ html, body {
   text-align: center;
   letter-spacing: 0.5px;
 }
+.about-section-title {
+  margin-top: 18px;
+  margin-bottom: 2px;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--crystal);
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  border-bottom: 1px solid rgba(109, 241, 255, 0.2);
+  padding-bottom: 6px;
+}
+.about-card {
+  background: var(--bg-card);
+  border-radius: var(--radius-md);
+  padding: 12px 14px;
+  font-size: 13px;
+  color: var(--text-dim);
+  line-height: 1.5;
+}
+.about-card p {
+  margin: 0 0 8px 0;
+}
+.about-card p:last-child {
+  margin-bottom: 0;
+}
+.about-card ul, .about-card ol {
+  margin: 6px 0;
+  padding-left: 18px;
+}
+.about-card li {
+  margin-bottom: 5px;
+}
+.about-card strong {
+  color: #fff;
+}
 
 /* =========================================================
    GAME CANVAS + HUD
