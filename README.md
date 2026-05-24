@@ -1,0 +1,67 @@
+# Glasspire
+
+Action RPG for Meta Ray-Ban Display glasses. 600×600 dark additive display, 4-way D-pad + single-pinch input.
+
+## Run locally
+
+```
+python -m http.server 5187 --directory .
+# then open http://localhost:5187
+```
+
+Arrow keys move, Enter is the pinch, Escape opens the in-game menu.
+
+Combo gestures (taps within ~400ms while not held-walking):
+
+- `↑↓` — open menu
+- `←→` — swap skill (placeholder)
+- `↓↑` — drink potion
+- `↑↑` — dash
+
+## Deploy to Render
+
+1. Push this folder to a git repo (GitHub/GitLab).
+2. In the Render dashboard → **New +** → **Static Site**.
+3. Connect the repo and pick this directory as the root.
+4. Settings:
+   - **Build command:** *(leave empty)*
+   - **Publish directory:** `.`
+5. Click **Create Static Site**. Done in ~30s — you get a URL like `https://glasspire.onrender.com`.
+
+The bundled `render.yaml` lets Render auto-detect these settings if you use Infrastructure as Code.
+
+## Add to the glasses
+
+1. Open the **Meta AI** app on your phone.
+2. **Devices → Display Glasses → App connections → Web apps → Add a web app**.
+3. Name: `Glasspire`. URL: the Render URL from above.
+
+Or generate a QR code from the URL and scan it on your phone to deep-link the install.
+
+## Classes
+
+| Class    | Auto-attack             | Active skill (pinch) |
+|----------|-------------------------|----------------------|
+| Warrior  | Cleave melee            | Whirlwind            |
+| Mage     | Auto-cast arcane bolts  | Frost Nova           |
+| Ranger   | Auto-fire arrows        | Multishot            |
+| Summoner | Bone wand at range      | Raise Dead           |
+
+## Biomes
+
+Unlock in order by beating each boss:
+
+1. **The Crypts** — skeletons, ghouls, wraiths · boss: Lich Lord
+2. **Overgrown Ruins** — spiders, thornlings, wisps · boss: Old Druid
+3. **Frozen Peaks** — frostwolves, frost giants, ice bats · boss: Ice Wyrm
+4. **Infernal Depths** — imps, hellhounds, demons · boss: Archdemon
+
+## Debug
+
+A small hook is exposed for inspection from the browser console:
+
+```js
+__glasspire.game            // live game state
+__glasspire.enterBiome('crypts', 1)
+__glasspire.enterTown()
+```

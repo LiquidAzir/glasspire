@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=600, height=600, initial-scale=1.0, user-scalable=no">
+  <title>Glasspire</title>
+  <link rel="icon" type="image/png" href="favicon.png">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div id="app">
+
+    <!-- ============================================================ -->
+    <!-- TITLE SCREEN                                                  -->
+    <!-- ============================================================ -->
+    <div id="title" class="screen">
+      <div class="title-frame">
+        <div class="title-glyph"></div>
+        <h1 class="title-name">GLASSPIRE</h1>
+        <p class="title-tagline">An action RPG for Meta Ray-Ban Display</p>
+        <nav class="title-menu">
+          <button class="title-btn focusable" data-action="title-continue" id="title-continue">Continue</button>
+          <button class="title-btn focusable" data-action="title-new">New Hero</button>
+          <button class="title-btn focusable" data-action="title-about">About</button>
+        </nav>
+        <p class="title-hint">↑↓ navigate &middot; pinch to select</p>
+      </div>
+    </div>
+
+    <!-- ============================================================ -->
+    <!-- CLASS SELECT                                                  -->
+    <!-- ============================================================ -->
+    <div id="class-select" class="screen hidden">
+      <header class="header">
+        <button class="back-btn focusable" data-action="back">&#8592;</button>
+        <h1>Choose Your Class</h1>
+      </header>
+      <div class="content class-grid">
+        <button class="class-card focusable" data-action="pick-class" data-class="warrior">
+          <div class="class-portrait class-portrait-warrior"></div>
+          <div class="class-name">Warrior</div>
+          <div class="class-tag">Melee &middot; Cleave</div>
+          <div class="class-desc">Heavy steel and brute force. Skill: Whirlwind.</div>
+        </button>
+        <button class="class-card focusable" data-action="pick-class" data-class="mage">
+          <div class="class-portrait class-portrait-mage"></div>
+          <div class="class-name">Mage</div>
+          <div class="class-tag">Ranged &middot; AOE</div>
+          <div class="class-desc">Arcane bolts at range. Skill: Frost Nova.</div>
+        </button>
+        <button class="class-card focusable" data-action="pick-class" data-class="ranger">
+          <div class="class-portrait class-portrait-ranger"></div>
+          <div class="class-name">Ranger</div>
+          <div class="class-tag">Ranged &middot; Mobile</div>
+          <div class="class-desc">Quick bowfire and dashes. Skill: Multishot.</div>
+        </button>
+        <button class="class-card focusable" data-action="pick-class" data-class="summoner">
+          <div class="class-portrait class-portrait-summoner"></div>
+          <div class="class-name">Summoner</div>
+          <div class="class-tag">Pets &middot; Hands-off</div>
+          <div class="class-desc">Minions fight for you. Skill: Raise Dead.</div>
+        </button>
+      </div>
+    </div>
+
+    <!-- ============================================================ -->
+    <!-- ABOUT                                                         -->
+    <!-- ============================================================ -->
+    <div id="about" class="screen hidden">
+      <header class="header">
+        <button class="back-btn focusable" data-action="back">&#8592;</button>
+        <h1>How to Play</h1>
+      </header>
+      <div class="content about-body">
+        <div class="about-row"><span class="kbd">↑ ↓ ← →</span><span>Move your hero. Hold to walk.</span></div>
+        <div class="about-row"><span class="kbd">pinch</span><span>Use active skill / talk / pick up / confirm.</span></div>
+        <div class="about-row"><span class="kbd">↑↓</span><span>Open the menu (inventory, skills, quests).</span></div>
+        <div class="about-row"><span class="kbd">←→</span><span>Quick-swap active skill.</span></div>
+        <div class="about-row"><span class="kbd">↓↑</span><span>Drink a health potion.</span></div>
+        <div class="about-row"><span class="kbd">↑↑</span><span>Dash forward (cooldown).</span></div>
+        <p class="about-note">Auto-attack handles weapons. Just position yourself.</p>
+      </div>
+    </div>
+
+    <!-- ============================================================ -->
+    <!-- GAME (canvas) — town and dungeons render here                 -->
+    <!-- ============================================================ -->
+    <div id="game" class="screen hidden">
+      <canvas id="game-canvas" width="600" height="600"></canvas>
+
+      <!-- HUD overlay -->
+      <div id="hud" class="hud">
+        <div class="hud-top">
+          <div class="hud-zone" id="hud-zone">—</div>
+          <div class="hud-minimap"><canvas id="minimap" width="96" height="96"></canvas></div>
+        </div>
+        <div class="hud-bottom">
+          <div class="hud-orb hud-orb-hp" id="hud-orb-hp">
+            <div class="hud-orb-fill" id="hud-hp-fill"></div>
+            <div class="hud-orb-label" id="hud-hp-label">100</div>
+          </div>
+          <div class="hud-center">
+            <div class="hud-name"><span id="hud-name">Hero</span> &middot; Lv <span id="hud-level">1</span></div>
+            <div class="hud-xp"><div class="hud-xp-fill" id="hud-xp-fill"></div></div>
+            <div class="hud-skill">
+              <div class="hud-skill-icon" id="hud-skill-icon">★</div>
+              <div class="hud-skill-cd" id="hud-skill-cd"></div>
+              <div class="hud-skill-name" id="hud-skill-name">Whirlwind</div>
+            </div>
+          </div>
+          <div class="hud-orb hud-orb-mp" id="hud-orb-mp">
+            <div class="hud-orb-fill" id="hud-mp-fill"></div>
+            <div class="hud-orb-label" id="hud-mp-label">50</div>
+          </div>
+        </div>
+        <div id="floating-text" class="floating-layer"></div>
+        <div id="hud-toast" class="hud-toast"></div>
+      </div>
+    </div>
+
+    <!-- ============================================================ -->
+    <!-- IN-GAME MENU (paused overlay)                                 -->
+    <!-- ============================================================ -->
+    <div id="menu" class="screen hidden">
+      <header class="header">
+        <button class="back-btn focusable" data-action="menu-resume">&#8592;</button>
+        <h1>Menu</h1>
+      </header>
+      <div class="content">
+        <button class="nav-item focusable" data-action="menu-inventory">Inventory &amp; Equipment</button>
+        <button class="nav-item focusable" data-action="menu-character">Character</button>
+        <button class="nav-item focusable" data-action="menu-skills">Skill</button>
+        <button class="nav-item focusable" data-action="menu-quests">Quest Log</button>
+        <button class="nav-item focusable" data-action="menu-town" id="menu-town-btn">Return to Town</button>
+        <button class="nav-item focusable danger" data-action="menu-title">Save &amp; Quit</button>
+      </div>
+    </div>
+
+    <!-- ============================================================ -->
+    <!-- INVENTORY                                                     -->
+    <!-- ============================================================ -->
+    <div id="inventory" class="screen hidden">
+      <header class="header">
+        <button class="back-btn focusable" data-action="back">&#8592;</button>
+        <h1>Inventory</h1>
+        <span class="header-meta"><span id="inv-gold">0</span>g</span>
+      </header>
+      <div class="content">
+        <div class="equipped-strip">
+          <div class="equip-slot" id="eq-weapon"><div class="equip-label">Weapon</div><div class="equip-value">—</div></div>
+          <div class="equip-slot" id="eq-armor"><div class="equip-label">Armor</div><div class="equip-value">—</div></div>
+          <div class="equip-slot" id="eq-ring"><div class="equip-label">Ring</div><div class="equip-value">—</div></div>
+          <div class="equip-slot" id="eq-amulet"><div class="equip-label">Amulet</div><div class="equip-value">—</div></div>
+        </div>
+        <div class="inv-list" id="inv-list"></div>
+      </div>
+    </div>
+
+    <!-- ============================================================ -->
+    <!-- ITEM DETAIL                                                   -->
+    <!-- ============================================================ -->
+    <div id="item-detail" class="screen hidden">
+      <header class="header">
+        <button class="back-btn focusable" data-action="back">&#8592;</button>
+        <h1>Item</h1>
+      </header>
+      <div class="content">
+        <div class="item-card" id="item-card"></div>
+        <div class="item-actions" id="item-actions"></div>
+      </div>
+    </div>
+
+    <!-- ============================================================ -->
+    <!-- CHARACTER SHEET                                               -->
+    <!-- ============================================================ -->
+    <div id="character" class="screen hidden">
+      <header class="header">
+        <button class="back-btn focusable" data-action="back">&#8592;</button>
+        <h1>Character</h1>
+      </header>
+      <div class="content">
+        <div class="char-portrait" id="char-portrait"></div>
+        <div class="char-stats" id="char-stats"></div>
+        <div class="char-points-row" id="char-points-row"></div>
+      </div>
+    </div>
+
+    <!-- ============================================================ -->
+    <!-- SKILL SCREEN                                                  -->
+    <!-- ============================================================ -->
+    <div id="skills" class="screen hidden">
+      <header class="header">
+        <button class="back-btn focusable" data-action="back">&#8592;</button>
+        <h1>Skill</h1>
+      </header>
+      <div class="content" id="skills-content"></div>
+    </div>
+
+    <!-- ============================================================ -->
+    <!-- QUESTS                                                        -->
+    <!-- ============================================================ -->
+    <div id="quests" class="screen hidden">
+      <header class="header">
+        <button class="back-btn focusable" data-action="back">&#8592;</button>
+        <h1>Quest Log</h1>
+      </header>
+      <div class="content" id="quests-content"></div>
+    </div>
+
+    <!-- ============================================================ -->
+    <!-- DIALOG (NPC interactions)                                     -->
+    <!-- ============================================================ -->
+    <div id="dialog" class="screen hidden">
+      <header class="header">
+        <button class="back-btn focusable" data-action="back">&#8592;</button>
+        <h1 id="dialog-title">NPC</h1>
+      </header>
+      <div class="content">
+        <div class="dialog-portrait" id="dialog-portrait"></div>
+        <div class="dialog-line" id="dialog-line"></div>
+        <div class="dialog-options" id="dialog-options"></div>
+      </div>
+    </div>
+
+    <!-- ============================================================ -->
+    <!-- VENDOR                                                        -->
+    <!-- ============================================================ -->
+    <div id="vendor" class="screen hidden">
+      <header class="header">
+        <button class="back-btn focusable" data-action="back">&#8592;</button>
+        <h1>Trader</h1>
+        <span class="header-meta"><span id="vendor-gold">0</span>g</span>
+      </header>
+      <div class="content">
+        <div class="vendor-tabs">
+          <button class="vendor-tab focusable" data-action="vendor-tab-buy">Buy</button>
+          <button class="vendor-tab focusable" data-action="vendor-tab-sell">Sell</button>
+        </div>
+        <div class="inv-list" id="vendor-list"></div>
+      </div>
+    </div>
+
+    <!-- ============================================================ -->
+    <!-- STASH                                                         -->
+    <!-- ============================================================ -->
+    <div id="stash" class="screen hidden">
+      <header class="header">
+        <button class="back-btn focusable" data-action="back">&#8592;</button>
+        <h1>Stash</h1>
+      </header>
+      <div class="content">
+        <div class="vendor-tabs">
+          <button class="vendor-tab focusable" data-action="stash-tab-deposit">Deposit (Inventory)</button>
+          <button class="vendor-tab focusable" data-action="stash-tab-withdraw">Withdraw (Stash)</button>
+        </div>
+        <div class="inv-list" id="stash-list"></div>
+      </div>
+    </div>
+
+    <!-- ============================================================ -->
+    <!-- WAYPOINT (travel to biomes)                                   -->
+    <!-- ============================================================ -->
+    <div id="waypoint" class="screen hidden">
+      <header class="header">
+        <button class="back-btn focusable" data-action="back">&#8592;</button>
+        <h1>Waypoint</h1>
+      </header>
+      <div class="content" id="waypoint-content"></div>
+    </div>
+
+    <!-- ============================================================ -->
+    <!-- DEATH                                                         -->
+    <!-- ============================================================ -->
+    <div id="death" class="screen hidden">
+      <div class="death-frame">
+        <div class="death-glyph">✶</div>
+        <h1 class="death-title">You have fallen.</h1>
+        <p class="death-sub">Your soul drifts back to the Sanctuary.</p>
+        <button class="title-btn focusable" data-action="death-return">Return to Town</button>
+      </div>
+    </div>
+
+    <!-- ============================================================ -->
+    <!-- LEVEL UP                                                      -->
+    <!-- ============================================================ -->
+    <div id="levelup" class="screen hidden">
+      <div class="levelup-frame">
+        <div class="levelup-glyph">✦</div>
+        <h1 class="levelup-title">Level Up!</h1>
+        <p class="levelup-sub" id="levelup-sub">You feel stronger.</p>
+        <button class="title-btn focusable" data-action="levelup-ok">Continue</button>
+      </div>
+    </div>
+
+  </div>
+  <script src="app.js"></script>
+</body>
+</html>
