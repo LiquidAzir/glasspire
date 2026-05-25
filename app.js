@@ -407,7 +407,8 @@
     char: null,                   // alias to save.char
     world: null,                  // current world (town or dungeon)
     paused: false,
-    keys: {},                     // held keys
+    keys: {},                     // held keys (current state)
+    tapped: {},                   // tap queue — survives until tickPlayer processes it
     moveX: 0, moveY: 0,           // current movement vector
     comboBuffer: [],
     lastKeyTime: 0,
@@ -457,6 +458,7 @@
     // clear held keys when leaving the game screen to prevent stuck movement
     if (game.screen === 'game' && id !== 'game') {
       game.keys = {};
+      game.tapped = {};
     }
     Object.values(screens).forEach(s => s.classList.add('hidden'));
     if (screens[id]) {
@@ -780,7 +782,7 @@
       kind: 'town',
       name: 'Sanctuary',
       grid, w: W, h: H,
-      player: { x: 10.5, y: 9.5, dir: 0, atkCd: 0, skillCd: 0, lastDir: { x: 0, y: 1 }, attackingFor: 0 },
+      player: { x: 10.5, y: 9.5, dir: 0, atkCd: 0, skillCd: 0, lastDir: { x: 0, y: 1 }, attackingFor: 0, _impulseT: 0, _impulseX: 0, _impulseY: 0 },
       npcs,
       palette: { wall: '#ffc857', floor: '#221a14', accent: '#6df1ff' },
       portals: [],
@@ -878,7 +880,7 @@
       kind: 'dungeon',
       name: `${biome.shortName} — Floor ${floor}${isBossFloor ? ' (Boss)' : ''}`,
       grid, w: W, h: H,
-      player: { x: first.cx + 0.5, y: first.cy + 0.5, dir: 0, atkCd: 0, skillCd: 0, lastDir: { x: 0, y: 1 }, attackingFor: 0 },
+      player: { x: first.cx + 0.5, y: first.cy + 0.5, dir: 0, atkCd: 0, skillCd: 0, lastDir: { x: 0, y: 1 }, attackingFor: 0, _impulseT: 0, _impulseX: 0, _impulseY: 0 },
       enemies,
       npcs: [],
       rooms,
@@ -1021,11 +1023,12 @@
           tryCombo();
         }
       }
-      // movement keys
-      if (key === 'ArrowUp')    { game.keys.up = true;    e.preventDefault(); }
-      if (key === 'ArrowDown')  { game.keys.down = true;  e.preventDefault(); }
-      if (key === 'ArrowLeft')  { game.keys.left = true;  e.preventDefault(); }
-      if (key === 'ArrowRight') { game.keys.right = true; e.preventDefault(); }
+      // movement keys — set both current state AND tap queue
+      // tap queue ensures sub-frame taps (keydown+keyup between frames) are never lost
+      if (key === 'ArrowUp')    { game.keys.up = true;    game.tapped.up = true;    e.preventDefault(); }
+      if (key === 'ArrowDown')  { game.keys.down = true;  game.tapped.down = true;  e.preventDefault(); }
+      if (key === 'ArrowLeft')  { game.keys.left = true;  game.tapped.left = true;  e.preventDefault(); }
+      if (key === 'ArrowRight') { game.keys.right = true; game.tapped.right = true; e.preventDefault(); }
       if (key === 'Enter')      { onPinch(); e.preventDefault(); }
       return;
     }
@@ -2229,11 +2232,15 @@
     const p = game.world.player;
     let vx = 0, vy = 0;
 
-    // Track active input direction
-    if (game.keys.up)    vy -= 1;
-    if (game.keys.down)  vy += 1;
-    if (game.keys.left)  vx -= 1;
-    if (game.keys.right) vx += 1;
+    // Track active input — check BOTH held keys AND tap queue
+    // The tap queue catches sub-frame taps (keydown+keyup between frames)
+    if (game.keys.up    || game.tapped.up)    vy -= 1;
+    if (game.keys.down  || game.tapped.down)  vy += 1;
+    if (game.keys.left  || game.tapped.left)  vx -= 1;
+    if (game.keys.right || game.tapped.right) vx += 1;
+
+    // Clear tap queue now that we've read it
+    game.tapped = {};
 
     // Step impulse: when a key is pressed, guarantee movement for at least stepImpulse seconds
     // even if the key is released immediately (common with glasses D-pad taps)
@@ -2253,7 +2260,7 @@
         const sp = CFG.playerSpeed * dt;
         tryMove(p, mx * sp, my * sp);
       }
-      // Only consume impulse when keys are released
+      // Only consume impulse when keys are released AND no tap queued
       if (vx === 0 && vy === 0) {
         p._impulseT -= dt;
       }
