@@ -296,6 +296,23 @@
     </div>
 
     <!-- ============================================================ -->
+    <!-- D-PAD CODE PICKER (glasses-friendly text entry)               -->
+    <!-- ============================================================ -->
+    <div id="code-picker" class="screen hidden">
+      <header class="header">
+        <button class="back-btn focusable" data-action="back">&#8592;</button>
+        <h1>Enter Code</h1>
+      </header>
+      <div class="content">
+        <p class="picker-help">↑↓ cycle character &middot; ←→ move slot &middot; <b>pinch</b> to submit</p>
+        <div id="code-picker-slots" class="picker-slots"></div>
+        <p id="code-picker-status" class="picker-status"></p>
+        <button class="nav-item focusable" data-action="picker-submit">Submit Code</button>
+        <button class="nav-item focusable" data-action="back">Cancel</button>
+      </div>
+    </div>
+
+    <!-- ============================================================ -->
     <!-- SAVE SYNC (manual export / import between devices)            -->
     <!-- ============================================================ -->
     <div id="sync" class="screen hidden">
@@ -316,6 +333,7 @@
           <h3>Import — short code</h3>
           <input id="sync-short-input" class="sync-short-input" type="text" placeholder="e.g. AbC1234" maxlength="24" autocapitalize="off" autocorrect="off" spellcheck="false" />
           <button class="nav-item focusable danger" data-action="sync-short-import">Import &amp; Overwrite</button>
+          <button class="nav-item focusable" data-action="open-code-picker">Enter Code with D-pad (glasses)</button>
         </div>
 
         <details class="sync-fallback">

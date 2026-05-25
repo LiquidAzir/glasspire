@@ -1461,6 +1461,18 @@
     // Enter/Escape repeats are allowed through for menu selection reliability.
     if (e.repeat && ['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(key)) return;
 
+    // D-pad code picker — intercept arrow keys so they edit the code instead of
+    // moving menu focus. Pinch (Enter) submits.
+    if (game.screen === 'code-picker') {
+      if (key === 'ArrowUp')    { cyclePickerChar(+1); e.preventDefault(); return; }
+      if (key === 'ArrowDown')  { cyclePickerChar(-1); e.preventDefault(); return; }
+      if (key === 'ArrowLeft')  { movePickerCursor(-1); e.preventDefault(); return; }
+      if (key === 'ArrowRight') { movePickerCursor(+1); e.preventDefault(); return; }
+      if (key === 'Enter')      { submitCodePicker(); e.preventDefault(); return; }
+      if (key === 'Escape')     { navigateBack(); e.preventDefault(); return; }
+      // Other keys (e.g. tab) — let them fall through to default
+    }
+
     if (key === 'Escape') {
       if (inGame) {
         navigateTo('menu');
@@ -5741,6 +5753,9 @@
       const shortInput = document.getElementById('sync-short-input');
       if (shortInput) shortInput.value = '';
     }
+    if (id === 'code-picker') {
+      renderCodePicker();
+    }
     if (id === 'vendor') renderVendor();
     if (id === 'stash') renderStash();
     if (id === 'waypoint') renderWaypoint();
@@ -6404,6 +6419,12 @@
         return;
       case 'sync-short-import':
         syncShortImport();
+        return;
+      case 'open-code-picker':
+        openCodePicker();
+        return;
+      case 'picker-submit':
+        submitCodePicker();
         return;
 
       // inventory
@@ -7136,6 +7157,62 @@
     } catch (e) {
       showHudToast('Could not fetch code. Check the code and your connection.');
     }
+  }
+
+  // ----- D-pad code picker (glasses-friendly text entry) -----
+  // dpaste.com codes use a-z A-Z 0-9 (case-sensitive). Order chosen so lowercase
+  // letters (the most common) sit at the start of the cycle.
+  const PICKER_CHARS = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  const PICKER_LEN = 7;
+
+  function openCodePicker() {
+    // Prefill from the text input if the user already started typing
+    const prefill = (document.getElementById('sync-short-input')?.value || '').trim();
+    const code = [];
+    for (let i = 0; i < PICKER_LEN; i++) {
+      const c = prefill[i];
+      code.push((c && PICKER_CHARS.indexOf(c) >= 0) ? c : 'a');
+    }
+    game.codePicker = { code, cursor: 0 };
+    navigateTo('code-picker');
+  }
+
+  function renderCodePicker() {
+    const cp = game.codePicker; if (!cp) return;
+    const container = document.getElementById('code-picker-slots');
+    if (!container) return;
+    container.innerHTML = cp.code.map((c, i) =>
+      `<div class="picker-slot ${i === cp.cursor ? 'active' : ''}">${c}</div>`
+    ).join('');
+    const status = document.getElementById('code-picker-status');
+    if (status) status.textContent = `Slot ${cp.cursor + 1} of ${PICKER_LEN}`;
+  }
+
+  function cyclePickerChar(dir) {
+    const cp = game.codePicker; if (!cp) return;
+    const c = cp.code[cp.cursor];
+    let idx = PICKER_CHARS.indexOf(c);
+    if (idx < 0) idx = 0;
+    idx = (idx + dir + PICKER_CHARS.length) % PICKER_CHARS.length;
+    cp.code[cp.cursor] = PICKER_CHARS[idx];
+    renderCodePicker();
+  }
+
+  function movePickerCursor(dir) {
+    const cp = game.codePicker; if (!cp) return;
+    cp.cursor = Math.max(0, Math.min(cp.code.length - 1, cp.cursor + dir));
+    renderCodePicker();
+  }
+
+  function submitCodePicker() {
+    const cp = game.codePicker; if (!cp) { navigateBack(); return; }
+    const code = cp.code.join('');
+    // Drop the code into the regular input box, then reuse the existing
+    // syncShortImport flow so all validation/error handling is shared.
+    const input = document.getElementById('sync-short-input');
+    if (input) input.value = code;
+    navigateBack();
+    setTimeout(() => syncShortImport(), 50);
   }
 
   // ============================================================

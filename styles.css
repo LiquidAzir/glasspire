@@ -1320,3 +1320,49 @@ html, body {
 .sync-fallback summary::-webkit-details-marker { display: none; }
 .sync-fallback summary::before { content: "▸ "; }
 .sync-fallback[open] summary::before { content: "▾ "; }
+
+/* ============================================================
+   D-PAD CODE PICKER — CD-key-style text entry for glasses
+   ============================================================ */
+.picker-slots {
+  display: flex;
+  justify-content: center;
+  gap: 6px;
+  margin: 24px 0 12px 0;
+  flex-wrap: wrap;
+}
+.picker-slot {
+  width: 44px;
+  height: 58px;
+  border: 2px solid rgba(109, 241, 255, 0.25);
+  border-radius: 6px;
+  background: var(--bg-strip);
+  color: var(--text);
+  font-family: monospace;
+  font-size: 28px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: border-color 80ms, box-shadow 80ms, transform 80ms;
+}
+.picker-slot.active {
+  border-color: var(--gold);
+  box-shadow: 0 0 14px rgba(255, 200, 87, 0.45);
+  color: var(--gold);
+  transform: translateY(-3px);
+}
+.picker-help {
+  text-align: center;
+  color: var(--text-dim);
+  font-size: 11px;
+  margin: 0 0 8px 0;
+  line-height: 1.5;
+}
+.picker-status {
+  text-align: center;
+  font-size: 11px;
+  color: var(--text-muted);
+  margin: 6px 0 14px 0;
+  min-height: 14px;
+}
