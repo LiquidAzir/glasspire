@@ -2433,24 +2433,20 @@
     let ty = p.y - halfH;
     tx = clamp(tx, 0, Math.max(0, game.world.w - halfW * 2));
     ty = clamp(ty, 0, Math.max(0, game.world.h - halfH * 2));
-    // near-instant follow — D-pad taps need the camera to keep up
-    const speed = 0.55;
-    game.cam.x += (tx - game.cam.x) * speed;
-    game.cam.y += (ty - game.cam.y) * speed;
+    // instant camera — no lag, player is always centered
+    game.cam.x = tx;
+    game.cam.y = ty;
   }
 
   // ============================================================
   // RENDER
   // ============================================================
   let ctx;
-  let _worldCache = null; // offscreen canvas for static world
-  let _worldCacheId = null; // tracks which world is cached
   function setupRender() {
     const canvas = $('game-canvas');
     canvas.width = CFG.canvas; canvas.height = CFG.canvas;
     ctx = canvas.getContext('2d');
   }
-  function invalidateWorldCache() { _worldCacheId = null; }
 
   // ============================================================
   // AMBIENT PARTICLES (biome atmosphere)
@@ -2593,34 +2589,12 @@
   function drawWorld() {
     const w = game.world;
     const t = CFG.tile;
-
-    // World cache: render entire world to offscreen canvas once per floor
-    const cacheId = w.biomeId + '_' + w.floor + '_' + w.w + '_' + w.kind;
-    if (_worldCacheId !== cacheId) {
-      const cw = w.w * t, ch = w.h * t;
-      if (!_worldCache || _worldCache.width !== cw || _worldCache.height !== ch) {
-        _worldCache = document.createElement('canvas');
-        _worldCache.width = cw;
-        _worldCache.height = ch;
-      }
-      const wctx = _worldCache.getContext('2d');
-      wctx.clearRect(0, 0, cw, ch);
-      _renderWorldToCtx(wctx, w, t);
-      _worldCacheId = cacheId;
-    }
-
-    // Blit the visible portion from cache (sub-pixel for smooth scrolling)
-    const sx = game.cam.x * t;
-    const sy = game.cam.y * t;
-    ctx.drawImage(_worldCache, sx, sy, CFG.canvas, CFG.canvas, 0, 0, CFG.canvas, CFG.canvas);
-  }
-
-  function _renderWorldToCtx(ctx, w, t) {
-    const startX = 0, startY = 0, endX = w.w, endY = w.h;
+    const startX = Math.max(0, Math.floor(game.cam.x));
+    const startY = Math.max(0, Math.floor(game.cam.y));
+    const endX = Math.min(w.w, Math.ceil(game.cam.x + CFG.canvas / t) + 1);
+    const endY = Math.min(w.h, Math.ceil(game.cam.y + CFG.canvas / t) + 1);
     const biome = w.biomeId || 'town';
     const isFloorAt = (nx, ny) => ny >= 0 && ny < w.h && nx >= 0 && nx < w.w && w.grid[ny][nx] === 0;
-    // World-to-pixel for the offscreen canvas (no camera offset)
-    const w2s = (wx, wy) => ({ x: wx * t, y: wy * t });
 
     // ---- WALL FILL — solid walls with biome-specific textures ----
     for (let y = startY; y < endY; y++) {
