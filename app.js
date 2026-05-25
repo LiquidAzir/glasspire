@@ -2433,8 +2433,8 @@
     let ty = p.y - halfH;
     tx = clamp(tx, 0, Math.max(0, game.world.w - halfW * 2));
     ty = clamp(ty, 0, Math.max(0, game.world.h - halfH * 2));
-    // smooth follow — fast enough to feel locked but prevents jerky snaps
-    const speed = 0.18; // lower = smoother, higher = snappier
+    // near-instant follow — D-pad taps need the camera to keep up
+    const speed = 0.55;
     game.cam.x += (tx - game.cam.x) * speed;
     game.cam.y += (ty - game.cam.y) * speed;
   }
@@ -2609,14 +2609,10 @@
       _worldCacheId = cacheId;
     }
 
-    // Blit the visible portion from cache
-    const sx = Math.floor(game.cam.x * t);
-    const sy = Math.floor(game.cam.y * t);
-    const sw = Math.min(CFG.canvas, _worldCache.width - sx);
-    const sh = Math.min(CFG.canvas, _worldCache.height - sy);
-    if (sw > 0 && sh > 0) {
-      ctx.drawImage(_worldCache, sx, sy, sw, sh, 0, 0, sw, sh);
-    }
+    // Blit the visible portion from cache (sub-pixel for smooth scrolling)
+    const sx = game.cam.x * t;
+    const sy = game.cam.y * t;
+    ctx.drawImage(_worldCache, sx, sy, CFG.canvas, CFG.canvas, 0, 0, CFG.canvas, CFG.canvas);
   }
 
   function _renderWorldToCtx(ctx, w, t) {
