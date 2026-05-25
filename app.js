@@ -2513,7 +2513,10 @@
   function tickEnemies(dt) {
     if (!game.world || game.world.kind !== 'dungeon') return;
     const p = game.world.player;
-    for (const e of game.enemies) {
+    // Iterate backwards by index so mid-loop killEnemy() splices don't skip the next enemy.
+    for (let _i = game.enemies.length - 1; _i >= 0; _i--) {
+      const e = game.enemies[_i];
+      if (!e) continue;
       e.hitFlash = Math.max(0, e.hitFlash - dt);
       e.frozen = Math.max(0, e.frozen - dt);
       e.stagger = Math.max(0, e.stagger - dt);
@@ -6105,9 +6108,13 @@
       newAffixes.push(af);
     }
     it.affixes = newAffixes;
-    // Refresh name (rare items derive name from affixes via buildItemName)
+    // Refresh name only for rare items (rare names depend on affixes).
+    // Unique names are randomly generated and shouldn't change on reroll —
+    // it would feel like a different item. Preserve the existing unique name.
     const base = ITEM_BASES[it.baseId];
-    if (base) it.name = buildItemName(base, it.rarity, newAffixes);
+    if (base && it.rarity === 'rare') {
+      it.name = buildItemName(base, it.rarity, newAffixes);
+    }
     applyDerivedToChar();
     saveGame();
     renderVendor();
