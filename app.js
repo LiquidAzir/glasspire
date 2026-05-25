@@ -999,13 +999,14 @@
   }
 
   function onKeyDown(e) {
-    // Ignore ALL key repeat events. Held-movement is tracked by game.keys (set on
-    // initial keydown, cleared on keyup) — repeats are redundant and cause stuck
-    // movement when stale held-key state persists across screen transitions.
-    if (e.repeat) return;
-
     const key = e.key;
     const inGame = (game.screen === 'game');
+
+    // Block arrow key repeats everywhere — they cause stuck movement in game
+    // (stale held-key state from EMG wristband persists across screen transitions)
+    // and janky navigation in menus. Held-movement uses game.keys + keyup instead.
+    // Enter/Escape repeats are allowed through for menu selection reliability.
+    if (e.repeat && ['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(key)) return;
 
     if (key === 'Escape') {
       if (inGame) {
