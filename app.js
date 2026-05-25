@@ -151,6 +151,16 @@
       desc: 'Detonate all recent corpse positions within 5 tiles, dealing 200% damage in a 1.8-tile radius around each.' },
     boneprison: { name: 'Bone Prison', cooldown: 11, cost: 20,
       desc: 'Imprison the nearest enemy in bone — they are stunned for 4 seconds and take 150% damage on impact.' },
+
+    // ===== Legendary-granted skills (only available with specific unique item equipped) =====
+    demonslash: { name: 'Demon Slash', cooldown: 5, cost: 18, granted: true,
+      desc: '(Demonslayer) Sweeping crescent of red flame: 350% damage in a 2.5-tile arc, sets all hit enemies on fire.' },
+    starfall: { name: 'Star Fall', cooldown: 12, cost: 32, granted: true,
+      desc: '(Starfall Staff) Three meteors fall around your target: 250% damage each in 1.5-tile radius.' },
+    typhoonshot: { name: 'Typhoon Shot', cooldown: 7, cost: 24, granted: true,
+      desc: '(Typhoon Bow) Unleash a piercing storm: 8 arrows fanning forward, each doing 130% damage.' },
+    soulharvest: { name: 'Soul Harvest', cooldown: 9, cost: 22, granted: true,
+      desc: '(Soulreaper) Drain souls from all enemies within 4 tiles: 200% damage and heals you for 30% of damage dealt.' },
   };
 
   const BIOMES = [
@@ -343,13 +353,13 @@
     'eye-of-the-spire':   { type: 'amulet', name: 'Eye of the Spire',  icon: '◈', base: { hp: 15, mp: 15 }, ilvl: 22 },
 
     // ===== LEGENDARY WEAPONS =====
-    'demonslayer':        { type: 'weapon', name: 'Demonslayer',         icon: '⚔', base: { dmg: 42, hp: 30, str: 3 }, ilvl: 23, glyph: 'wep' },
+    'demonslayer':        { type: 'weapon', name: 'Demonslayer',         icon: '⚔', base: { dmg: 42, hp: 30, str: 3 }, ilvl: 23, glyph: 'wep', grantsSkill: 'demonslash' },
     'frostbite-edge':     { type: 'weapon', name: 'Frostbite Edge',      icon: '⚔', base: { dmg: 38, def: 8 },  ilvl: 21, glyph: 'wep' },
-    'starfall-staff':     { type: 'weapon', name: 'Starfall Staff',      icon: '✦', base: { dmg: 44, mp: 50, int: 3 }, ilvl: 23, glyph: 'wep' },
+    'starfall-staff':     { type: 'weapon', name: 'Starfall Staff',      icon: '✦', base: { dmg: 44, mp: 50, int: 3 }, ilvl: 23, glyph: 'wep', grantsSkill: 'starfall' },
     'voidweaver':         { type: 'weapon', name: 'Voidweaver',          icon: '✦', base: { dmg: 40, mp: 35 }, ilvl: 22, glyph: 'wep' },
-    'typhoon-bow':        { type: 'weapon', name: 'Typhoon Bow',         icon: '➹', base: { dmg: 38, dex: 3 }, ilvl: 23, glyph: 'wep' },
+    'typhoon-bow':        { type: 'weapon', name: 'Typhoon Bow',         icon: '➹', base: { dmg: 38, dex: 3 }, ilvl: 23, glyph: 'wep', grantsSkill: 'typhoonshot' },
     'shadowpiercer':      { type: 'weapon', name: 'Shadowpiercer',       icon: '➹', base: { dmg: 34, crit: 8 }, ilvl: 21, glyph: 'wep' },
-    'soulreaper':         { type: 'weapon', name: 'Soulreaper',          icon: '☠', base: { dmg: 40, mp: 25, hp: 15 }, ilvl: 23, glyph: 'wep' },
+    'soulreaper':         { type: 'weapon', name: 'Soulreaper',          icon: '☠', base: { dmg: 40, mp: 25, hp: 15 }, ilvl: 23, glyph: 'wep', grantsSkill: 'soulharvest' },
     'gravecaller':        { type: 'weapon', name: 'Gravecaller',         icon: '☠', base: { dmg: 36, mp: 18 }, ilvl: 21, glyph: 'wep' },
 
     // ===== ELITE ARMOR =====
@@ -381,6 +391,24 @@
 
     // ===== CONSUMABLES =====
     'sanctuary-scroll':   { type: 'consumable', name: 'Sanctuary Scroll', icon: '✉', base: {}, ilvl: 1 },
+
+    // ===== GEMS (socket into items for permanent bonus) =====
+    'ruby':       { type: 'gem', name: 'Ruby',       icon: '◆', base: {}, ilvl: 1, gemId: 'ruby' },
+    'sapphire':   { type: 'gem', name: 'Sapphire',   icon: '◆', base: {}, ilvl: 1, gemId: 'sapphire' },
+    'emerald':    { type: 'gem', name: 'Emerald',    icon: '◆', base: {}, ilvl: 1, gemId: 'emerald' },
+    'topaz':      { type: 'gem', name: 'Topaz',      icon: '◆', base: {}, ilvl: 1, gemId: 'topaz' },
+    'diamond':    { type: 'gem', name: 'Diamond',    icon: '◆', base: {}, ilvl: 1, gemId: 'diamond' },
+  };
+
+  // ============================================================
+  // GEMS — slotted into items for permanent stat bonuses
+  // ============================================================
+  const GEMS = {
+    ruby:     { name: 'Ruby',     color: '#ff4d6d', desc: '+5 Damage',  dmg: 5 },
+    sapphire: { name: 'Sapphire', color: '#6df1ff', desc: '+12 Mana',   mp: 12 },
+    emerald:  { name: 'Emerald', color: '#51e6a4', desc: '+4 Armor',   def: 4 },
+    topaz:    { name: 'Topaz',    color: '#ffd166', desc: '+15 Life',   hp: 15 },
+    diamond:  { name: 'Diamond',  color: '#ffffff', desc: '+3% Crit',   crit: 3 },
   };
 
   // ============================================================
@@ -571,7 +599,23 @@
       rarity: 'common',
       affixes: [],
       ilvl: 1,
+      sockets: 0,
+      gems: [],
       name: base.name,
+    };
+  }
+  // Create a gem-type inventory item (for vendor & drops)
+  function makeGemItem(gemId) {
+    if (!GEMS[gemId] || !ITEM_BASES[gemId]) return null;
+    return {
+      id: 'g_' + Math.random().toString(36).slice(2, 9),
+      baseId: gemId,
+      rarity: 'magic',
+      affixes: [],
+      ilvl: 1,
+      sockets: 0,
+      gems: [],
+      name: GEMS[gemId].name,
     };
   }
   function starterGear(classId) {
@@ -706,29 +750,44 @@
   // ============================================================
   function derived(char) {
     const cls = CLASSES[char.classId];
-    let dmg = cls.damage;
+    const baseDmg = cls.damage;
+    let dmg = baseDmg;
     let def = 0;
     let hpMax = cls.hp + Math.max(0, char.stats.vit - 2) * 10 + (char.level - 1) * 6;
     let mpMax = cls.mp + Math.max(0, char.stats.int - 2) * 6 + (char.level - 1) * 4;
     let crit = 5;
     let aspd = cls.attackSpeed;
     let bonusStats = { str: 0, int: 0, dex: 0, vit: 0 };
+    // Track contribution sources for character-sheet breakdown
+    let gearDmg = 0, gearDef = 0;
+    let affixDmg = 0;
+    let gemDmg = 0, gemDef = 0, gemHp = 0, gemMp = 0;
 
     function applyItem(it) {
       if (!it) return;
       const base = ITEM_BASES[it.baseId];
       if (!base) return;
-      if (base.base.dmg) dmg += base.base.dmg;
-      if (base.base.def) def += base.base.def;
+      if (base.base.dmg) { dmg += base.base.dmg; gearDmg += base.base.dmg; }
+      if (base.base.def) { def += base.base.def; gearDef += base.base.def; }
       if (base.base.mp)  mpMax += base.base.mp;
       for (const af of (it.affixes || [])) {
-        if (af.key === 'dmg')  dmg += af.val;
+        if (af.key === 'dmg')  { dmg += af.val; affixDmg += af.val; }
         else if (af.key === 'def')  def += af.val;
         else if (af.key === 'hp')   hpMax += af.val;
         else if (af.key === 'mp')   mpMax += af.val;
         else if (af.key === 'crit') crit += af.val;
         else if (af.key === 'aspd') aspd *= 1 + af.val / 100;
         else if (af.key in bonusStats) bonusStats[af.key] += af.val;
+      }
+      // Socketed gem bonuses
+      for (const gemId of (it.gems || [])) {
+        const gem = GEMS[gemId];
+        if (!gem) continue;
+        if (gem.dmg)  { dmg += gem.dmg; gemDmg += gem.dmg; }
+        if (gem.def)  { def += gem.def; gemDef += gem.def; }
+        if (gem.hp)   { hpMax += gem.hp; gemHp += gem.hp; }
+        if (gem.mp)   { mpMax += gem.mp; gemMp += gem.mp; }
+        if (gem.crit) crit += gem.crit;
       }
     }
     applyItem(char.equip.weapon);
@@ -737,13 +796,14 @@
     applyItem(char.equip.amulet);
 
     // stat-derived
-    dmg += Math.max(0, char.stats.str + bonusStats.str - 2);
-    dmg += Math.floor((char.stats.dex + bonusStats.dex) / 2);
+    const statStrDmg = Math.max(0, char.stats.str + bonusStats.str - 2);
+    const statDexDmg = Math.floor((char.stats.dex + bonusStats.dex) / 2);
+    const statIntDmg = (cls.id === 'mage' || cls.id === 'summoner')
+      ? Math.floor((char.stats.int + bonusStats.int) / 2) : 0;
+    dmg += statStrDmg + statDexDmg + statIntDmg;
     crit += Math.floor((char.stats.dex + bonusStats.dex) / 2);
-    if (cls.id === 'mage' || cls.id === 'summoner') {
-      dmg += Math.floor((char.stats.int + bonusStats.int) / 2);
-    }
     hpMax += (char.stats.vit + bonusStats.vit) * 6;
+    const statsDmg = statStrDmg + statDexDmg + statIntDmg;
 
     // ===== Passive skill tree bonuses =====
     let dmgMul = 1, aspdMul = 1, hpMul = 1, mpMul = 1;
@@ -767,6 +827,8 @@
     // ===== Active shrine damage buff =====
     if (game.activeBuffs && game.activeBuffs.damage > 0) dmgMul *= 2;
 
+    const preMulDmg = dmg;
+
     // Apply final multipliers
     dmg   = Math.floor(dmg   * dmgMul);
     aspd  = aspd  * aspdMul;
@@ -774,11 +836,25 @@
     mpMax = Math.floor(mpMax * mpMul);
 
     // War Cry buff: +50% damage
-    if (game.world && game.world.player && game.world.player.warcryBuff > 0) {
-      dmg = Math.floor(dmg * 1.5);
-    }
+    const warcry = (game.world && game.world.player && game.world.player.warcryBuff > 0);
+    if (warcry) dmg = Math.floor(dmg * 1.5);
 
-    return { dmg, def, hpMax, mpMax, crit, aspd, bonusStats };
+    // ===== DPS calculation =====
+    // Expected damage per swing factors in crit chance × crit multiplier (1.8x)
+    const critDmgMul = 1.8;
+    const critFrac = Math.min(100, crit) / 100;
+    const avgPerHit = dmg * (1 + critFrac * (critDmgMul - 1));
+    const dps = Math.round(avgPerHit * aspd);
+
+    const breakdown = {
+      baseDmg, gearDmg, affixDmg, gemDmg, statsDmg,
+      dmgMul, finalDmg: dmg, preMulDmg, warcry,
+      gearDef, gemDef, gemHp, gemMp,
+      critDmgPct: Math.round(critDmgMul * 100),
+      avgPerHit: Math.round(avgPerHit), dps,
+    };
+
+    return { dmg, def, hpMax, mpMax, crit, aspd, bonusStats, breakdown };
   }
 
   // Count how many pieces of each set the player has equipped, return summed bonus
@@ -859,8 +935,11 @@
   }
 
   function rollItem(ilvl, rarityOverride) {
-    // Exclude consumables — those are vendor-only, never random drops
-    const eligible = Object.keys(ITEM_BASES).filter(k => ITEM_BASES[k].ilvl <= ilvl + 1 && ITEM_BASES[k].type !== 'consumable');
+    // Exclude consumables and gems — those are vendor-only or special drops
+    const eligible = Object.keys(ITEM_BASES).filter(k =>
+      ITEM_BASES[k].ilvl <= ilvl + 1 &&
+      ITEM_BASES[k].type !== 'consumable' &&
+      ITEM_BASES[k].type !== 'gem');
     if (eligible.length === 0) return null;
     const baseId = pick(eligible);
     const base = ITEM_BASES[baseId];
@@ -879,12 +958,21 @@
       usedKeys.add(af.key);
       affixes.push(af);
     }
+    // Roll sockets: rare = 40% for 1 socket, 10% for 2; unique = 70% for 1, 30% for 2
+    let sockets = 0;
+    const equipType = (base.type === 'weapon' || base.type === 'armor' || base.type === 'ring' || base.type === 'amulet');
+    if (equipType) {
+      if (rarity === 'rare')   sockets = roll(0.4) ? (roll(0.25) ? 2 : 1) : 0;
+      if (rarity === 'unique') sockets = roll(0.7) ? (roll(0.4)  ? 2 : 1) : 0;
+    }
     return {
       id: 'i_' + Math.random().toString(36).slice(2, 9),
       baseId,
       rarity,
       affixes,
       ilvl,
+      sockets,
+      gems: [],
       name: buildItemName(base, rarity, affixes),
     };
   }
@@ -1127,7 +1215,7 @@
   function makeEnemy(id, x, y, levelHint) {
     const base = ENEMIES[id];
     const lvlScale = 1 + Math.max(0, levelHint - 1) * 0.18;
-    return {
+    const e = {
       id,
       x, y,
       hp: Math.floor(base.hp * lvlScale),
@@ -1155,8 +1243,39 @@
       lunging: 0,
       charging: 0,
       phased: 0,
+      // elite state
+      elite: false,
+      eliteAffix: null,
+      eliteColor: null,
     };
+    // 8% chance for a non-boss to become an elite — significantly tougher with affix
+    if (!e.boss && roll(0.08)) {
+      const aff = pick(Object.keys(ELITE_AFFIXES));
+      const def = ELITE_AFFIXES[aff];
+      e.elite = true;
+      e.eliteAffix = aff;
+      e.eliteColor = def.color;
+      e.hp = Math.floor(e.hp * (def.hpMul || 2.2));
+      e.hpMax = e.hp;
+      e.dmg = Math.floor(e.dmg * (def.dmgMul || 1.4));
+      e.xp = Math.floor(e.xp * 2);
+      e.goldRange = [e.goldRange[0] * 2, e.goldRange[1] * 2];
+      if (def.speedMul) e.speed *= def.speedMul;
+    }
+    return e;
   }
+
+  // ============================================================
+  // ELITE AFFIXES — special properties for elite (champion) enemies
+  // Apply to ~8% of normal enemies. Always drop rare loot + bonus tome chance.
+  // ============================================================
+  const ELITE_AFFIXES = {
+    burning:   { color: '#ff6644', label: 'Burning',  hpMul: 2.2, dmgMul: 1.4, onHit: 'burn' },
+    frozen:    { color: '#6df1ff', label: 'Frozen',   hpMul: 2.2, dmgMul: 1.4, onHit: 'frozen' },
+    vampiric:  { color: '#ff4d6d', label: 'Vampiric', hpMul: 2.4, dmgMul: 1.3, onHit: 'lifesteal' },
+    swift:     { color: '#ffd166', label: 'Swift',    hpMul: 1.8, dmgMul: 1.2, speedMul: 1.5 },
+    iron:      { color: '#cccccc', label: 'Iron',     hpMul: 3.5, dmgMul: 1.6 },
+  };
 
   // ============================================================
   // ENTERING WORLDS
@@ -1434,9 +1553,26 @@
   function getActiveSkillId() {
     const c = game.char;
     const cls = CLASSES[c.classId];
-    // Use player's selected skill, fall back to class default
-    if (c.selectedSkill && SKILLS[c.selectedSkill]) return c.selectedSkill;
+    const available = getAvailableSkills();
+    // Use player's selected skill if it's available (class skill OR granted by equipped item)
+    if (c.selectedSkill && available.includes(c.selectedSkill)) return c.selectedSkill;
     return cls.skills[0];
+  }
+
+  // List of skills the player can choose from: class skills + any granted by equipped unique items
+  function getAvailableSkills() {
+    const c = game.char;
+    const cls = CLASSES[c.classId];
+    const skills = cls.skills.slice();
+    for (const slot of ['weapon', 'armor', 'ring', 'amulet']) {
+      const it = c.equip[slot];
+      if (!it) continue;
+      const base = ITEM_BASES[it.baseId];
+      if (base && base.grantsSkill && SKILLS[base.grantsSkill] && !skills.includes(base.grantsSkill)) {
+        skills.push(base.grantsSkill);
+      }
+    }
+    return skills;
   }
 
   function castActiveSkill() {
@@ -1870,7 +2006,131 @@
         game.screenShake = Math.max(game.screenShake, 0.1);
       }
     }
+    // ===== LEGENDARY-GRANTED SKILLS =====
+    else if (skillId === 'demonslash') {
+      const d = derived(c);
+      const dmg = Math.floor(d.dmg * 3.5);
+      const radius = 2.5;
+      const dir = (p.lastDir.x || p.lastDir.y) ? p.lastDir : { x: 0, y: 1 };
+      const faceAng = Math.atan2(dir.y, dir.x);
+      const targets = game.enemies.filter(e => {
+        const dx = e.x - p.x, dy = e.y - p.y;
+        if (Math.sqrt(dx * dx + dy * dy) > radius) return false;
+        const ang = Math.atan2(dy, dx);
+        let diff = Math.abs(ang - faceAng);
+        if (diff > Math.PI) diff = PI2 - diff;
+        return diff < 1.2; // ~140° cone
+      });
+      for (const e of targets) {
+        hitEnemy(e, dmg, d.crit);
+        applyStatus(e, 'burn', { dmg: Math.max(2, Math.floor(d.dmg * 0.15)), dt: 4 });
+      }
+      // crescent sweep particles
+      for (let i = 0; i < 18; i++) {
+        const a = faceAng + (i - 9) * 0.12;
+        const r = 1.0 + rand() * 1.5;
+        addParticle({
+          x: p.x + Math.cos(a) * r, y: p.y + Math.sin(a) * r,
+          vx: Math.cos(a) * 2.5, vy: Math.sin(a) * 2.5,
+          color: i % 2 === 0 ? '#ff4d6d' : '#ffaa00', life: 0.4 + rand() * 0.2, age: 0, size: 3,
+        });
+      }
+      burst(p.x + dir.x * 1.2, p.y + dir.y * 1.2, '#ff4d6d', 14);
+      game.screenShake = Math.max(game.screenShake, 0.22);
+    }
+    else if (skillId === 'starfall') {
+      const d = derived(c);
+      const baseDmg = Math.floor(d.dmg * 2.5);
+      // Find nearest enemy as the strike center (else 3 tiles ahead)
+      let cx = p.x, cy = p.y;
+      const dir = (p.lastDir.x || p.lastDir.y) ? p.lastDir : { x: 0, y: 1 };
+      let near = null, nd = 6;
+      for (const e of game.enemies) { const dd = dist(e, p); if (dd < nd) { nd = dd; near = e; } }
+      if (near) { cx = near.x; cy = near.y; } else { cx += dir.x * 3; cy += dir.y * 3; }
+      // 3 meteors at offsets
+      const offsets = [[0,0],[-1.2,0.6],[1.0,-0.4]];
+      for (let m = 0; m < offsets.length; m++) {
+        const mx = cx + offsets[m][0], my = cy + offsets[m][1];
+        setTimeout(() => {
+          const targets = game.enemies.filter(e => dist(e, { x: mx, y: my }) <= 1.5);
+          for (const e of targets) hitEnemy(e, baseDmg, d.crit);
+          burst(mx, my, '#ffaa00', 18);
+          burst(mx, my, '#ffffff', 8);
+          game.screenShake = Math.max(game.screenShake, 0.18);
+          for (let i = 0; i < 14; i++) {
+            const a = rand() * PI2;
+            const sp = 1 + rand() * 2.5;
+            addParticle({
+              x: mx, y: my, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp,
+              color: i % 2 === 0 ? '#ffaa00' : '#ffd166', life: 0.5 + rand() * 0.3, age: 0, size: 3,
+            });
+          }
+        }, 200 + m * 150);
+      }
+    }
+    else if (skillId === 'typhoonshot') {
+      const d = derived(c);
+      const dmg = Math.floor(d.dmg * 1.3);
+      const dir = (p.lastDir.x || p.lastDir.y) ? p.lastDir : { x: 0, y: 1 };
+      const baseAng = Math.atan2(dir.y, dir.x);
+      // Fan of 8 arrows over ~70°
+      for (let i = 0; i < 8; i++) {
+        const a = baseAng + (i - 3.5) * 0.15;
+        spawnProjectile(p.x, p.y, Math.cos(a), Math.sin(a), 14, dmg, '#cfe7c0', 'arrow', true);
+      }
+      burst(p.x, p.y, '#cfe7c0', 10);
+    }
+    else if (skillId === 'soulharvest') {
+      const d = derived(c);
+      const dmg = Math.floor(d.dmg * 2.0);
+      const radius = 4;
+      const targets = game.enemies.filter(e => dist(e, p) <= radius);
+      let totalDealt = 0;
+      for (const e of targets) {
+        const hpBefore = e.hp;
+        hitEnemy(e, dmg, d.crit);
+        const dealt = hpBefore - e.hp;
+        totalDealt += dealt;
+        // soul tether particle
+        for (let i = 0; i < 5; i++) {
+          pushParticle(lerp(p.x, e.x, i / 5), lerp(p.y, e.y, i / 5), '#c489ff', 0.4);
+        }
+      }
+      const heal = Math.floor(totalDealt * 0.3);
+      if (heal > 0) {
+        c.hp = Math.min(c.hpMax, c.hp + heal);
+        floatText(`+${heal}`, p.x, p.y - 0.4, 'heal');
+      }
+      burst(p.x, p.y, '#c489ff', 14);
+    }
     updateHud();
+  }
+
+  // ============================================================
+  // STATUS EFFECTS — burn / poison / freeze stacks on enemies
+  // ============================================================
+  function applyStatus(e, type, params) {
+    if (!e || e.hp <= 0) return;
+    if (!e.statusEffects) e.statusEffects = {};
+    const s = e.statusEffects;
+    if (type === 'burn') {
+      // Refresh duration; keep highest tick damage
+      const dmg = Math.max((s.burn && s.burn.dmg) || 0, params.dmg);
+      const dt  = Math.max((s.burn && s.burn.dt)  || 0, params.dt);
+      s.burn = { dmg, dt, tick: 0 };
+    } else if (type === 'poison') {
+      const cur = s.poison;
+      if (cur) {
+        cur.stacks = Math.min(5, (cur.stacks || 1) + 1);
+        cur.dt = Math.max(cur.dt, params.dt);
+        cur.dmg = Math.max(cur.dmg, params.dmg);
+      } else {
+        s.poison = { dmg: params.dmg, dt: params.dt, stacks: 1, tick: 0 };
+      }
+    } else if (type === 'frozen') {
+      // Use existing e.frozen (already a numeric timer) so existing AI checks keep working
+      e.frozen = Math.max(e.frozen || 0, params.dt || 0);
+    }
   }
 
   // ============================================================
@@ -2020,11 +2280,38 @@
       game.char.mp = Math.min(game.char.mpMax, game.char.mp + 4);
     }
 
-    // Skill Tome drops — unlock currency for passive tree (more from bosses)
-    const tomeChance = e.boss ? 0.6 : 0.04;
+    // Skill Tome drops — unlock currency for passive tree (more from bosses/elites)
+    const tomeChance = e.boss ? 0.6 : (e.elite ? 0.25 : 0.04);
     if (roll(tomeChance)) {
       game.char.tomes = (game.char.tomes || 0) + 1;
       floatText('+1 Skill Tome', e.x, e.y - 0.9, 'crit');
+    }
+
+    // Gem drops (5% normal, 25% elite, 100% boss — random gem type)
+    const gemChance = e.boss ? 1.0 : (e.elite ? 0.25 : 0.05);
+    if (roll(gemChance)) {
+      const gemId = pick(Object.keys(GEMS));
+      const gemItem = makeGemItem(gemId);
+      if (gemItem) {
+        game.items.push({ x: e.x + (rand() - 0.5) * 0.4, y: e.y + 0.2, item: gemItem, age: 0 });
+        setTimeout(() => floatText(`${GEMS[gemId].name} gem`, e.x, e.y - 0.6, 'loot'), 200);
+      }
+    }
+
+    // Elite enemies always drop a rare item + bonus burst
+    if (e.elite && !e.boss) {
+      const item = rollItem(Math.max(1, e.ilvl + 1), 'rare');
+      if (item) {
+        game.items.push({ x: e.x, y: e.y, item, age: 0 });
+        setTimeout(() => floatText(item.name, e.x, e.y - 0.7, 'loot'), 250);
+      }
+      // Elite-color particle burst
+      for (let i = 0; i < 14; i++) {
+        const a = rand() * PI2;
+        const sp = 1 + rand() * 2;
+        addParticle({ x: e.x, y: e.y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp,
+          color: e.eliteColor || '#ffd166', life: 0.6 + rand() * 0.3, age: 0, size: 3 });
+      }
     }
 
     // Item drops — bosses get treasure hoard, normal enemies have a chance
@@ -2174,6 +2461,55 @@
       e.lunging = Math.max(0, e.lunging - dt);
       e.charging = Math.max(0, e.charging - dt);
       e.phased = Math.max(0, e.phased - dt);
+
+      // Elite passive affix effects (visual + lifesteal)
+      if (e.elite && e.eliteAffix) {
+        if (e.eliteAffix === 'burning' && rand() < 0.25) {
+          addParticle({ x: e.x + (rand() - 0.5) * 0.6, y: e.y - 0.2, vx: 0, vy: -1.5 - rand(),
+            color: rand() < 0.5 ? '#ff6644' : '#ffaa00', life: 0.5 + rand() * 0.3, age: 0, size: 2 });
+        } else if (e.eliteAffix === 'frozen' && rand() < 0.2) {
+          addParticle({ x: e.x + (rand() - 0.5) * 0.6, y: e.y - 0.2, vx: (rand() - 0.5) * 1.5, vy: -0.5 - rand(),
+            color: '#6df1ff', life: 0.5 + rand() * 0.3, age: 0, size: 2 });
+        } else if (e.eliteAffix === 'vampiric') {
+          // Slowly regenerate
+          e.hp = Math.min(e.hpMax, e.hp + dt * 1.5);
+        }
+      }
+
+      // Tick status effects (burn DoT, poison DoT-stacks)
+      if (e.statusEffects) {
+        const s = e.statusEffects;
+        if (s.burn) {
+          s.burn.dt -= dt;
+          s.burn.tick = (s.burn.tick || 0) + dt;
+          if (s.burn.tick >= 0.5) {
+            s.burn.tick = 0;
+            const dmg = Math.max(1, Math.floor(s.burn.dmg * 0.5));
+            e.hp -= dmg;
+            floatText(`${dmg}`, e.x + (rand() - 0.5) * 0.3, e.y - 0.5, 'crit');
+            // small flame particle
+            addParticle({ x: e.x + (rand() - 0.5) * 0.3, y: e.y - 0.2, vx: 0, vy: -1.5,
+              color: rand() < 0.5 ? '#ff6644' : '#ffaa00', life: 0.4, age: 0, size: 2 });
+            if (e.hp <= 0) { killEnemy(e); continue; }
+          }
+          if (s.burn.dt <= 0) s.burn = null;
+        }
+        if (s.poison) {
+          s.poison.dt -= dt;
+          s.poison.tick = (s.poison.tick || 0) + dt;
+          if (s.poison.tick >= 0.5) {
+            s.poison.tick = 0;
+            const dmg = Math.max(1, Math.floor(s.poison.dmg * 0.5 * s.poison.stacks));
+            e.hp -= dmg;
+            floatText(`${dmg}`, e.x + (rand() - 0.5) * 0.3, e.y - 0.5, 'crit');
+            addParticle({ x: e.x + (rand() - 0.5) * 0.3, y: e.y - 0.2, vx: 0, vy: -1.0,
+              color: '#51e6a4', life: 0.5, age: 0, size: 2 });
+            if (e.hp <= 0) { killEnemy(e); continue; }
+          }
+          if (s.poison.dt <= 0) s.poison = null;
+        }
+      }
+
       if (e.frozen > 0) continue;
       if (e.stagger > 0) continue;
       const dx = p.x - e.x, dy = p.y - e.y;
@@ -4132,6 +4468,7 @@
       ctx.save();
       ctx.translate(s.x, s.y);
       const isBoss = e.boss;
+      const isElite = e.elite;
       const scale = isBoss ? 1.5 : (e._isSplit ? 0.7 : 1);
       const bob = Math.sin(now / 280 + e.x * 5) * 1.2;
 
@@ -4142,6 +4479,17 @@
       ctx.ellipse(0, 9 * scale, 10 * scale, 4 * scale, 0, 0, PI2);
       ctx.fill();
       ctx.globalAlpha = 1;
+
+      // Elite glow halo (pulsing ring underneath)
+      if (isElite && e.eliteColor) {
+        const pulse = 0.5 + 0.4 * Math.sin(now / 280);
+        ctx.fillStyle = e.eliteColor;
+        ctx.globalAlpha = 0.18 * pulse;
+        ctx.beginPath();
+        ctx.arc(0, 0, 14 * scale, 0, PI2);
+        ctx.fill();
+        ctx.globalAlpha = 1;
+      }
 
       // phased/charging glow
       if (e.phased > 0) ctx.globalAlpha = 0.4 + 0.3 * Math.sin(now / 80);
@@ -4592,6 +4940,33 @@
         ctx.fillStyle = '#fff';
         ctx.fillText(e.name.toUpperCase(), 0, barY - 10);
       }
+      // Elite label (smaller than boss)
+      if (isElite && !isBoss) {
+        ctx.font = 'bold 9px sans-serif';
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.strokeStyle = '#000';
+        ctx.lineWidth = 3;
+        ctx.lineJoin = 'round';
+        const label = `${(e.eliteAffix || '').toUpperCase()} ${e.name.toUpperCase()}`;
+        ctx.strokeText(label, 0, barY - 8);
+        ctx.fillStyle = e.eliteColor || '#ffd166';
+        ctx.fillText(label, 0, barY - 8);
+      }
+      // Status effect icons (small chips above HP bar)
+      if (e.statusEffects) {
+        let iconX = -barW / 2;
+        const iconY = barY - (isElite || isBoss ? 18 : 8);
+        ctx.font = 'bold 10px sans-serif';
+        ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+        if (e.statusEffects.burn) {
+          ctx.fillStyle = '#ff6644';
+          ctx.fillText('🔥', iconX, iconY); iconX += 10;
+        }
+        if (e.statusEffects.poison) {
+          ctx.fillStyle = '#51e6a4';
+          ctx.fillText(`☠${e.statusEffects.poison.stacks}`, iconX, iconY); iconX += 14;
+        }
+      }
       ctx.restore();
     }
   }
@@ -4995,6 +5370,9 @@
   }
 
   function itemTypeLabel(base) {
+    // Check type first for non-equipment categories
+    if (base.type === 'gem') return 'Gem';
+    if (base.type === 'consumable') return 'Consumable';
     const icon = base.icon;
     if (icon === '⚔') return 'Sword';
     if (icon === '✦') return 'Staff';
@@ -5189,6 +5567,7 @@
     if (id === 'character') renderCharacter();
     if (id === 'skills') renderSkills();
     if (id === 'passives') renderPassives();
+    if (id === 'gem-socket') renderGemSocket();
     if (id === 'quests') renderQuests();
     if (id === 'menu') {
       // only show "Return to Town" if we're in a dungeon
@@ -5313,15 +5692,26 @@
     const d = derived(c);
     $('char-portrait').innerHTML = `<span style="color:${cls.color};text-shadow:0 0 16px ${cls.color}">${cls.glyph}</span>`;
     const stats = $('char-stats');
+    const b = d.breakdown || {};
+    // Build a compact damage breakdown sub-line under Damage
+    const dmgParts = [];
+    if (b.baseDmg)   dmgParts.push(`${b.baseDmg} base`);
+    if (b.gearDmg)   dmgParts.push(`+${b.gearDmg} gear`);
+    if (b.affixDmg)  dmgParts.push(`+${b.affixDmg} affix`);
+    if (b.gemDmg)    dmgParts.push(`+${b.gemDmg} gems`);
+    if (b.statsDmg)  dmgParts.push(`+${b.statsDmg} stats`);
+    if (b.dmgMul && b.dmgMul !== 1) dmgParts.push(`× ${b.dmgMul.toFixed(2)}`);
+    const dmgBreakdown = dmgParts.length > 1 ? `<div class="stat-sub">${dmgParts.join(' · ')}</div>` : '';
     const rows = [
       ['Class',    cls.name],
       ['Level',    c.level],
       ['XP',       `${c.xp} / ${xpForLevel(c.level)}`],
-      ['Damage',   d.dmg],
+      ['Damage',   `${d.dmg}${dmgBreakdown}`],
+      ['DPS',      `${b.dps || 0}<div class="stat-sub">${b.avgPerHit || 0} avg/hit × ${d.aspd.toFixed(2)} aps</div>`],
       ['Armor',    d.def],
       ['HP',       `${Math.ceil(c.hp)} / ${d.hpMax}`],
       ['MP',       `${Math.ceil(c.mp)} / ${d.mpMax}`],
-      ['Crit',     d.crit + '%'],
+      ['Crit',     `${d.crit}% · ${b.critDmgPct || 180}% dmg`],
       ['Atk Spd',  d.aspd.toFixed(2)],
       ['Gold',     c.gold + 'g'],
       ['STR',      c.stats.str + d.bonusStats.str],
@@ -5364,17 +5754,21 @@
     const c = game.char;
     const cls = CLASSES[c.classId];
     const activeId = getActiveSkillId();
+    const available = getAvailableSkills();
     const el = $('skills-content');
     el.innerHTML = '<div class="skill-header">Select Active Skill:</div>';
-    for (const skillId of cls.skills) {
+    for (const skillId of available) {
       const s = SKILLS[skillId];
+      if (!s) continue;
       const isActive = skillId === activeId;
+      const isGranted = !cls.skills.includes(skillId);
       const card = document.createElement('button');
       card.className = 'skill-card focusable' + (isActive ? ' skill-active' : '');
       card.dataset.action = 'select-skill';
       card.dataset.skill = skillId;
+      const grantBadge = isGranted ? ' <span class="rarity-unique">(Legendary)</span>' : '';
       card.innerHTML = `
-        <div class="skill-name">${s.name}${isActive ? ' ★' : ''}</div>
+        <div class="skill-name">${s.name}${isActive ? ' ★' : ''}${grantBadge}</div>
         <div class="skill-desc">${s.desc}</div>
         <div class="skill-meta">Cooldown: ${s.cooldown}s · Mana: ${s.cost}</div>
       `;
@@ -5526,8 +5920,13 @@
   function itemCost(it) {
     // Sanctuary Scroll has a fixed price
     if (it.baseId === 'sanctuary-scroll') return 75;
+    // Gems have a fixed price by type
+    const base = ITEM_BASES[it.baseId];
+    if (base && base.type === 'gem') return 60;
     const tier = { common: 1, magic: 4, rare: 12, unique: 40 }[it.rarity] || 1;
-    return 6 + it.ilvl * 4 * tier + (it.affixes ? it.affixes.length * 3 : 0);
+    const socketBonus = (it.sockets || 0) * 8;
+    const gemBonus = (it.gems || []).length * 5;
+    return 6 + it.ilvl * 4 * tier + (it.affixes ? it.affixes.length * 3 : 0) + socketBonus + gemBonus;
   }
 
   function refreshVendorOffer() {
@@ -5540,10 +5939,16 @@
       rarity: 'magic',
       affixes: [],
       ilvl: 1,
+      sockets: 0,
+      gems: [],
       name: 'Sanctuary Scroll',
       _consumable: true,
     });
-    for (let i = 0; i < 5; i++) game.vendorOffer.push(rollItem(lv + irand(0, 2)));
+    // Offer one random gem (rotates each refresh)
+    const gemId = pick(Object.keys(GEMS));
+    const gemItem = makeGemItem(gemId);
+    if (gemItem) game.vendorOffer.push(gemItem);
+    for (let i = 0; i < 4; i++) game.vendorOffer.push(rollItem(lv + irand(0, 2)));
   }
 
   function renderStash() {
@@ -5714,6 +6119,12 @@
         dropItemAt(parseInt(el.dataset.idx, 10));
         navigateBack();
         return;
+      case 'item-socket':
+        openGemSocket(parseInt(el.dataset.idx, 10));
+        return;
+      case 'socket-gem':
+        socketGem(parseInt(el.dataset.gemIdx, 10));
+        return;
 
       // character — spend stat
       case 'spend-stat':
@@ -5793,12 +6204,67 @@
         break;
       }
     }
+    // Socket display
+    let socketInfo = '';
+    if (it.sockets && it.sockets > 0) {
+      const gems = it.gems || [];
+      const slots = [];
+      for (let i = 0; i < it.sockets; i++) {
+        const g = gems[i];
+        if (g && GEMS[g]) slots.push(`<span style="color:${GEMS[g].color}">◆ ${GEMS[g].name} (${GEMS[g].desc})</span>`);
+        else slots.push(`<span style="color:#666">◯ empty</span>`);
+      }
+      socketInfo = `<div class="item-affix">Sockets:</div>${slots.map(s => `<div class="item-affix" style="padding-left:12px">${s}</div>`).join('')}`;
+    }
+
+    // Compare with currently equipped item of same slot
+    let compareInfo = '';
+    if (!isEquipped(it) && (base.type === 'weapon' || base.type === 'armor' || base.type === 'ring' || base.type === 'amulet')) {
+      const slot = base.type;
+      const equipped = game.char.equip[slot];
+      if (equipped && equipped.id !== it.id) {
+        // Compute deltas: simulate stats with new item in slot, diff against current
+        const curD = derived(game.char);
+        // Temporarily swap and recompute
+        const orig = game.char.equip[slot];
+        game.char.equip[slot] = it;
+        const newD = derived(game.char);
+        game.char.equip[slot] = orig;
+        const fmtDelta = (k, label, suffix) => {
+          const a = newD[k], b = curD[k];
+          if (a === b) return '';
+          const diff = a - b;
+          const cls = diff > 0 ? 'delta-up' : 'delta-down';
+          const sign = diff > 0 ? '+' : '';
+          return `<div class="item-affix ${cls}">${sign}${diff}${suffix || ''} ${label}</div>`;
+        };
+        // DPS delta from breakdown
+        const dpsDelta = (newD.breakdown.dps || 0) - (curD.breakdown.dps || 0);
+        const dpsCls = dpsDelta > 0 ? 'delta-up' : dpsDelta < 0 ? 'delta-down' : '';
+        const dpsSign = dpsDelta > 0 ? '+' : '';
+        const dpsLine = dpsDelta !== 0
+          ? `<div class="item-affix ${dpsCls}" style="font-weight:700">${dpsSign}${dpsDelta} DPS</div>`
+          : '';
+        compareInfo = `
+          <div class="item-affix" style="margin-top:6px;border-top:1px solid rgba(255,255,255,0.12);padding-top:6px;color:var(--text-dim);font-size:11px">vs equipped (${equipped.name}):</div>
+          ${dpsLine}
+          ${fmtDelta('dmg', 'damage')}
+          ${fmtDelta('def', 'armor')}
+          ${fmtDelta('hpMax', 'HP')}
+          ${fmtDelta('mpMax', 'MP')}
+          ${fmtDelta('crit', 'crit', '%')}
+        `;
+      }
+    }
+
     card.innerHTML = `
       <div class="item-name rarity-${it.rarity}">${it.name}</div>
       <div class="item-type">${base.type} · ilvl ${it.ilvl} · ${it.rarity.toUpperCase()}</div>
       ${baseLines.map(l => `<div class="item-affix">${l}</div>`).join('')}
       ${(it.affixes || []).map(a => `<div class="item-affix">+${a.val} ${a.label}</div>`).join('')}
+      ${socketInfo}
       ${setInfo}
+      ${compareInfo}
       <div class="item-flavor">"Forged of glass that remembers."</div>
     `;
     const actions = $('item-actions');
@@ -5809,8 +6275,79 @@
     } else if (base.type === 'weapon' || base.type === 'armor' || base.type === 'ring' || base.type === 'amulet') {
       actions.innerHTML = `<button class="nav-item focusable" data-action="item-equip" data-idx="${idx}">Equip</button>`;
     }
+    // Socket gem action — only if item has empty sockets AND inventory has at least one gem
+    const hasEmptySocket = it.sockets && (it.gems || []).length < it.sockets;
+    const hasGemInInventory = game.char.inventory.some(x => x && ITEM_BASES[x.baseId] && ITEM_BASES[x.baseId].type === 'gem');
+    if (hasEmptySocket && hasGemInInventory) {
+      actions.innerHTML += `<button class="nav-item focusable" data-action="item-socket" data-idx="${idx}">Socket Gem</button>`;
+    }
     actions.innerHTML += `<button class="nav-item focusable danger" data-action="item-drop" data-idx="${idx}">Drop</button>`;
     navigateTo('item-detail');
+  }
+
+  function openGemSocket(itemIdx) {
+    game.socketingItemIdx = itemIdx;
+    navigateTo('gem-socket');
+  }
+
+  function renderGemSocket() {
+    const targetItem = game.char.inventory[game.socketingItemIdx];
+    const list = $('gem-socket-list');
+    const headerEl = $('gem-socket-header');
+    if (!targetItem) {
+      list.innerHTML = '<div class="quest-card empty">Item no longer available.</div>';
+      headerEl.textContent = '';
+      return;
+    }
+    const tBase = ITEM_BASES[targetItem.baseId];
+    const slotsUsed = (targetItem.gems || []).length;
+    const slotsFree = (targetItem.sockets || 0) - slotsUsed;
+    headerEl.textContent = `${targetItem.name} — ${slotsFree} empty socket${slotsFree === 1 ? '' : 's'}`;
+    list.innerHTML = '';
+    let any = false;
+    game.char.inventory.forEach((it, idx) => {
+      if (!it) return;
+      const base = ITEM_BASES[it.baseId];
+      if (!base || base.type !== 'gem') return;
+      const gem = GEMS[base.gemId];
+      if (!gem) return;
+      any = true;
+      const row = document.createElement('button');
+      row.className = 'inv-row focusable';
+      row.dataset.action = 'socket-gem';
+      row.dataset.gemIdx = idx;
+      row.innerHTML = `
+        <div class="inv-icon" style="color:${gem.color}">${base.icon}</div>
+        <div class="inv-meta">
+          <div class="inv-name" style="color:${gem.color}">${gem.name}</div>
+          <div class="inv-sub">${gem.desc}</div>
+        </div>
+      `;
+      list.appendChild(row);
+    });
+    if (!any) list.innerHTML = '<div class="quest-card empty">No gems in inventory. Kill enemies for more.</div>';
+  }
+
+  function socketGem(gemInvIdx) {
+    const targetItem = game.char.inventory[game.socketingItemIdx];
+    const gemItem = game.char.inventory[gemInvIdx];
+    if (!targetItem || !gemItem) { showHudToast('Item not found.'); return; }
+    const gemBase = ITEM_BASES[gemItem.baseId];
+    if (!gemBase || gemBase.type !== 'gem' || !gemBase.gemId) { showHudToast('Not a gem.'); return; }
+    if (!targetItem.gems) targetItem.gems = [];
+    if (targetItem.gems.length >= (targetItem.sockets || 0)) { showHudToast('No empty sockets.'); return; }
+    targetItem.gems.push(gemBase.gemId);
+    // Remove the gem from inventory — must remove by id since indexes shift
+    const gemId = gemItem.id;
+    const targetId = targetItem.id;
+    game.char.inventory = game.char.inventory.filter(x => !(x && x.id === gemId));
+    // Update socketingItemIdx since indexes may have shifted
+    game.socketingItemIdx = game.char.inventory.findIndex(x => x && x.id === targetId);
+    applyDerivedToChar();
+    saveGame();
+    showHudToast(`${GEMS[gemBase.gemId].name} socketed.`);
+    renderGemSocket();
+    updateHud();
   }
   function slotOf(it) {
     const t = ITEM_BASES[it.baseId].type;

@@ -890,7 +890,10 @@ html, body {
   font-size: 13px;
 }
 .stat-row .stat-label { color: var(--text-dim); }
-.stat-row .stat-value { color: var(--text); font-weight: 700; }
+.stat-row .stat-value { color: var(--text); font-weight: 700; text-align: right; }
+.stat-sub { font-size: 10px; color: var(--text-dim); font-weight: 400; letter-spacing: 0.3px; }
+.delta-up   { color: #51e6a4; }
+.delta-down { color: #ff6677; }
 .char-points-row {
   display: flex;
   flex-direction: column;
