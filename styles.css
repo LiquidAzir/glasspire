@@ -1165,3 +1165,104 @@ html, body {
 .death-title { color: var(--crimson); }
 .levelup-title { color: var(--gold); }
 .death-sub, .levelup-sub { font-size: 13px; color: var(--text-dim); max-width: 360px; line-height: 1.5; }
+
+/* ============================================================
+   TOUCH CONTROLS — virtual D-pad + pinch button for phone play.
+   Hidden by default; only shown when user enables in menu.
+   Glasses keyboard input is completely unaffected.
+   ============================================================ */
+.touch-controls {
+  position: absolute;
+  inset: 0;
+  pointer-events: none; /* parent passes touches; children opt in */
+  z-index: 50;
+}
+.touch-dpad {
+  position: absolute;
+  left: 12px;
+  bottom: 100px;
+  width: 210px;
+  height: 210px;
+  pointer-events: none;
+}
+.touch-btn {
+  pointer-events: auto;
+  background: rgba(8, 8, 16, 0.55);
+  border: 1.5px solid rgba(109, 241, 255, 0.45);
+  color: var(--crystal);
+  font-size: 22px;
+  font-weight: 700;
+  border-radius: 50%;
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.6), inset 0 1px 1px rgba(255, 255, 255, 0.1);
+  touch-action: none; /* don't fight with the browser for gestures */
+  transition: transform 60ms ease-out, background 60ms;
+}
+.touch-btn:active {
+  background: rgba(20, 70, 100, 0.85);
+  transform: scale(0.92);
+}
+.touch-dpad .touch-btn {
+  position: absolute;
+  width: 68px;
+  height: 68px;
+  font-size: 26px;
+}
+.touch-up    { left: 71px; top: 0;    }
+.touch-left  { left: 0;    top: 71px; }
+.touch-right { left: 142px; top: 71px; }
+.touch-down  { left: 71px; top: 142px; }
+.touch-pinch {
+  position: absolute;
+  right: 28px;
+  bottom: 130px;
+  width: 108px;
+  height: 108px;
+  font-size: 40px;
+  border-color: rgba(255, 200, 87, 0.55);
+  color: var(--gold);
+}
+
+/* ============================================================
+   SAVE SYNC SCREEN
+   ============================================================ */
+.sync-help {
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--text-dim);
+  margin: 0 0 14px 0;
+  padding: 10px;
+  background: var(--bg-card);
+  border-radius: var(--radius-sm);
+}
+.sync-section {
+  background: var(--bg-card);
+  padding: 10px;
+  border-radius: var(--radius-sm);
+  margin-bottom: 12px;
+}
+.sync-section h3 {
+  font-size: 12px;
+  margin: 0 0 8px 0;
+  color: var(--crystal);
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+.sync-box {
+  width: 100%;
+  min-height: 90px;
+  background: var(--bg-strip);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font-family: monospace;
+  font-size: 10px;
+  padding: 8px;
+  resize: vertical;
+  margin: 8px 0;
+  white-space: pre;
+  word-break: break-all;
+}

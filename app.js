@@ -1399,6 +1399,56 @@
       const el = e.target.closest('[data-action]');
       if (el) handleAction(el.dataset.action, el);
     });
+    setupTouchControls();
+  }
+
+  // ============================================================
+  // TOUCH CONTROLS — virtual D-pad + pinch button for phone play.
+  // Each button dispatches synthetic events through onKeyDown/onKeyUp,
+  // so all existing combo / impulse / cooldown logic works unchanged.
+  // Glasses keyboard input is completely untouched.
+  // ============================================================
+  function setupTouchControls() {
+    const root = document.getElementById('touch-controls');
+    if (!root) return;
+    // Restore the user's preference (persists across sessions)
+    const saved = localStorage.getItem('glasspire_touch_enabled');
+    if (saved === '1') showTouchControls(true);
+    // Wire every touch button: press = synthetic keydown, release = synthetic keyup
+    const buttons = root.querySelectorAll('[data-touch-key]');
+    buttons.forEach(btn => {
+      const key = btn.dataset.touchKey;
+      const press = (ev) => {
+        ev.preventDefault();
+        // build minimal synthetic event compatible with onKeyDown
+        onKeyDown({ key, repeat: false, preventDefault: () => {} });
+      };
+      const release = (ev) => {
+        ev.preventDefault();
+        onKeyUp({ key });
+      };
+      btn.addEventListener('touchstart', press, { passive: false });
+      btn.addEventListener('touchend',   release, { passive: false });
+      btn.addEventListener('touchcancel', release, { passive: false });
+      // Also wire mouse events so it works on desktop browsers with mouse
+      btn.addEventListener('mousedown', press);
+      btn.addEventListener('mouseup',   release);
+      btn.addEventListener('mouseleave', release);
+    });
+  }
+
+  function showTouchControls(on) {
+    const root = document.getElementById('touch-controls');
+    if (!root) return;
+    if (on) root.classList.remove('hidden');
+    else    root.classList.add('hidden');
+    localStorage.setItem('glasspire_touch_enabled', on ? '1' : '0');
+  }
+  function toggleTouchControls() {
+    const root = document.getElementById('touch-controls');
+    if (!root) return;
+    const isOn = !root.classList.contains('hidden');
+    showTouchControls(!isOn);
   }
 
   function onKeyDown(e) {
@@ -5672,6 +5722,20 @@
       } else {
         returnBtn.classList.add('hidden');
       }
+      // Update touch-controls toggle button label to reflect current state
+      const tBtn = $('menu-touch-toggle-btn');
+      if (tBtn) {
+        const tRoot = document.getElementById('touch-controls');
+        const isOn = tRoot && !tRoot.classList.contains('hidden');
+        tBtn.textContent = `Touch Controls: ${isOn ? 'ON' : 'OFF'}`;
+      }
+    }
+    if (id === 'sync') {
+      // Reset the export box on entry so user has to regenerate (avoids showing stale state)
+      const exBox = document.getElementById('sync-export-box');
+      const imBox = document.getElementById('sync-import-box');
+      if (exBox) exBox.value = '';
+      if (imBox) imBox.value = '';
     }
     if (id === 'vendor') renderVendor();
     if (id === 'stash') renderStash();
@@ -6241,6 +6305,8 @@
         navigateTo('class-select'); return;
       case 'title-about':
         navigateTo('about'); return;
+      case 'title-sync':
+        navigateTo('sync'); return;
 
       // class select
       case 'pick-class': {
@@ -6306,6 +6372,28 @@
       case 'menu-title':
         saveGame();
         navigateTo('title');
+        return;
+      case 'menu-touch-toggle':
+        toggleTouchControls();
+        // Update the menu button label to reflect new state
+        {
+          const tBtn = $('menu-touch-toggle-btn');
+          const tRoot = document.getElementById('touch-controls');
+          const isOn = tRoot && !tRoot.classList.contains('hidden');
+          if (tBtn) tBtn.textContent = `Touch Controls: ${isOn ? 'ON' : 'OFF'}`;
+          showHudToast(`Touch controls ${isOn ? 'enabled' : 'disabled'}.`);
+        }
+        return;
+      case 'menu-sync':
+        navigateTo('sync');
+        return;
+
+      // save sync — export / import
+      case 'sync-export':
+        syncExport();
+        return;
+      case 'sync-import':
+        syncImport();
         return;
 
       // inventory
@@ -6878,6 +6966,77 @@
     game.save = save;
     game.char = save.char;
     applyDerivedToChar();
+  }
+
+  // ============================================================
+  // SAVE SYNC — manual export / import to move saves between devices
+  // ============================================================
+  function syncExport() {
+    const box = document.getElementById('sync-export-box');
+    if (!box) return;
+    const raw = localStorage.getItem(CFG.storageKey);
+    if (!raw) {
+      box.value = '(no save on this device yet — play first)';
+      showHudToast('No save to export.');
+      return;
+    }
+    // Encode with a small wrapper so an Import knows it's a valid Glasspire save
+    const wrapper = { app: 'glasspire', v: 1, ts: Date.now(), payload: raw };
+    let code;
+    try {
+      // base64 of the JSON wrapper — easier to copy/paste (no quotes inside)
+      code = btoa(unescape(encodeURIComponent(JSON.stringify(wrapper))));
+    } catch (e) {
+      code = JSON.stringify(wrapper); // fallback to plain JSON if btoa fails
+    }
+    box.value = code;
+    // Try to also copy to clipboard for convenience (may fail in restricted browsers)
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(code);
+        showHudToast('Code copied to clipboard.');
+      } else {
+        box.select();
+        showHudToast('Code generated — long-press to copy.');
+      }
+    } catch (e) {
+      showHudToast('Code generated — select & copy manually.');
+    }
+  }
+
+  function syncImport() {
+    const box = document.getElementById('sync-import-box');
+    if (!box) return;
+    const raw = (box.value || '').trim();
+    if (!raw) { showHudToast('Paste a code first.'); return; }
+    let parsed = null;
+    // Try base64-wrapped first
+    try {
+      const json = decodeURIComponent(escape(atob(raw)));
+      parsed = JSON.parse(json);
+    } catch (e) {
+      // Fall back to direct JSON parse
+      try { parsed = JSON.parse(raw); } catch (e2) { parsed = null; }
+    }
+    if (!parsed || !parsed.payload) {
+      showHudToast('Invalid code. Make sure you copied the whole thing.');
+      return;
+    }
+    // Validate the inner payload is a real Glasspire save
+    let payloadObj;
+    try { payloadObj = JSON.parse(parsed.payload); } catch (e) { payloadObj = null; }
+    if (!payloadObj || payloadObj.v !== 2 || !payloadObj.char) {
+      showHudToast('Code is not a valid Glasspire save.');
+      return;
+    }
+    // Overwrite localStorage and reload the page so all state is fresh
+    try {
+      localStorage.setItem(CFG.storageKey, parsed.payload);
+      showHudToast('Save imported. Reloading...');
+      setTimeout(() => location.reload(), 800);
+    } catch (e) {
+      showHudToast('Save failed: storage error.');
+    }
   }
 
   // ============================================================
