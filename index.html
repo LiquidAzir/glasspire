@@ -174,6 +174,7 @@
           <div class="hud-zone" id="hud-zone">—</div>
           <div class="hud-minimap"><canvas id="minimap" width="96" height="96"></canvas></div>
         </div>
+        <div class="hud-buffs" id="hud-buffs"></div>
         <div class="hud-bottom">
           <div class="hud-orb hud-orb-hp" id="hud-orb-hp">
             <div class="hud-orb-fill" id="hud-hp-fill"></div>
@@ -210,6 +211,7 @@
         <button class="nav-item focusable" data-action="menu-inventory">Inventory &amp; Equipment</button>
         <button class="nav-item focusable" data-action="menu-character">Character</button>
         <button class="nav-item focusable" data-action="menu-skills">Skill</button>
+        <button class="nav-item focusable" data-action="menu-passives" id="menu-passives-btn">Passives</button>
         <button class="nav-item focusable" data-action="menu-quests">Quest Log</button>
         <button class="nav-item focusable" data-action="menu-use-scroll" id="menu-scroll-btn">Use Sanctuary Scroll</button>
         <button class="nav-item focusable" data-action="menu-return-dungeon" id="menu-return-dungeon-btn">Return to Dungeon</button>
@@ -276,6 +278,18 @@
         <h1>Skill</h1>
       </header>
       <div class="content" id="skills-content"></div>
+    </div>
+
+    <!-- ============================================================ -->
+    <!-- PASSIVE SKILL TREE                                            -->
+    <!-- ============================================================ -->
+    <div id="passives" class="screen hidden">
+      <header class="header">
+        <button class="back-btn focusable" data-action="back">&#8592;</button>
+        <h1>Passives</h1>
+        <span class="header-meta">Tomes: <span id="passives-tomes">0</span></span>
+      </header>
+      <div class="content" id="passives-content"></div>
     </div>
 
     <!-- ============================================================ -->

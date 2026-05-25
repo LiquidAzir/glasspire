@@ -383,6 +383,63 @@
     'sanctuary-scroll':   { type: 'consumable', name: 'Sanctuary Scroll', icon: '✉', base: {}, ilvl: 1 },
   };
 
+  // ============================================================
+  // PASSIVE SKILL TREE — universal passives, 1 tome per unlock
+  // Unlocked after level 10. Effects are applied in derived() and on-kill hook.
+  // ============================================================
+  const PASSIVES = {
+    toughness:   { name: 'Toughness',   desc: '+25% Max HP',           icon: '♥' },
+    vigor:       { name: 'Vigor',       desc: '+25% Max MP',           icon: '✦' },
+    sharp_eye:   { name: 'Sharp Eye',   desc: '+8% Crit Chance',       icon: '◎' },
+    ferocity:    { name: 'Ferocity',    desc: '+15% Damage',           icon: '⚔' },
+    fortify:     { name: 'Fortify',     desc: '+30 Armor',             icon: '◇' },
+    alacrity:    { name: 'Alacrity',    desc: '+15% Attack Speed',     icon: '⚡' },
+    greedy:      { name: 'Greedy',      desc: '+30% Gold per Kill',    icon: '$' },
+    scholar:     { name: 'Scholar',     desc: '+30% XP per Kill',      icon: '★' },
+    bloodletter: { name: 'Bloodletter', desc: 'Heal 3 HP per Kill',    icon: '+' },
+    mana_reaver: { name: 'Mana Reaver', desc: 'Restore 4 MP per Kill', icon: '✧' },
+  };
+
+  // ============================================================
+  // ITEM SETS — wear 3 matching pieces for the bonus
+  // Pieces must be in: weapon, armor, ring, or amulet slots (only 4 equip slots)
+  // ============================================================
+  const SETS = {
+    cryptwarden: {
+      name: "Cryptwarden's Pact",
+      pieces: ['iron-sword', 'plate', 'iron-amulet'],
+      bonusDesc: '3pc: +20% Damage, +25 Armor, +40 HP',
+      bonus: { dmgMul: 0.2, def: 25, hp: 40 },
+    },
+    archon: {
+      name: "Archon's Mantle",
+      pieces: ['arcane-staff', 'mage-robe', 'prism-ring'],
+      bonusDesc: '3pc: +25% Damage, +50 MP',
+      bonus: { dmgMul: 0.25, mp: 50 },
+    },
+    shadowstalker: {
+      name: "Shadowstalker's Edge",
+      pieces: ['longbow', 'shadow-vest', 'gold-ring'],
+      bonusDesc: '3pc: +8% Crit, +20% Attack Speed',
+      bonus: { crit: 8, aspdMul: 0.2 },
+    },
+    bonelord: {
+      name: "Bonelord's Regalia",
+      pieces: ['lich-scepter', 'arcane-vestment', 'glass-pendant'],
+      bonusDesc: '3pc: +20% Damage, +40 MP, +20 HP',
+      bonus: { dmgMul: 0.2, mp: 40, hp: 20 },
+    },
+  };
+
+  // ============================================================
+  // SHRINES — temporary buff pickups placed in dungeons
+  // ============================================================
+  const SHRINES = {
+    fury:    { name: 'Shrine of Fury',    color: '#ff6644', icon: '⚔', duration: 30, effect: 'damage', desc: '2× Damage 30s' },
+    arcane:  { name: 'Shrine of Arcana',  color: '#6df1ff', icon: '✦', duration: 30, effect: 'mana',   desc: 'Full MP + 2× regen 30s' },
+    warding: { name: 'Shrine of Warding', color: '#ffd166', icon: '◇', duration: 15, effect: 'invuln', desc: 'Invulnerable 15s' },
+  };
+
   // affixes by rarity tier
   const AFFIXES = [
     { key: 'dmg',  label: 'Damage', max: 8,  rarities: ['magic','rare','unique'] },
@@ -556,6 +613,8 @@
         inventory: [gear.weapon, gear.armor],
         potions: 3,
         sanctuaryScrolls: 0,  // consumable: warp to town from anywhere
+        tomes: 0,             // currency for passive skill unlocks
+        passives: {},         // unlocked passives map: { [passiveId]: true }
         selectedSkill: cls.skills[0],  // track which skill is active
       },
       stash: [],
@@ -594,6 +653,9 @@
       if (obj.char && obj.char.sanctuaryScrolls === undefined) {
         obj.char.sanctuaryScrolls = 0;
       }
+      // migrate: add tomes/passives for old saves
+      if (obj.char && obj.char.tomes === undefined) obj.char.tomes = 0;
+      if (obj.char && !obj.char.passives) obj.char.passives = {};
       // migrate: ensure worldState/savedDungeon fields exist
       if (obj.worldState === undefined) obj.worldState = null;
       if (obj.savedDungeon === undefined) obj.savedDungeon = null;
@@ -683,12 +745,76 @@
     }
     hpMax += (char.stats.vit + bonusStats.vit) * 6;
 
+    // ===== Passive skill tree bonuses =====
+    let dmgMul = 1, aspdMul = 1, hpMul = 1, mpMul = 1;
+    const passives = char.passives || {};
+    if (passives.toughness)  hpMul *= 1.25;
+    if (passives.vigor)      mpMul *= 1.25;
+    if (passives.sharp_eye)  crit += 8;
+    if (passives.ferocity)   dmgMul *= 1.15;
+    if (passives.fortify)    def  += 30;
+    if (passives.alacrity)   aspdMul *= 1.15;
+
+    // ===== Item set bonuses (3-piece) =====
+    const setB = computeSetBonuses(char);
+    if (setB.dmgMul)  dmgMul  *= (1 + setB.dmgMul);
+    if (setB.aspdMul) aspdMul *= (1 + setB.aspdMul);
+    if (setB.def)     def     += setB.def;
+    if (setB.hp)      hpMax   += setB.hp;
+    if (setB.mp)      mpMax   += setB.mp;
+    if (setB.crit)    crit    += setB.crit;
+
+    // ===== Active shrine damage buff =====
+    if (game.activeBuffs && game.activeBuffs.damage > 0) dmgMul *= 2;
+
+    // Apply final multipliers
+    dmg   = Math.floor(dmg   * dmgMul);
+    aspd  = aspd  * aspdMul;
+    hpMax = Math.floor(hpMax * hpMul);
+    mpMax = Math.floor(mpMax * mpMul);
+
     // War Cry buff: +50% damage
     if (game.world && game.world.player && game.world.player.warcryBuff > 0) {
       dmg = Math.floor(dmg * 1.5);
     }
 
     return { dmg, def, hpMax, mpMax, crit, aspd, bonusStats };
+  }
+
+  // Count how many pieces of each set the player has equipped, return summed bonus
+  function computeSetBonuses(char) {
+    const out = { dmgMul: 0, aspdMul: 0, def: 0, hp: 0, mp: 0, crit: 0 };
+    const equipped = [char.equip.weapon, char.equip.armor, char.equip.ring, char.equip.amulet]
+      .filter(x => x && x.baseId).map(x => x.baseId);
+    for (const setId in SETS) {
+      const s = SETS[setId];
+      let count = 0;
+      for (const piece of s.pieces) if (equipped.includes(piece)) count++;
+      if (count >= 3) {
+        const b = s.bonus;
+        if (b.dmgMul)  out.dmgMul  += b.dmgMul;
+        if (b.aspdMul) out.aspdMul += b.aspdMul;
+        if (b.def)     out.def     += b.def;
+        if (b.hp)      out.hp      += b.hp;
+        if (b.mp)      out.mp      += b.mp;
+        if (b.crit)    out.crit    += b.crit;
+      }
+    }
+    return out;
+  }
+
+  // Return list of active set IDs (for UI display)
+  function activeSets(char) {
+    const equipped = [char.equip.weapon, char.equip.armor, char.equip.ring, char.equip.amulet]
+      .filter(x => x && x.baseId).map(x => x.baseId);
+    const active = [];
+    for (const setId in SETS) {
+      const s = SETS[setId];
+      let count = 0;
+      for (const piece of s.pieces) if (equipped.includes(piece)) count++;
+      active.push({ id: setId, def: s, count });
+    }
+    return active;
   }
 
   function applyDerivedToChar() {
@@ -955,6 +1081,32 @@
       game.bossAlive = false;
     }
 
+    // Place 1-2 shrines in random non-spawn rooms (skip room 0 to avoid blocking spawn)
+    const shrines = [];
+    if (rooms.length > 2) {
+      const shrineTypeIds = Object.keys(SHRINES);
+      const candidates = rooms.slice(1).filter(r => r !== last); // avoid spawn and boss-room
+      // Shuffle candidates a bit and pick 1-2
+      const numShrines = irand(1, Math.min(2, candidates.length));
+      const used = new Set();
+      for (let i = 0; i < numShrines; i++) {
+        let pick = irand(0, candidates.length - 1);
+        let tries = 0;
+        while (used.has(pick) && tries++ < 6) pick = irand(0, candidates.length - 1);
+        if (used.has(pick)) continue;
+        used.add(pick);
+        const r = candidates[pick];
+        const sx = r.cx + 0.5 + (rand() - 0.5) * 1.5;
+        const sy = r.cy + 0.5 + (rand() - 0.5) * 1.5;
+        // ensure shrine position is on floor (not on a pillar we placed)
+        const gx = Math.floor(sx), gy = Math.floor(sy);
+        if (gx <= 0 || gx >= W - 1 || gy <= 0 || gy >= H - 1) continue;
+        if (grid[gy][gx] !== 0) grid[gy][gx] = 0; // clear pillar if any
+        const type = shrineTypeIds[irand(0, shrineTypeIds.length - 1)];
+        shrines.push({ x: sx, y: sy, type, used: false });
+      }
+    }
+
     return {
       kind: 'dungeon',
       name: `${biome.shortName} — Floor ${floor}${isBossFloor ? ' (Boss)' : ''}`,
@@ -964,6 +1116,7 @@
       npcs: [],
       rooms,
       portals,
+      shrines,
       palette: biome.palette,
       biomeId: biome.id,
       floor,
@@ -1032,11 +1185,13 @@
     game.floatingTexts = [];
     ambientParticles.length = 0;
     clearSkillEffects();
+    game.activeBuffs = {}; // shrine buffs don't persist across zones
     game.activeBiomeId = null;
     game.activeFloor = 0;
     snapCamera();
     navigateTo('game');
     showZoneToast('SANCTUARY');
+    applyDerivedToChar(); // recompute stats since buff might have been adding damage
     updateHud();
   }
   function enterBiome(biomeId, floor) {
@@ -1052,11 +1207,13 @@
     game.floatingTexts = [];
     ambientParticles.length = 0;
     clearSkillEffects();
+    game.activeBuffs = {}; // shrine buffs don't persist across zones
     game.activeBiomeId = biomeId;
     game.activeFloor = floor;
     snapCamera();
     navigateTo('game');
     showZoneToast(`${biome.shortName} — FLOOR ${floor}`);
+    applyDerivedToChar();
     updateHud();
   }
 
@@ -1223,8 +1380,36 @@
   function onPinch() {
     if (game.nearbyNpc) { openNpc(game.nearbyNpc); return; }
     if (game.nearbyPortal) { activatePortal(game.nearbyPortal); return; }
+    if (game.nearbyShrine) { activateShrine(game.nearbyShrine); return; }
     if (game.nearbyItem) { pickupItem(game.nearbyItem); return; }
     castActiveSkill();
+  }
+
+  function activateShrine(sh) {
+    const def = SHRINES[sh.type];
+    if (!def || sh.used) return;
+    sh.used = true;
+    game.activeBuffs = game.activeBuffs || {};
+    // Set the timer for this buff type (overwrites if already active — fresh duration)
+    game.activeBuffs[def.effect] = def.duration;
+    // Special activation effects
+    if (def.effect === 'mana') {
+      game.char.mp = game.char.mpMax; // instant full mana
+    }
+    // Recompute derived stats so damage buff applies immediately
+    applyDerivedToChar();
+    showHudToast(`${def.name}: ${def.desc}`);
+    // Burst of particles in shrine color
+    for (let i = 0; i < 25; i++) {
+      const a = Math.random() * Math.PI * 2;
+      const spd = 1 + Math.random() * 2.5;
+      addParticle({
+        x: sh.x, y: sh.y,
+        vx: Math.cos(a) * spd, vy: Math.sin(a) * spd,
+        color: def.color, life: 0.8 + Math.random() * 0.4, age: 0, size: 3,
+      });
+    }
+    game.screenShake = Math.max(game.screenShake, 0.15);
   }
 
   function openNpc(npc) {
@@ -1816,10 +2001,31 @@
     if (!game.corpsePositions) game.corpsePositions = [];
     game.corpsePositions.push({ x: e.x, y: e.y });
     if (game.corpsePositions.length > 12) game.corpsePositions.shift();
-    gainXp(e.xp);
-    const gold = irand(e.goldRange[0], e.goldRange[1]) * (e.boss ? 3 : 1);
+
+    // Apply passive multipliers to XP and gold
+    const passives = game.char.passives || {};
+    let xp = e.xp;
+    let gold = irand(e.goldRange[0], e.goldRange[1]) * (e.boss ? 3 : 1);
+    if (passives.scholar) xp = Math.floor(xp * 1.3);
+    if (passives.greedy)  gold = Math.floor(gold * 1.3);
+    gainXp(xp);
     game.char.gold += gold;
     floatText(`+${gold}g`, e.x + 0.3, e.y - 0.2, 'loot');
+
+    // On-kill passive effects
+    if (passives.bloodletter && game.char.hp < game.char.hpMax) {
+      game.char.hp = Math.min(game.char.hpMax, game.char.hp + 3);
+    }
+    if (passives.mana_reaver && game.char.mp < game.char.mpMax) {
+      game.char.mp = Math.min(game.char.mpMax, game.char.mp + 4);
+    }
+
+    // Skill Tome drops — unlock currency for passive tree (more from bosses)
+    const tomeChance = e.boss ? 0.6 : 0.04;
+    if (roll(tomeChance)) {
+      game.char.tomes = (game.char.tomes || 0) + 1;
+      floatText('+1 Skill Tome', e.x, e.y - 0.9, 'crit');
+    }
 
     // Item drops — bosses get treasure hoard, normal enemies have a chance
     if (e.boss) {
@@ -2252,6 +2458,11 @@
   // ============================================================
   function damagePlayer(rawDmg) {
     if (game.char.hp <= 0) return; // already dead — prevent multiple death triggers
+    // Shrine of Warding: total invulnerability
+    if (game.activeBuffs && game.activeBuffs.invuln > 0) {
+      floatText('WARDED', game.world.player.x, game.world.player.y - 0.4, 'heal');
+      return;
+    }
     const d = derived(game.char);
     let dmg = Math.max(1, Math.floor(rawDmg - d.def * 0.5));
     // Shield Wall: 70% damage reduction
@@ -2394,9 +2605,23 @@
     if (p.dashCd !== undefined) p.dashCd = Math.max(0, p.dashCd - dt);
     p.attackingFor = Math.max(0, p.attackingFor - dt);
 
-    // passive mana regen
+    // passive mana regen (2× while Shrine of Arcana is active)
     if (game.char.mp < game.char.mpMax) {
-      game.char.mp = Math.min(game.char.mpMax, game.char.mp + dt * 2.2);
+      const manaMul = (game.activeBuffs && game.activeBuffs.mana > 0) ? 2 : 1;
+      game.char.mp = Math.min(game.char.mpMax, game.char.mp + dt * 2.2 * manaMul);
+    }
+
+    // Tick active shrine buffs (count down each one)
+    if (game.activeBuffs) {
+      for (const k in game.activeBuffs) {
+        game.activeBuffs[k] -= dt;
+        if (game.activeBuffs[k] <= 0) {
+          delete game.activeBuffs[k];
+          // Recompute stats when damage buff ends so damage drops back
+          if (k === 'damage') applyDerivedToChar();
+          showHudToast(`${k === 'damage' ? 'Fury' : k === 'mana' ? 'Arcana' : 'Warding'} shrine faded.`);
+        }
+      }
     }
 
     // War Cry buff countdown
@@ -2536,6 +2761,16 @@
       }
     }
     game.nearbyPortal = pn;
+    // Shrine — large pinch radius for fast D-pad movement
+    let sn = null, sdist = 1.8;
+    if (game.world.shrines) {
+      for (const sh of game.world.shrines) {
+        if (sh.used) continue;
+        const d = dist(sh, p);
+        if (d < sdist) { sdist = d; sn = sh; }
+      }
+    }
+    game.nearbyShrine = sn;
     // Item — auto-pickup if close
     let it = null, idx = -1;
     for (let i = 0; i < game.items.length; i++) {
@@ -2698,6 +2933,7 @@
     drawAmbient();
     drawItems();
     drawPortals();
+    drawShrines();
     drawNpcs();
     drawProjectiles();
     drawMinions();
@@ -3452,6 +3688,55 @@
       ctx.font = 'bold 22px sans-serif';
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       ctx.fillText(p.kind === 'town' ? '⌂' : '▼', 0, -1);
+      ctx.restore();
+    }
+  }
+
+  function drawShrines() {
+    if (!game.world.shrines) return;
+    const now = performance.now();
+    for (const sh of game.world.shrines) {
+      if (sh.used) continue;
+      const def = SHRINES[sh.type];
+      if (!def) continue;
+      const s = w2s(sh.x, sh.y);
+      const t = CFG.tile;
+      const col = def.color;
+      const pulse = 0.5 + 0.5 * Math.sin(now / 350);
+      ctx.save();
+      ctx.translate(s.x, s.y);
+      // Ground glow — large halo so player spots it
+      ctx.fillStyle = col;
+      ctx.globalAlpha = 0.12 + 0.06 * pulse;
+      ctx.beginPath();
+      ctx.ellipse(0, 6, t * 0.85, t * 0.32, 0, 0, PI2);
+      ctx.fill();
+      ctx.globalAlpha = 1;
+      // Pillar base (diamond shape)
+      ctx.fillStyle = '#1a1a22';
+      ctx.strokeStyle = col;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(0, -t * 0.5);
+      ctx.lineTo(t * 0.32, 0);
+      ctx.lineTo(0, t * 0.35);
+      ctx.lineTo(-t * 0.32, 0);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+      // Inner glow
+      ctx.fillStyle = col;
+      ctx.globalAlpha = 0.3 + 0.3 * pulse;
+      ctx.beginPath();
+      ctx.arc(0, -t * 0.08, t * 0.18, 0, PI2);
+      ctx.fill();
+      ctx.globalAlpha = 1;
+      // Icon
+      ctx.fillStyle = col;
+      ctx.font = 'bold 16px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(def.icon, 0, -t * 0.08);
       ctx.restore();
     }
   }
@@ -4641,6 +4926,9 @@
       showHint(game.nearbyNpc.x + 0.5, game.nearbyNpc.y + 0.5, `PINCH · ${game.nearbyNpc.name}`);
     } else if (game.nearbyPortal) {
       showHint(game.nearbyPortal.x, game.nearbyPortal.y, `PINCH ${game.nearbyPortal.label}`);
+    } else if (game.nearbyShrine) {
+      const def = SHRINES[game.nearbyShrine.type];
+      if (def) showHint(game.nearbyShrine.x, game.nearbyShrine.y - 0.4, `PINCH · ${def.name}`);
     }
   }
 
@@ -4865,6 +5153,22 @@
       else { cdEl.textContent = 'READY'; cdEl.classList.add('ready'); }
     }
     $('hud-zone').textContent = game.world ? game.world.name : '—';
+    // Active shrine buffs (icon + remaining seconds)
+    const buffsEl = $('hud-buffs');
+    if (buffsEl) {
+      const buffs = game.activeBuffs || {};
+      const labelFor = { damage: { icon: '⚔', name: 'Fury',    color: '#ff6644' },
+                         mana:   { icon: '✦', name: 'Arcana',  color: '#6df1ff' },
+                         invuln: { icon: '◇', name: 'Warding', color: '#ffd166' } };
+      let html = '';
+      for (const k in buffs) {
+        const m = labelFor[k];
+        if (!m) continue;
+        const t = Math.max(0, Math.ceil(buffs[k]));
+        html += `<div class="hud-buff" style="border-color:${m.color};color:${m.color}">${m.icon} ${m.name} ${t}s</div>`;
+      }
+      buffsEl.innerHTML = html;
+    }
   }
   function showZoneToast(msg) { showHudToast(msg); }
   function showHudToast(msg) {
@@ -4884,12 +5188,22 @@
     if (id === 'inventory') renderInventory();
     if (id === 'character') renderCharacter();
     if (id === 'skills') renderSkills();
+    if (id === 'passives') renderPassives();
     if (id === 'quests') renderQuests();
     if (id === 'menu') {
       // only show "Return to Town" if we're in a dungeon
       const btn = $('menu-town-btn');
       if (game.world && game.world.kind === 'dungeon') btn.classList.remove('hidden');
       else btn.classList.add('hidden');
+      // Passives button — only show after level 10, with tome count badge
+      const passivesBtn = $('menu-passives-btn');
+      if (game.char && game.char.level >= 10) {
+        const tomes = game.char.tomes || 0;
+        passivesBtn.textContent = tomes > 0 ? `Passives (${tomes} tome${tomes === 1 ? '' : 's'})` : 'Passives';
+        passivesBtn.classList.remove('hidden');
+      } else {
+        passivesBtn.classList.add('hidden');
+      }
       // Sanctuary Scroll button — only in dungeon, shows count
       const scrollBtn = $('menu-scroll-btn');
       if (game.world && game.world.kind === 'dungeon') {
@@ -5016,6 +5330,21 @@
       ['VIT',      c.stats.vit + d.bonusStats.vit],
     ];
     stats.innerHTML = rows.map(([k, v]) => `<div class="stat-row"><span class="stat-label">${k}</span><span class="stat-value">${v}</span></div>`).join('');
+    // Show active item sets (any partial progress)
+    const sets = activeSets(c).filter(s => s.count > 0);
+    if (sets.length > 0) {
+      const setsHtml = sets.map(s => {
+        const isActive = s.count >= 3;
+        const cls = isActive ? 'rarity-unique' : 'rarity-magic';
+        return `<div class="stat-row"><span class="stat-label ${cls}">${s.def.name} (${s.count}/3)</span><span class="stat-value">${isActive ? s.def.bonusDesc : 'Need ' + (3 - s.count) + ' more'}</span></div>`;
+      }).join('');
+      stats.innerHTML += `<div class="stat-row" style="margin-top:8px;border-top:1px solid rgba(255,255,255,0.1);padding-top:8px"><span class="stat-label">Item Sets</span></div>` + setsHtml;
+    }
+    // Show unlocked passives count
+    const passiveCount = Object.keys(c.passives || {}).length;
+    if (passiveCount > 0 || c.level >= 10) {
+      stats.innerHTML += `<div class="stat-row"><span class="stat-label">Passives</span><span class="stat-value">${passiveCount} / ${Object.keys(PASSIVES).length} unlocked · ${c.tomes || 0} tomes</span></div>`;
+    }
     const pts = $('char-points-row');
     pts.innerHTML = '';
     if (c.statPoints > 0) {
@@ -5051,6 +5380,60 @@
       `;
       el.appendChild(card);
     }
+  }
+
+  function renderPassives() {
+    const c = game.char;
+    $('passives-tomes').textContent = c.tomes || 0;
+    const el = $('passives-content');
+    el.innerHTML = '';
+    if (c.level < 10) {
+      const lock = document.createElement('div');
+      lock.className = 'quest-card empty';
+      lock.textContent = `Locked. Reach level 10 to unlock passives (currently ${c.level}).`;
+      el.appendChild(lock);
+      return;
+    }
+    const header = document.createElement('div');
+    header.className = 'skill-header';
+    header.textContent = `Spend tomes to unlock passives. Each costs 1 tome.`;
+    el.appendChild(header);
+    const unlocked = c.passives || {};
+    for (const pid in PASSIVES) {
+      const p = PASSIVES[pid];
+      const isUnlocked = !!unlocked[pid];
+      const canAfford = (c.tomes || 0) > 0;
+      const card = document.createElement('button');
+      card.className = 'skill-card focusable' + (isUnlocked ? ' skill-active' : '');
+      if (!isUnlocked && !canAfford) card.className += ' disabled';
+      card.dataset.action = 'unlock-passive';
+      card.dataset.passive = pid;
+      const status = isUnlocked
+        ? '★ UNLOCKED'
+        : canAfford ? 'PINCH to unlock (1 tome)' : 'Need 1 tome';
+      card.innerHTML = `
+        <div class="skill-name">${p.icon} ${p.name}${isUnlocked ? ' ★' : ''}</div>
+        <div class="skill-desc">${p.desc}</div>
+        <div class="skill-meta">${status}</div>
+      `;
+      el.appendChild(card);
+    }
+  }
+
+  function unlockPassive(passiveId) {
+    if (!PASSIVES[passiveId]) return;
+    const c = game.char;
+    if (c.level < 10) { showHudToast('Reach level 10 first.'); return; }
+    if (!c.passives) c.passives = {};
+    if (c.passives[passiveId]) { showHudToast('Already unlocked.'); return; }
+    if ((c.tomes || 0) < 1) { showHudToast('No tomes — kill enemies to find more.'); return; }
+    c.tomes -= 1;
+    c.passives[passiveId] = true;
+    applyDerivedToChar();
+    saveGame();
+    showHudToast(`${PASSIVES[passiveId].name} unlocked!`);
+    renderPassives();
+    updateHud();
   }
 
   function renderQuests() {
@@ -5267,6 +5650,7 @@
       case 'menu-inventory': navigateTo('inventory'); return;
       case 'menu-character': navigateTo('character'); return;
       case 'menu-skills': navigateTo('skills'); return;
+      case 'menu-passives': navigateTo('passives'); return;
       case 'menu-quests': navigateTo('quests'); return;
       case 'menu-town':
         if (game.world && game.world.kind === 'dungeon') {
@@ -5349,6 +5733,12 @@
         return;
       }
 
+      // passives — unlock a passive node
+      case 'unlock-passive': {
+        unlockPassive(el.dataset.passive);
+        return;
+      }
+
       // vendor
       case 'vendor-tab-buy':   game.vendorMode = 'buy';  renderVendor(); return;
       case 'vendor-tab-sell':  game.vendorMode = 'sell'; renderVendor(); return;
@@ -5390,11 +5780,25 @@
     if (base.base.dmg) baseLines.push(`+${base.base.dmg} damage`);
     if (base.base.def) baseLines.push(`+${base.base.def} armor`);
     if (base.base.mp)  baseLines.push(`+${base.base.mp} mana`);
+    // Check if this item belongs to a set
+    let setInfo = '';
+    for (const setId in SETS) {
+      const s = SETS[setId];
+      if (s.pieces.includes(it.baseId)) {
+        // Count how many other pieces of this set the player has equipped
+        const equipped = [game.char.equip.weapon, game.char.equip.armor, game.char.equip.ring, game.char.equip.amulet]
+          .filter(x => x && x.baseId).map(x => x.baseId);
+        const equippedCount = s.pieces.filter(p => equipped.includes(p)).length;
+        setInfo = `<div class="item-affix rarity-unique">Set: ${s.name} (${equippedCount}/3)</div><div class="item-affix" style="opacity:0.8">${s.bonusDesc}</div>`;
+        break;
+      }
+    }
     card.innerHTML = `
       <div class="item-name rarity-${it.rarity}">${it.name}</div>
       <div class="item-type">${base.type} · ilvl ${it.ilvl} · ${it.rarity.toUpperCase()}</div>
       ${baseLines.map(l => `<div class="item-affix">${l}</div>`).join('')}
       ${(it.affixes || []).map(a => `<div class="item-affix">+${a.val} ${a.label}</div>`).join('')}
+      ${setInfo}
       <div class="item-flavor">"Forged of glass that remembers."</div>
     `;
     const actions = $('item-actions');

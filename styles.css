@@ -483,6 +483,26 @@ html, body {
   justify-content: space-between;
   align-items: flex-start;
 }
+.hud-buffs {
+  position: absolute;
+  top: 50px;
+  left: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  pointer-events: none;
+}
+.hud-buff {
+  background: rgba(8,8,16,0.85);
+  padding: 3px 8px;
+  border-radius: 10px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  border: 1px solid currentColor;
+  text-shadow: 0 0 6px currentColor;
+  box-shadow: 0 0 10px rgba(0,0,0,0.5);
+}
 .hud-zone {
   background: linear-gradient(135deg, rgba(8,8,16,0.85), rgba(20,20,40,0.8));
   padding: 6px 14px;
@@ -917,6 +937,9 @@ html, body {
 .skill-card.skill-active {
   border-color: var(--gold);
   box-shadow: 0 0 8px rgba(255, 200, 87, 0.25);
+}
+.skill-card.disabled {
+  opacity: 0.5;
 }
 .skill-card:focus {
   outline: 2px solid var(--gold);
