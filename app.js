@@ -1930,12 +1930,16 @@
           case 'pack': // Frostwolf: speeds up when other wolves are nearby
             {
               let packCount = 0;
-              for (const ally of game.enemies) {
-                if (ally !== e && ally.id === 'wolf' && dist(ally, e) < 4) packCount++;
+              for (let pi = 0, pl = game.enemies.length; pi < pl; pi++) {
+                const ally = game.enemies[pi];
+                if (ally !== e && ally.id === 'wolf') {
+                  const pdx = ally.x - e.x, pdy = ally.y - e.y;
+                  if (pdx * pdx + pdy * pdy < 16) packCount++;
+                }
               }
               if (packCount > 0) e.speed = ENEMIES.wolf.speed * (1 + packCount * 0.2);
               else e.speed = ENEMIES.wolf.speed;
-              e.traitCd = 1.0;
+              e.traitCd = 2.0; // check less frequently
             }
             break;
           case 'slam': // Frost Giant: ground slam AoE when in range
@@ -2161,7 +2165,7 @@
   function floatText(text, wx, wy, kind) {
     game.floatingTexts.push({ text, wx, wy, kind: kind || 'dmg', age: 0, life: 0.9 });
   }
-  const MAX_PARTICLES = 180;
+  const MAX_PARTICLES = 100;
   function addParticle(p) {
     if (game.particles.length < MAX_PARTICLES) game.particles.push(p);
   }
@@ -2197,15 +2201,22 @@
     for (let i = game.floatingTexts.length - 1; i >= 0; i--) {
       const t = game.floatingTexts[i];
       t.age += dt;
-      if (t.age >= t.life) game.floatingTexts.splice(i, 1);
+      if (t.age >= t.life) {
+        game.floatingTexts[i] = game.floatingTexts[game.floatingTexts.length - 1];
+        game.floatingTexts.pop();
+      }
     }
-    // particles
-    for (let i = game.particles.length - 1; i >= 0; i--) {
-      const p = game.particles[i];
+    // particles (swap-and-pop for O(1) removal)
+    const parts = game.particles;
+    for (let i = parts.length - 1; i >= 0; i--) {
+      const p = parts[i];
       p.age += dt;
       p.x += p.vx * dt; p.y += p.vy * dt;
       p.vx *= 0.92; p.vy *= 0.92;
-      if (p.age >= p.life) game.particles.splice(i, 1);
+      if (p.age >= p.life) {
+        parts[i] = parts[parts.length - 1];
+        parts.pop();
+      }
     }
     game.screenShake = Math.max(0, game.screenShake - dt);
     game.damageFlash = Math.max(0, game.damageFlash - dt);
@@ -2432,11 +2443,14 @@
   // RENDER
   // ============================================================
   let ctx;
+  let _worldCache = null; // offscreen canvas for static world
+  let _worldCacheId = null; // tracks which world is cached
   function setupRender() {
     const canvas = $('game-canvas');
     canvas.width = CFG.canvas; canvas.height = CFG.canvas;
     ctx = canvas.getContext('2d');
   }
+  function invalidateWorldCache() { _worldCacheId = null; }
 
   // ============================================================
   // AMBIENT PARTICLES (biome atmosphere)
@@ -2495,7 +2509,10 @@
         p.vx = Math.sin(p.age * 1.5 + p.y) * 0.25;
         p.vy = Math.cos(p.age * 1.2 + p.x) * 0.25;
       }
-      if (p.age >= p.life) ambientParticles.splice(i, 1);
+      if (p.age >= p.life) {
+        ambientParticles[i] = ambientParticles[ambientParticles.length - 1];
+        ambientParticles.pop();
+      }
     }
   }
   function drawAmbient() {
@@ -2505,36 +2522,34 @@
       const t = 1 - p.age / p.life;
       const fadeIn = Math.min(1, p.age * 4);
       const alpha = p.alpha * t * fadeIn;
-      ctx.save();
       ctx.globalAlpha = alpha;
       ctx.fillStyle = p.color;
-      if (p.kind === 'ember' || p.kind === 'wisp' || p.kind === 'void') {
-        ctx.shadowColor = p.color;
-        ctx.shadowBlur = 6;
-      }
       if (p.kind === 'snow') {
         ctx.beginPath();
         ctx.arc(s.x, s.y, p.size * 0.5, 0, PI2);
         ctx.fill();
       } else if (p.kind === 'leaf') {
+        ctx.save();
         ctx.translate(s.x, s.y);
         ctx.rotate(p.age * 1.5);
         ctx.fillRect(-p.size * 0.5, -1, p.size, 2);
+        ctx.restore();
       } else if (p.kind === 'void') {
-        // Pulsing diamond shapes for void biome
+        ctx.save();
         ctx.translate(s.x, s.y);
         ctx.rotate(p.age * 0.8);
         const sz = p.size * 0.6;
         ctx.beginPath();
         ctx.moveTo(0, -sz); ctx.lineTo(sz, 0); ctx.lineTo(0, sz); ctx.lineTo(-sz, 0);
         ctx.closePath(); ctx.fill();
+        ctx.restore();
       } else {
         ctx.beginPath();
         ctx.arc(s.x, s.y, p.size * 0.5, 0, PI2);
         ctx.fill();
       }
-      ctx.restore();
     }
+    ctx.globalAlpha = 1;
   }
 
   function render() {
@@ -2578,13 +2593,38 @@
   function drawWorld() {
     const w = game.world;
     const t = CFG.tile;
-    const startX = Math.max(0, Math.floor(game.cam.x));
-    const startY = Math.max(0, Math.floor(game.cam.y));
-    const endX = Math.min(w.w, Math.ceil(game.cam.x + CFG.canvas / t) + 1);
-    const endY = Math.min(w.h, Math.ceil(game.cam.y + CFG.canvas / t) + 1);
+
+    // World cache: render entire world to offscreen canvas once per floor
+    const cacheId = w.biomeId + '_' + w.floor + '_' + w.w + '_' + w.kind;
+    if (_worldCacheId !== cacheId) {
+      const cw = w.w * t, ch = w.h * t;
+      if (!_worldCache || _worldCache.width !== cw || _worldCache.height !== ch) {
+        _worldCache = document.createElement('canvas');
+        _worldCache.width = cw;
+        _worldCache.height = ch;
+      }
+      const wctx = _worldCache.getContext('2d');
+      wctx.clearRect(0, 0, cw, ch);
+      _renderWorldToCtx(wctx, w, t);
+      _worldCacheId = cacheId;
+    }
+
+    // Blit the visible portion from cache
+    const sx = Math.floor(game.cam.x * t);
+    const sy = Math.floor(game.cam.y * t);
+    const sw = Math.min(CFG.canvas, _worldCache.width - sx);
+    const sh = Math.min(CFG.canvas, _worldCache.height - sy);
+    if (sw > 0 && sh > 0) {
+      ctx.drawImage(_worldCache, sx, sy, sw, sh, 0, 0, sw, sh);
+    }
+  }
+
+  function _renderWorldToCtx(ctx, w, t) {
+    const startX = 0, startY = 0, endX = w.w, endY = w.h;
     const biome = w.biomeId || 'town';
-    const now = performance.now();
     const isFloorAt = (nx, ny) => ny >= 0 && ny < w.h && nx >= 0 && nx < w.w && w.grid[ny][nx] === 0;
+    // World-to-pixel for the offscreen canvas (no camera offset)
+    const w2s = (wx, wy) => ({ x: wx * t, y: wy * t });
 
     // ---- WALL FILL — solid walls with biome-specific textures ----
     for (let y = startY; y < endY; y++) {
@@ -2659,7 +2699,7 @@
                 ctx.beginPath();
                 const vx = s.x + (hash % t);
                 ctx.moveTo(vx, s.y + t);
-                ctx.quadraticCurveTo(vx + Math.sin(now/800) * 3, s.y + t + 10, vx - 2, s.y + t + 18);
+                ctx.quadraticCurveTo(vx + 2, s.y + t + 10, vx - 2, s.y + t + 18);
                 ctx.stroke();
                 // tiny leaf
                 ctx.fillStyle = '#4aba5a';
@@ -2727,20 +2767,17 @@
               if (hash % 5 === 0) {
                 ctx.strokeStyle = '#ff4400';
                 ctx.lineWidth = 2;
-                ctx.globalAlpha = 0.4 + 0.2 * Math.sin(now / 600 + hash);
-                ctx.shadowColor = '#ff4400';
-                ctx.shadowBlur = 6;
+                ctx.globalAlpha = 0.5;
                 ctx.beginPath();
                 ctx.moveTo(s.x + (hash % (t-4)) + 2, s.y);
                 ctx.quadraticCurveTo(s.x + t * 0.5, s.y + t * 0.5, s.x + (hash2 % (t-4)) + 2, s.y + t);
                 ctx.stroke();
-                ctx.shadowBlur = 0;
                 ctx.globalAlpha = 1;
               }
               // Ember glow near floor edge
               if (hash % 8 === 0 && isFloorAt(x, y + 1)) {
                 ctx.fillStyle = '#ff6600';
-                ctx.globalAlpha = 0.3 + 0.15 * Math.sin(now / 400 + hash2);
+                ctx.globalAlpha = 0.35;
                 ctx.beginPath();
                 ctx.arc(s.x + t * 0.5, s.y + t, 4, 0, PI2); ctx.fill();
                 ctx.globalAlpha = 1;
@@ -2763,10 +2800,10 @@
               // Floating crystal shards
               if (hash % 5 === 0) {
                 ctx.fillStyle = '#b388ff';
-                ctx.globalAlpha = 0.3 + 0.2 * Math.sin(now / 700 + hash);
+                ctx.globalAlpha = 0.4;
                 ctx.save();
                 ctx.translate(s.x + t * 0.5, s.y + t * 0.5);
-                ctx.rotate(hash * 0.05 + now / 3000);
+                ctx.rotate(hash * 0.05);
                 ctx.fillRect(-3, -6, 6, 12);
                 ctx.restore();
                 ctx.globalAlpha = 1;
@@ -2775,7 +2812,7 @@
               if (hash % 12 === 0) {
                 ctx.strokeStyle = '#00e5ff';
                 ctx.lineWidth = 1;
-                ctx.globalAlpha = 0.25 + 0.15 * Math.sin(now / 1000 + hash2);
+                ctx.globalAlpha = 0.3;
                 ctx.beginPath();
                 ctx.arc(s.x + t * 0.5, s.y + t * 0.5, t * 0.25, 0, Math.PI * 1.3);
                 ctx.stroke();
@@ -2946,15 +2983,12 @@
               if (hash % 4 === 0) {
                 ctx.strokeStyle = '#ff4400';
                 ctx.lineWidth = 1.2;
-                ctx.globalAlpha = 0.2 + 0.12 * Math.sin(now / 600 + hash * 0.3);
-                ctx.shadowColor = '#ff4400';
-                ctx.shadowBlur = 4;
+                ctx.globalAlpha = 0.3;
                 ctx.beginPath();
                 ctx.moveTo(s.x + hash % t, s.y + hash2 % (t * 0.5));
                 ctx.lineTo(s.x + t * 0.5, s.y + t * 0.5);
                 ctx.lineTo(s.x + hash2 % t, s.y + t * 0.5 + hash % (t * 0.5));
                 ctx.stroke();
-                ctx.shadowBlur = 0;
                 ctx.globalAlpha = 1;
               }
               // Charred debris/ash piles
@@ -2969,13 +3003,10 @@
               // Lava pool (rare)
               if (hash % 19 === 0) {
                 ctx.fillStyle = '#ff6600';
-                ctx.globalAlpha = 0.25 + 0.1 * Math.sin(now / 400 + hash);
-                ctx.shadowColor = '#ff4400';
-                ctx.shadowBlur = 8;
+                ctx.globalAlpha = 0.35;
                 ctx.beginPath();
                 ctx.ellipse(s.x + t * 0.5, s.y + t * 0.5, t * 0.3, t * 0.2, 0, 0, PI2);
                 ctx.fill();
-                ctx.shadowBlur = 0;
                 ctx.globalAlpha = 1;
               }
               break;
@@ -2995,7 +3026,7 @@
               // Void energy pools
               if (hash % 6 === 0) {
                 ctx.fillStyle = '#b388ff';
-                ctx.globalAlpha = 0.12 + 0.08 * Math.sin(now / 500 + hash);
+                ctx.globalAlpha = 0.16;
                 ctx.beginPath();
                 ctx.arc(s.x + t * 0.5, s.y + t * 0.5, t * 0.25, 0, PI2);
                 ctx.fill();
@@ -3005,10 +3036,9 @@
               if (hash % 14 === 0) {
                 ctx.strokeStyle = '#00e5ff';
                 ctx.lineWidth = 1;
-                ctx.globalAlpha = 0.2 + 0.15 * Math.sin(now / 900 + hash2);
+                ctx.globalAlpha = 0.3;
                 ctx.beginPath();
                 const rx = s.x + t * 0.5, ry = s.y + t * 0.5;
-                // small triangle rune
                 ctx.moveTo(rx, ry - 4);
                 ctx.lineTo(rx + 4, ry + 3);
                 ctx.lineTo(rx - 4, ry + 3);
@@ -3019,7 +3049,7 @@
               // Star-like sparkle
               if (hash % 10 === 0) {
                 ctx.fillStyle = '#e0e0ff';
-                ctx.globalAlpha = 0.3 + 0.2 * Math.sin(now / 350 + hash2 * 0.7);
+                ctx.globalAlpha = 0.4;
                 const sx2 = s.x + hash % (t-4) + 2;
                 const sy2 = s.y + hash2 % (t-4) + 2;
                 ctx.fillRect(sx2 - 0.5, sy2 - 2, 1, 4);
@@ -3049,23 +3079,19 @@
                 // bracket
                 ctx.fillStyle = '#5a4a3a';
                 ctx.fillRect(tx - 1, ty - 4, 2, 5);
-                // flame (animated)
-                const flicker = Math.sin(now / 100 + hash) * 1.5;
+                // flame
                 ctx.fillStyle = '#ff9933';
                 ctx.globalAlpha = 0.8;
                 ctx.beginPath();
-                ctx.moveTo(tx, ty - 10 + flicker);
+                ctx.moveTo(tx, ty - 10);
                 ctx.quadraticCurveTo(tx + 3, ty - 6, tx + 2, ty - 4);
                 ctx.lineTo(tx - 2, ty - 4);
-                ctx.quadraticCurveTo(tx - 3, ty - 6, tx, ty - 10 + flicker);
+                ctx.quadraticCurveTo(tx - 3, ty - 6, tx, ty - 10);
                 ctx.fill();
                 // glow
                 ctx.fillStyle = '#ff6600';
-                ctx.shadowColor = '#ff6600';
-                ctx.shadowBlur = 12;
-                ctx.globalAlpha = 0.2 + 0.1 * Math.sin(now / 150 + hash);
+                ctx.globalAlpha = 0.3;
                 ctx.beginPath(); ctx.arc(tx, ty - 6, 6, 0, PI2); ctx.fill();
-                ctx.shadowBlur = 0;
                 ctx.globalAlpha = 1;
               }
               // Cobwebs in corners
@@ -3094,12 +3120,9 @@
                 ctx.fillRect(mx + 3, my - 4, 2, 4);
                 // glowing caps
                 ctx.fillStyle = '#44dd88';
-                ctx.globalAlpha = 0.6 + 0.2 * Math.sin(now / 600 + hash);
-                ctx.shadowColor = '#44dd88';
-                ctx.shadowBlur = 6;
+                ctx.globalAlpha = 0.7;
                 ctx.beginPath(); ctx.arc(mx, my - 7, 3, Math.PI, 0); ctx.fill();
                 ctx.beginPath(); ctx.arc(mx + 4, my - 5, 2.5, Math.PI, 0); ctx.fill();
-                ctx.shadowBlur = 0;
                 ctx.globalAlpha = 1;
               }
               // Hanging roots
@@ -3111,7 +3134,7 @@
                   const rx = s.x + 5 + r * 12 + (hash % 5);
                   ctx.beginPath();
                   ctx.moveTo(rx, s.y + t);
-                  ctx.quadraticCurveTo(rx + Math.sin(now/600+r) * 2, s.y + t + 7, rx - 1, s.y + t + 12 + (hash % 5));
+                  ctx.quadraticCurveTo(rx + 1, s.y + t + 7, rx - 1, s.y + t + 12 + (hash % 5));
                   ctx.stroke();
                 }
                 ctx.globalAlpha = 1;
@@ -3134,7 +3157,7 @@
                 ctx.moveTo(ix - 5, iy); ctx.lineTo(ix - 4, iy - 6); ctx.lineTo(ix - 3, iy); ctx.fill();
                 // shimmer
                 ctx.fillStyle = '#ffffff';
-                ctx.globalAlpha = 0.4 + 0.3 * Math.sin(now / 400 + hash);
+                ctx.globalAlpha = 0.5;
                 ctx.beginPath(); ctx.arc(ix - 1, iy - 8, 1, 0, PI2); ctx.fill();
                 ctx.globalAlpha = 1;
               }
@@ -3159,28 +3182,23 @@
                 ctx.moveTo(bx - 5, by - 3); ctx.lineTo(bx - 3, by);
                 ctx.lineTo(bx + 3, by); ctx.lineTo(bx + 5, by - 3);
                 ctx.fill();
-                // fire (animated)
-                const f1 = Math.sin(now / 80 + hash) * 2;
-                const f2 = Math.cos(now / 120 + hash) * 1.5;
+                // fire (static shape)
                 ctx.fillStyle = '#ff4400';
-                ctx.shadowColor = '#ff4400';
-                ctx.shadowBlur = 10;
                 ctx.globalAlpha = 0.8;
                 ctx.beginPath();
-                ctx.moveTo(bx, by - 12 + f1);
-                ctx.quadraticCurveTo(bx + 4 + f2, by - 7, bx + 3, by - 3);
+                ctx.moveTo(bx, by - 12);
+                ctx.quadraticCurveTo(bx + 4, by - 7, bx + 3, by - 3);
                 ctx.lineTo(bx - 3, by - 3);
-                ctx.quadraticCurveTo(bx - 4 - f2, by - 7, bx, by - 12 + f1);
+                ctx.quadraticCurveTo(bx - 4, by - 7, bx, by - 12);
                 ctx.fill();
                 // inner yellow
                 ctx.fillStyle = '#ffaa00';
                 ctx.beginPath();
-                ctx.moveTo(bx, by - 9 + f1 * 0.5);
+                ctx.moveTo(bx, by - 9);
                 ctx.quadraticCurveTo(bx + 2, by - 6, bx + 1.5, by - 3);
                 ctx.lineTo(bx - 1.5, by - 3);
-                ctx.quadraticCurveTo(bx - 2, by - 6, bx, by - 9 + f1 * 0.5);
+                ctx.quadraticCurveTo(bx - 2, by - 6, bx, by - 9);
                 ctx.fill();
-                ctx.shadowBlur = 0;
                 ctx.globalAlpha = 1;
               }
               break;
@@ -3189,20 +3207,16 @@
               // Floating void crystal
               if (hash % 7 === 0) {
                 const cx = s.x + t * 0.5, cy = s.y + t - 4;
-                const floatY = Math.sin(now / 500 + hash) * 3;
                 ctx.fillStyle = '#b388ff';
-                ctx.shadowColor = '#b388ff';
-                ctx.shadowBlur = 8;
                 ctx.globalAlpha = 0.6;
                 ctx.save();
-                ctx.translate(cx, cy + floatY);
-                ctx.rotate(now / 2000 + hash);
+                ctx.translate(cx, cy);
+                ctx.rotate(hash * 0.05);
                 // diamond crystal
                 ctx.beginPath();
                 ctx.moveTo(0, -6); ctx.lineTo(4, 0); ctx.lineTo(0, 6); ctx.lineTo(-4, 0);
                 ctx.closePath(); ctx.fill();
                 ctx.restore();
-                ctx.shadowBlur = 0;
                 ctx.globalAlpha = 1;
               }
               // Void tendril
@@ -3210,10 +3224,10 @@
                 ctx.strokeStyle = '#6a3aaa';
                 ctx.lineWidth = 1.5;
                 ctx.globalAlpha = 0.35;
-                const tx = s.x + hash % (t - 4) + 2;
+                const tx2 = s.x + hash % (t - 4) + 2;
                 ctx.beginPath();
-                ctx.moveTo(tx, s.y + t);
-                ctx.quadraticCurveTo(tx + Math.sin(now/400+hash) * 5, s.y + t + 8, tx + Math.sin(now/600+hash) * 3, s.y + t + 16);
+                ctx.moveTo(tx2, s.y + t);
+                ctx.quadraticCurveTo(tx2 + 3, s.y + t + 8, tx2 + 1, s.y + t + 16);
                 ctx.stroke();
                 ctx.globalAlpha = 1;
               }
@@ -3229,8 +3243,7 @@
       for (let x = startX; x < endX; x++) {
         if (w.grid[y][x] === 0 && ((x * 73 + y * 41) % 17 === 0)) {
           const s = w2s(x + 0.4, y + 0.6);
-          const twinkle = 0.1 + 0.1 * Math.sin(now / 800 + x * 3.7 + y * 2.3);
-          ctx.globalAlpha = twinkle;
+          ctx.globalAlpha = 0.15;
           ctx.beginPath();
           ctx.arc(s.x, s.y, 1.2, 0, PI2);
           ctx.fill();
@@ -3239,12 +3252,11 @@
     }
     ctx.globalAlpha = 1;
 
-    // ---- Walls — line-art glow edges with corners ----
+    // ---- Walls — batched line-art edges ----
     ctx.strokeStyle = w.palette.wall;
     ctx.lineWidth = 2;
-    ctx.shadowColor = w.palette.wall;
-    ctx.shadowBlur = 12;
     ctx.lineCap = 'round';
+    ctx.beginPath();
     for (let y = startY; y < endY; y++) {
       for (let x = startX; x < endX; x++) {
         if (w.grid[y][x] !== 0 && w.grid[y][x] !== 2) {
@@ -3253,19 +3265,14 @@
           const bottom = isFloorAt(x, y + 1);
           const left = isFloorAt(x - 1, y);
           const right = isFloorAt(x + 1, y);
-          if (top) { ctx.beginPath(); ctx.moveTo(s.x, s.y); ctx.lineTo(s.x + t, s.y); ctx.stroke(); }
-          if (bottom) { ctx.beginPath(); ctx.moveTo(s.x, s.y + t); ctx.lineTo(s.x + t, s.y + t); ctx.stroke(); }
-          if (left) { ctx.beginPath(); ctx.moveTo(s.x, s.y); ctx.lineTo(s.x, s.y + t); ctx.stroke(); }
-          if (right) { ctx.beginPath(); ctx.moveTo(s.x + t, s.y); ctx.lineTo(s.x + t, s.y + t); ctx.stroke(); }
-          // corner accents where two edges meet
-          if (top && left)   { ctx.fillStyle = w.palette.wall; ctx.globalAlpha = 0.5; ctx.beginPath(); ctx.arc(s.x, s.y, 2.5, 0, PI2); ctx.fill(); ctx.globalAlpha = 1; }
-          if (top && right)  { ctx.fillStyle = w.palette.wall; ctx.globalAlpha = 0.5; ctx.beginPath(); ctx.arc(s.x + t, s.y, 2.5, 0, PI2); ctx.fill(); ctx.globalAlpha = 1; }
-          if (bottom && left) { ctx.fillStyle = w.palette.wall; ctx.globalAlpha = 0.5; ctx.beginPath(); ctx.arc(s.x, s.y + t, 2.5, 0, PI2); ctx.fill(); ctx.globalAlpha = 1; }
-          if (bottom && right){ ctx.fillStyle = w.palette.wall; ctx.globalAlpha = 0.5; ctx.beginPath(); ctx.arc(s.x + t, s.y + t, 2.5, 0, PI2); ctx.fill(); ctx.globalAlpha = 1; }
+          if (top) { ctx.moveTo(s.x, s.y); ctx.lineTo(s.x + t, s.y); }
+          if (bottom) { ctx.moveTo(s.x, s.y + t); ctx.lineTo(s.x + t, s.y + t); }
+          if (left) { ctx.moveTo(s.x, s.y); ctx.lineTo(s.x, s.y + t); }
+          if (right) { ctx.moveTo(s.x + t, s.y); ctx.lineTo(s.x + t, s.y + t); }
         }
       }
     }
-    ctx.shadowBlur = 0;
+    ctx.stroke();
     ctx.lineCap = 'butt';
 
     // ---- Decor blocks (town fountain etc) ----
@@ -3273,20 +3280,16 @@
       for (let x = startX; x < endX; x++) {
         if (w.grid[y][x] === 2) {
           const s = w2s(x, y);
-          // animated fountain glow
-          const pulse = 0.5 + 0.3 * Math.sin(now / 600);
           ctx.fillStyle = w.palette.accent;
           ctx.globalAlpha = 0.15;
           ctx.beginPath();
           ctx.arc(s.x + t / 2, s.y + t / 2, t * 0.6, 0, PI2);
           ctx.fill();
-          ctx.globalAlpha = pulse * 0.5;
+          ctx.globalAlpha = 0.3;
           ctx.fillRect(s.x + 6, s.y + 6, t - 12, t - 12);
           ctx.globalAlpha = 1;
           ctx.strokeStyle = w.palette.accent;
           ctx.lineWidth = 1.5;
-          ctx.shadowColor = w.palette.accent;
-          ctx.shadowBlur = 8;
           ctx.strokeRect(s.x + 5, s.y + 5, t - 10, t - 10);
           // inner diamond shape
           ctx.beginPath();
@@ -3296,7 +3299,6 @@
           ctx.lineTo(s.x + 4, s.y + t / 2);
           ctx.closePath();
           ctx.stroke();
-          ctx.shadowBlur = 0;
         }
       }
     }
@@ -3309,13 +3311,12 @@
       const s = w2s(p.x, p.y);
       const t = CFG.tile;
       const col = p.kind === 'town' ? '#ffc857' : '#6df1ff';
-      const pulse = 0.6 + 0.4 * Math.sin(now / 400);
       const spin = now / 1200;
       ctx.save();
       ctx.translate(s.x, s.y);
       // ground glow
       ctx.fillStyle = col;
-      ctx.globalAlpha = 0.12 * pulse;
+      ctx.globalAlpha = 0.1;
       ctx.beginPath();
       ctx.ellipse(0, 6, t * 0.55, t * 0.2, 0, 0, PI2);
       ctx.fill();
@@ -3323,13 +3324,11 @@
       // spinning rune ring
       ctx.strokeStyle = col;
       ctx.lineWidth = 1.5;
-      ctx.shadowColor = col;
-      ctx.shadowBlur = 16 * pulse;
       for (let i = 0; i < 6; i++) {
         const a = spin + i * (Math.PI / 3);
         const r = t * 0.42;
         const rx = Math.cos(a) * r, ry = Math.sin(a) * r * 0.7;
-        ctx.globalAlpha = 0.5 + 0.5 * Math.sin(a + now / 300);
+        ctx.globalAlpha = 0.6;
         ctx.beginPath();
         ctx.arc(rx, ry, 2, 0, PI2);
         ctx.stroke();
@@ -3337,7 +3336,6 @@
       ctx.globalAlpha = 1;
       // outer ring
       ctx.lineWidth = 2;
-      ctx.shadowBlur = 14 * pulse;
       ctx.beginPath();
       ctx.arc(0, 0, t * 0.45, 0, PI2);
       ctx.stroke();
@@ -3350,13 +3348,11 @@
       ctx.globalAlpha = 1;
       // center icon
       ctx.fillStyle = col;
-      ctx.shadowBlur = 20;
       ctx.font = 'bold 18px sans-serif';
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       ctx.fillText(p.kind === 'town' ? '⌂' : '▼', 0, -1);
       ctx.restore();
     }
-    ctx.shadowBlur = 0;
   }
 
   function drawNpcs() {
@@ -3368,7 +3364,7 @@
       ctx.translate(s.x, s.y);
       // ambient glow circle on ground
       ctx.fillStyle = n.color;
-      ctx.globalAlpha = 0.08 + 0.04 * Math.sin(now / 1200 + n.x);
+      ctx.globalAlpha = 0.1;
       ctx.beginPath();
       ctx.ellipse(0, 10, 18, 7, 0, 0, PI2);
       ctx.fill();
@@ -3377,8 +3373,6 @@
       const bob = Math.sin(now / 800 + n.x * 2) * 1.2;
       // torso
       ctx.fillStyle = n.color;
-      ctx.shadowColor = n.color;
-      ctx.shadowBlur = 12;
       ctx.fillRect(-4, -8 + bob, 8, 12);
       // head
       ctx.beginPath();
@@ -3386,10 +3380,9 @@
       ctx.fill();
       // shoulders
       ctx.fillRect(-7, -6 + bob, 14, 3);
-      ctx.shadowBlur = 0;
       // role indicator icon (floating above)
       ctx.fillStyle = n.color;
-      ctx.globalAlpha = 0.6 + 0.3 * Math.sin(now / 500 + n.y);
+      ctx.globalAlpha = 0.7;
       ctx.font = 'bold 14px sans-serif';
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       ctx.fillText(n.glyph, 0, -22 + bob);
@@ -3442,8 +3435,6 @@
     // Unique gear: orbiting particles
     if (hasUniqueGear) {
       const uCol = rarityColor('unique');
-      ctx.shadowColor = uCol;
-      ctx.shadowBlur = 6;
       ctx.fillStyle = uCol;
       ctx.globalAlpha = 0.6;
       for (let i = 0; i < 3; i++) {
@@ -3454,7 +3445,6 @@
         ctx.fill();
       }
       ctx.globalAlpha = 1;
-      ctx.shadowBlur = 0;
     }
     // Rare gear: pulsing aura ring
     if (hasRareGear && !hasUniqueGear) {
@@ -3504,9 +3494,6 @@
     const armRarity = armItem ? armItem.rarity : 'common';
     const wepColor = rarityColor(wepRarity);
     const armColor = armRarity !== 'common' ? rarityColor(armRarity) : color;
-
-    ctx.shadowColor = color;
-    ctx.shadowBlur = 14;
 
     // legs (animated when walking) — armor tinted
     ctx.fillStyle = armRarity !== 'common' ? armColor : color;
@@ -3586,8 +3573,6 @@
       // blade
       ctx.strokeStyle = wepRarity === 'common' ? '#c0c0d0' : wepColor;
       ctx.lineWidth = 2.5;
-      ctx.shadowColor = wepColor;
-      ctx.shadowBlur = wepRarity === 'unique' ? 14 : (wepRarity === 'rare' ? 10 : 6);
       ctx.beginPath();
       ctx.moveTo(0, 0);
       ctx.lineTo(0, -14);
@@ -3626,8 +3611,6 @@
       ctx.fillStyle = wepRarity !== 'common' ? wepColor : '#6df1ff';
       ctx.strokeStyle = '#ffffff';
       ctx.lineWidth = 1;
-      ctx.shadowColor = wepRarity !== 'common' ? wepColor : '#6df1ff';
-      ctx.shadowBlur = 10 + 4 * Math.sin(now / 300);
       // orb
       ctx.beginPath();
       ctx.arc(0, -14, wepRarity === 'unique' ? 4 : 3.5, 0, PI2);
@@ -3656,8 +3639,6 @@
       // bow limbs
       ctx.strokeStyle = wepRarity !== 'common' ? wepColor : '#8b6b3a';
       ctx.lineWidth = 2.5;
-      ctx.shadowColor = wepColor;
-      ctx.shadowBlur = wepRarity === 'unique' ? 10 : 4;
       ctx.beginPath();
       ctx.arc(0, 0, 10, -1.2, 1.2);
       ctx.stroke();
@@ -3707,14 +3688,11 @@
       ctx.stroke();
       // skull top
       ctx.fillStyle = wepRarity !== 'common' ? wepColor : '#c489ff';
-      ctx.shadowColor = wepRarity !== 'common' ? wepColor : '#c489ff';
-      ctx.shadowBlur = 8 + (wepRarity === 'unique' ? 6 : 0);
       ctx.beginPath();
       ctx.arc(0, -12, 3.5, 0, PI2);
       ctx.fill();
       // skull detail
       ctx.fillStyle = '#000';
-      ctx.shadowBlur = 0;
       ctx.beginPath();
       ctx.arc(-1.2, -12.5, 1, 0, PI2);
       ctx.arc(1.2, -12.5, 1, 0, PI2);
@@ -3733,22 +3711,17 @@
       }
       ctx.restore();
     }
-    ctx.shadowBlur = 0;
-
     // attack arc effect — colored by weapon rarity
     if (attacking) {
       const arcCol = wepRarity !== 'common' ? wepColor : color;
       ctx.strokeStyle = arcCol;
-      ctx.lineWidth = 2.5;
-      ctx.shadowColor = arcCol;
-      ctx.shadowBlur = 12;
+      ctx.lineWidth = 3;
       ctx.globalAlpha = 0.7;
       const arcAngle = Math.atan2(dirY, dirX);
       ctx.beginPath();
       ctx.arc(0, 0 + bob, 16, arcAngle - 0.8, arcAngle + 0.8);
       ctx.stroke();
       ctx.globalAlpha = 1;
-      ctx.shadowBlur = 0;
     }
 
     // facing direction indicator
@@ -3792,8 +3765,6 @@
       const col = e.hitFlash > 0 ? '#ffffff' : e.color;
 
       // pixel-art body — shape-specific rendering
-      ctx.shadowColor = col;
-      ctx.shadowBlur = isBoss ? 16 : 10;
       ctx.fillStyle = col;
 
       const shape = e.shape || (e.attackKind === 'melee' ? 'hunched' : 'ghost');
@@ -4175,14 +4146,11 @@
           }
           break;
       }
-      ctx.shadowBlur = 0;
 
       // frozen overlay
       if (e.frozen > 0) {
         ctx.strokeStyle = '#6df1ff';
         ctx.lineWidth = 1.8;
-        ctx.shadowColor = '#6df1ff';
-        ctx.shadowBlur = 8;
         ctx.globalAlpha = 0.7;
         // ice crystal ring
         for (let i = 0; i < 6; i++) {
@@ -4194,7 +4162,6 @@
           ctx.stroke();
         }
         ctx.globalAlpha = 1;
-        ctx.shadowBlur = 0;
       }
 
       // HP bar with better styling
@@ -4230,13 +4197,14 @@
 
       // boss name
       if (isBoss) {
-        ctx.fillStyle = '#fff';
-        ctx.shadowColor = '#000';
-        ctx.shadowBlur = 4;
         ctx.font = 'bold 11px sans-serif';
         ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.strokeStyle = '#000';
+        ctx.lineWidth = 3;
+        ctx.lineJoin = 'round';
+        ctx.strokeText(e.name.toUpperCase(), 0, barY - 10);
+        ctx.fillStyle = '#fff';
         ctx.fillText(e.name.toUpperCase(), 0, barY - 10);
-        ctx.shadowBlur = 0;
       }
       ctx.restore();
     }
@@ -4257,8 +4225,6 @@
       ctx.fill();
       ctx.globalAlpha = 1;
       // ethereal skeleton body
-      ctx.shadowColor = '#c489ff';
-      ctx.shadowBlur = 8;
       ctx.fillStyle = '#c489ff';
       // ribcage body
       ctx.fillRect(-3, -2 + bob, 6, 7);
@@ -4299,8 +4265,6 @@
       const s = w2s(p.x, p.y);
       ctx.save();
       ctx.translate(s.x, s.y);
-      ctx.shadowColor = p.color;
-      ctx.shadowBlur = 14;
       ctx.fillStyle = p.color;
       if (p.kind === 'arrow') {
         const a = Math.atan2(p.dy, p.dx);
@@ -4368,8 +4332,6 @@
     // Draw a distinct shape based on item type icon
     ctx.fillStyle = col;
     ctx.strokeStyle = col;
-    ctx.shadowColor = col;
-    ctx.shadowBlur = 10 * pulse;
     switch (icon) {
       case '⚔': // Sword
         ctx.lineWidth = 2.5;
@@ -4458,7 +4420,6 @@
         ctx.closePath(); ctx.fill();
         break;
     }
-    ctx.shadowBlur = 0;
   }
 
   function drawItems() {
@@ -4506,15 +4467,12 @@
     for (const p of game.particles) {
       const t = 1 - p.age / p.life;
       const s = w2s(p.x, p.y);
-      ctx.save();
-      ctx.globalAlpha = clamp(t * t, 0, 1); // quadratic fade for smoother decay
-      ctx.shadowColor = p.color;
-      ctx.shadowBlur = 8 * t;
+      if (s.x < -10 || s.x > 610 || s.y < -10 || s.y > 610) continue;
+      ctx.globalAlpha = clamp(t * t, 0, 1);
       ctx.fillStyle = p.color;
-      // varied shapes
-      const sizeT = p.size * (0.5 + 0.5 * t); // shrink over life
+      const sizeT = p.size * (0.5 + 0.5 * t);
       if (p.size > 2) {
-        // larger particles are diamond shapes
+        ctx.save();
         ctx.translate(s.x, s.y);
         ctx.rotate(p.age * 4);
         ctx.beginPath();
@@ -4524,14 +4482,14 @@
         ctx.lineTo(-sizeT * 0.6, 0);
         ctx.closePath();
         ctx.fill();
+        ctx.restore();
       } else {
-        // smaller particles are circles
         ctx.beginPath();
         ctx.arc(s.x, s.y, sizeT, 0, PI2);
         ctx.fill();
       }
-      ctx.restore();
     }
+    ctx.globalAlpha = 1;
   }
 
   function drawInteractionHints() {
@@ -4564,10 +4522,7 @@
       // border glow
       ctx.strokeStyle = '#6df1ff';
       ctx.lineWidth = 1.2;
-      ctx.shadowColor = '#6df1ff';
-      ctx.shadowBlur = 6;
       ctx.stroke();
-      ctx.shadowBlur = 0;
       // text
       ctx.fillStyle = '#6df1ff';
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
@@ -4610,8 +4565,6 @@
       ctx.lineJoin = 'round';
       ctx.strokeText(t.text, 0, 0);
       ctx.fillStyle = c;
-      ctx.shadowColor = c;
-      ctx.shadowBlur = t.kind === 'crit' ? 8 : 3;
       ctx.fillText(t.text, 0, 0);
       ctx.restore();
     }
@@ -4776,8 +4729,6 @@
     // player — white with glow
     const p = game.world.player;
     const px = p.x * cellW, py = p.y * cellH;
-    mctx.shadowColor = '#ffffff';
-    mctx.shadowBlur = 4;
     mctx.fillStyle = '#ffffff';
     mctx.beginPath();
     mctx.arc(px, py, 2.5, 0, PI2);
@@ -4789,7 +4740,6 @@
     mctx.moveTo(px, py);
     mctx.lineTo(px + p.lastDir.x * 6, py + p.lastDir.y * 6);
     mctx.stroke();
-    mctx.shadowBlur = 0;
   }
 
   // ============================================================
