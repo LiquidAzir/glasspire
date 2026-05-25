@@ -1747,15 +1747,39 @@
     game.char.gold += gold;
     floatText(`+${gold}g`, e.x + 0.3, e.y - 0.2, 'loot');
 
-    // Item drops — bosses + chance from normal
-    const dropP = e.boss ? 1 : 0.15;
-    if (roll(dropP)) {
-      const item = rollItem(Math.max(1, e.ilvl), e.boss ? 'rare' : null);
+    // Item drops — bosses get treasure hoard, normal enemies have a chance
+    if (e.boss) {
+      // Boss treasure hoard: 2-3 items spread around the kill point
+      const bossDropCount = 2 + (roll(0.5) ? 1 : 0);
+      const rarities = ['rare', 'rare', 'unique'];
+      for (let di = 0; di < bossDropCount; di++) {
+        const r = rarities[di] || 'rare';
+        const item = rollItem(Math.max(1, e.ilvl + 1), r);
+        if (item) {
+          const ox = (di - 1) * 0.6; // spread items left/center/right
+          game.items.push({ x: e.x + ox, y: e.y + 0.3, item, age: 0 });
+          // staggered floating text for each drop
+          setTimeout(() => {
+            const rarCol = r === 'unique' ? '#ffaa00' : '#c77dff';
+            floatText(item.name, e.x + ox, e.y - 0.5 - di * 0.4, 'loot');
+          }, 300 + di * 400);
+        }
+      }
+      // Boss kill announcement
+      floatText('BOSS SLAIN!', e.x, e.y - 1.2, 'crit');
+      // treasure burst particles
+      for (let i = 0; i < 20; i++) {
+        const a = Math.random() * Math.PI * 2;
+        const spd = 1.5 + Math.random() * 2;
+        addParticle({ x: e.x, y: e.y, vx: Math.cos(a) * spd, vy: Math.sin(a) * spd,
+          color: pick(['#ffc857', '#ffaa00', '#c77dff', '#6df1ff']), life: 0.8 + Math.random() * 0.5, age: 0, size: 3 });
+      }
+    } else if (roll(0.15)) {
+      const item = rollItem(Math.max(1, e.ilvl), null);
       if (item) {
         game.items.push({ x: e.x, y: e.y, item, age: 0 });
       }
     }
-    // gold piles for cosmetic pickup not needed — auto-credited
 
     // Quest progress
     if (game.save.quest && game.save.quest.target === e.id) {
@@ -2429,8 +2453,8 @@
       }
     }
     game.nearbyNpc = near;
-    // Portal
-    let pn = null, pd = 0.9;
+    // Portal — larger radius for fast D-pad movement
+    let pn = null, pd = 2.0;
     if (game.world.portals) {
       for (const po of game.world.portals) {
         const d = dist(po, p);
@@ -3317,41 +3341,41 @@
       const spin = now / 1200;
       ctx.save();
       ctx.translate(s.x, s.y);
-      // ground glow
+      // ground glow — large so player can see it from a distance
       ctx.fillStyle = col;
-      ctx.globalAlpha = 0.1;
+      ctx.globalAlpha = 0.15;
       ctx.beginPath();
-      ctx.ellipse(0, 6, t * 0.55, t * 0.2, 0, 0, PI2);
+      ctx.ellipse(0, 6, t * 0.9, t * 0.35, 0, 0, PI2);
       ctx.fill();
       ctx.globalAlpha = 1;
       // spinning rune ring
       ctx.strokeStyle = col;
-      ctx.lineWidth = 1.5;
-      for (let i = 0; i < 6; i++) {
-        const a = spin + i * (Math.PI / 3);
-        const r = t * 0.42;
+      ctx.lineWidth = 2;
+      for (let i = 0; i < 8; i++) {
+        const a = spin + i * (Math.PI / 4);
+        const r = t * 0.6;
         const rx = Math.cos(a) * r, ry = Math.sin(a) * r * 0.7;
-        ctx.globalAlpha = 0.6;
+        ctx.globalAlpha = 0.7;
         ctx.beginPath();
-        ctx.arc(rx, ry, 2, 0, PI2);
+        ctx.arc(rx, ry, 2.5, 0, PI2);
         ctx.stroke();
       }
       ctx.globalAlpha = 1;
       // outer ring
-      ctx.lineWidth = 2;
+      ctx.lineWidth = 2.5;
       ctx.beginPath();
-      ctx.arc(0, 0, t * 0.45, 0, PI2);
+      ctx.arc(0, 0, t * 0.65, 0, PI2);
       ctx.stroke();
       // inner ring
-      ctx.globalAlpha = 0.4;
-      ctx.lineWidth = 1;
+      ctx.globalAlpha = 0.5;
+      ctx.lineWidth = 1.5;
       ctx.beginPath();
-      ctx.arc(0, 0, t * 0.28, 0, PI2);
+      ctx.arc(0, 0, t * 0.4, 0, PI2);
       ctx.stroke();
       ctx.globalAlpha = 1;
-      // center icon
+      // center icon — larger
       ctx.fillStyle = col;
-      ctx.font = 'bold 18px sans-serif';
+      ctx.font = 'bold 22px sans-serif';
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       ctx.fillText(p.kind === 'town' ? '⌂' : '▼', 0, -1);
       ctx.restore();
@@ -4939,7 +4963,7 @@
       card.innerHTML = `
         <div class="quest-name">${q.name}</div>
         <div class="quest-prog ${done ? 'done' : ''}">${q.progress} / ${q.required} ${done ? '— complete!' : ''}</div>
-        <div class="quest-reward">Reward: ${q.rewardGold}g + ${q.rewardXp} XP</div>
+        <div class="quest-reward">Reward: ${q.rewardGold}g + ${q.rewardXp} XP + bonus item</div>
       `;
       el.appendChild(card);
       if (done) {
@@ -5320,9 +5344,9 @@
         portrait: '✦',
         portraitColor: '#c489ff',
         title: 'Captain',
-        line: `Hunter, I have a bounty: clear ${required} ${targetName}s in ${biome.name}.`,
+        line: `Bounty: Kill ${required} ${targetName}s in ${biome.name}. Reward: ${quest.rewardGold}g + ${quest.rewardXp} XP + bonus item.`,
         options: [
-          { label: 'Accept', cb: () => { game.save.quest = quest; saveGame(); showHudToast('Quest accepted.'); navigateBack(); } },
+          { label: 'Accept', cb: () => { game.save.quest = quest; saveGame(); showHudToast('Quest accepted!'); navigateBack(); } },
           { label: 'Decline', cb: () => navigateBack() },
         ],
       });
@@ -5334,8 +5358,8 @@
         portraitColor: '#c489ff',
         title: 'Captain',
         line: done
-          ? `Well done. The ${q.targetName}s lie still. Take this.`
-          : `You've felled ${q.progress} of ${q.required} ${q.targetName}s. Press on.`,
+          ? `Well done! Claim: ${q.rewardGold}g + ${q.rewardXp} XP + bonus item.`
+          : `Progress: ${q.progress}/${q.required} ${q.targetName}s. Reward: ${q.rewardGold}g + ${q.rewardXp} XP + item.`,
         options: done
           ? [{ label: 'Turn In', cb: () => { turnInQuest(); navigateBack(); } }]
           : [{ label: 'Onward', cb: () => navigateBack() }],
@@ -5347,10 +5371,19 @@
     if (q.progress < q.required) return;
     game.char.gold += q.rewardGold;
     gainXp(q.rewardXp);
+    // Bonus item reward for quest completion (magic or rare quality)
+    const bonusRarity = roll(0.3) ? 'rare' : 'magic';
+    const bonusItem = rollItem(Math.max(1, game.char.level), bonusRarity);
+    if (bonusItem && game.char.inventory.length < 24) {
+      game.char.inventory.push(bonusItem);
+    }
     game.save.questsCompleted += 1;
     game.save.quest = null;
     saveGame();
-    showHudToast(`Quest complete! +${q.rewardGold}g`);
+    // Explicit reward breakdown
+    const rewardLines = [`+${q.rewardGold} Gold`, `+${q.rewardXp} XP`];
+    if (bonusItem) rewardLines.push(`+ ${bonusItem.name}`);
+    showHudToast(`QUEST COMPLETE! ${rewardLines.join(' | ')}`);
   }
 
   // ============================================================
