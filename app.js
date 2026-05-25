@@ -378,6 +378,9 @@
     'heart-of-the-wyrm':  { type: 'amulet', name: 'Heart of the Wyrm',  icon: '◈', base: { hp: 30, def: 8, vit: 2 }, ilvl: 22 },
     'pendant-of-souls':   { type: 'amulet', name: 'Pendant of Souls',   icon: '◈', base: { mp: 25, dmg: 4, int: 2 }, ilvl: 21 },
     'stormcaller-chain':  { type: 'amulet', name: 'Stormcaller Chain',   icon: '◈', base: { dmg: 6, aspd: 8, dex: 2 }, ilvl: 23 },
+
+    // ===== CONSUMABLES =====
+    'sanctuary-scroll':   { type: 'consumable', name: 'Sanctuary Scroll', icon: '✉', base: {}, ilvl: 1 },
   };
 
   // affixes by rarity tier
@@ -464,6 +467,8 @@
         game.world.player._impulseX = 0;
         game.world.player._impulseY = 0;
       }
+      // snapshot world position so player resumes here on next load
+      saveGame();
     }
     Object.values(screens).forEach(s => s.classList.add('hidden'));
     if (screens[id]) {
@@ -550,6 +555,7 @@
         equip: { weapon: gear.weapon, armor: gear.armor, ring: null, amulet: null },
         inventory: [gear.weapon, gear.armor],
         potions: 3,
+        sanctuaryScrolls: 0,  // consumable: warp to town from anywhere
         selectedSkill: cls.skills[0],  // track which skill is active
       },
       stash: [],
@@ -557,6 +563,8 @@
       bossesKilled: {},
       quest: null,    // active bounty
       questsCompleted: 0,
+      worldState: null,    // persisted location for resume on reload
+      savedDungeon: null,  // dungeon to return to after using Sanctuary Scroll
     };
   }
 
@@ -582,12 +590,33 @@
       if (obj.unlockedBiomes && !('voidspire' in obj.unlockedBiomes)) {
         obj.unlockedBiomes.voidspire = false;
       }
+      // migrate: add sanctuaryScrolls for old saves
+      if (obj.char && obj.char.sanctuaryScrolls === undefined) {
+        obj.char.sanctuaryScrolls = 0;
+      }
+      // migrate: ensure worldState/savedDungeon fields exist
+      if (obj.worldState === undefined) obj.worldState = null;
+      if (obj.savedDungeon === undefined) obj.savedDungeon = null;
       return obj;
     } catch (e) { return null; }
   }
 
   function saveGame() {
     if (!game.save) return;
+    // Snapshot current world position so player can resume on next load
+    if (game.world && game.world.player) {
+      if (game.world.kind === 'town') {
+        game.save.worldState = { kind: 'town' };
+      } else if (game.world.kind === 'dungeon' && game.activeBiomeId) {
+        game.save.worldState = {
+          kind: 'dungeon',
+          biomeId: game.activeBiomeId,
+          floor: game.activeFloor,
+          x: game.world.player.x,
+          y: game.world.player.y,
+        };
+      }
+    }
     try {
       localStorage.setItem(CFG.storageKey, JSON.stringify(game.save));
     } catch (e) { console.warn('save failed', e); }
@@ -687,7 +716,8 @@
   }
 
   function rollItem(ilvl, rarityOverride) {
-    const eligible = Object.keys(ITEM_BASES).filter(k => ITEM_BASES[k].ilvl <= ilvl + 1);
+    // Exclude consumables — those are vendor-only, never random drops
+    const eligible = Object.keys(ITEM_BASES).filter(k => ITEM_BASES[k].ilvl <= ilvl + 1 && ITEM_BASES[k].type !== 'consumable');
     if (eligible.length === 0) return null;
     const baseId = pick(eligible);
     const base = ITEM_BASES[baseId];
@@ -796,13 +826,17 @@
 
   // Procedural dungeon: rooms-and-corridors
   function generateDungeon(biome, floor) {
-    const W = 40, H = 40;
+    const W = 48, H = 48;
     const grid = makeGrid(W, H, 1);
     const rooms = [];
-    const tries = 30;
+    const tries = 80;
     for (let i = 0; i < tries; i++) {
-      const rw = irand(6, 10);
-      const rh = irand(6, 10);
+      // Mix of small (alcoves), medium, and large rooms
+      const sizeRoll = rand();
+      let rw, rh;
+      if (sizeRoll < 0.3) { rw = irand(4, 6); rh = irand(4, 6); }       // small alcoves
+      else if (sizeRoll < 0.75) { rw = irand(6, 9); rh = irand(6, 9); } // medium rooms
+      else { rw = irand(8, 12); rh = irand(8, 12); }                    // large halls
       const rx = irand(1, W - rw - 2);
       const ry = irand(1, H - rh - 2);
       const r = { x: rx, y: ry, w: rw, h: rh, cx: rx + (rw >> 1), cy: ry + (rh >> 1) };
@@ -824,24 +858,47 @@
     function carve(cx, cy) {
       if (cx > 0 && cx < W - 1 && cy > 0 && cy < H - 1) grid[cy][cx] = 0;
     }
-    // Connect rooms by 3-tile-wide L-shaped corridors
-    for (let i = 1; i < rooms.length; i++) {
-      const a = rooms[i - 1], b = rooms[i];
-      let x = a.cx, y = a.cy;
-      // Horizontal leg — carve 3 tiles tall (y-1, y, y+1)
-      while (x !== b.cx) {
+    // Helper: carve a 3-wide L-shape corridor between two points
+    function carveCorridor(ax, ay, bx, by) {
+      let x = ax, y = ay;
+      while (x !== bx) {
         carve(x, y - 1); carve(x, y); carve(x, y + 1);
-        x += Math.sign(b.cx - x);
+        x += Math.sign(bx - x);
       }
-      // Vertical leg — carve 3 tiles wide (x-1, x, x+1)
-      while (y !== b.cy) {
+      while (y !== by) {
         carve(x - 1, y); carve(x, y); carve(x + 1, y);
-        y += Math.sign(b.cy - y);
+        y += Math.sign(by - y);
       }
-      // Carve the corner junction as a 3x3 block for smooth turning
+      // 3x3 corner junction
       for (let dy = -1; dy <= 1; dy++)
         for (let dx = -1; dx <= 1; dx++)
           carve(x + dx, y + dy);
+    }
+    // Connect rooms sequentially (guarantees full connectivity)
+    for (let i = 1; i < rooms.length; i++) {
+      carveCorridor(rooms[i - 1].cx, rooms[i - 1].cy, rooms[i].cx, rooms[i].cy);
+    }
+    // Add extra "loop" corridors between random non-adjacent rooms for intricate layouts
+    const extraConnections = Math.floor(rooms.length * 0.4);
+    for (let i = 0; i < extraConnections; i++) {
+      const a = rooms[irand(0, rooms.length - 1)];
+      const b = rooms[irand(0, rooms.length - 1)];
+      if (a === b) continue;
+      carveCorridor(a.cx, a.cy, b.cx, b.cy);
+    }
+    // Add interior features (pillars) to large rooms for cover and visual interest
+    for (const r of rooms) {
+      if (r.w >= 8 && r.h >= 8) {
+        // 2-4 pillars in corners-ish (not blocking center)
+        const pillarCount = irand(2, 4);
+        for (let p = 0; p < pillarCount; p++) {
+          const px = r.x + irand(2, r.w - 3);
+          const py = r.y + irand(2, r.h - 3);
+          // don't pillar the room center
+          if (Math.abs(px - r.cx) < 2 && Math.abs(py - r.cy) < 2) continue;
+          grid[py][px] = 1;
+        }
+      }
     }
     // Pick spawn (player) and exit
     const first = rooms[0];
@@ -4816,6 +4873,30 @@
       const btn = $('menu-town-btn');
       if (game.world && game.world.kind === 'dungeon') btn.classList.remove('hidden');
       else btn.classList.add('hidden');
+      // Sanctuary Scroll button — only in dungeon, shows count
+      const scrollBtn = $('menu-scroll-btn');
+      if (game.world && game.world.kind === 'dungeon') {
+        const count = game.char.sanctuaryScrolls || 0;
+        scrollBtn.textContent = count > 0
+          ? `Use Sanctuary Scroll (${count})`
+          : 'Sanctuary Scroll (0 — buy from vendor)';
+        if (count > 0) scrollBtn.classList.remove('disabled');
+        else scrollBtn.classList.add('disabled');
+        scrollBtn.classList.remove('hidden');
+      } else {
+        scrollBtn.classList.add('hidden');
+      }
+      // Return-to-Dungeon button — only in town when a saved dungeon exists
+      const returnBtn = $('menu-return-dungeon-btn');
+      if (game.world && game.world.kind === 'town' && game.save && game.save.savedDungeon) {
+        const sd = game.save.savedDungeon;
+        const biome = BIOMES.find(b => b.id === sd.biomeId);
+        const biomeName = biome ? biome.shortName : 'Dungeon';
+        returnBtn.textContent = `Return to ${biomeName} Floor ${sd.floor}`;
+        returnBtn.classList.remove('hidden');
+      } else {
+        returnBtn.classList.add('hidden');
+      }
     }
     if (id === 'vendor') renderVendor();
     if (id === 'stash') renderStash();
@@ -5035,6 +5116,8 @@
   }
 
   function itemCost(it) {
+    // Sanctuary Scroll has a fixed price
+    if (it.baseId === 'sanctuary-scroll') return 75;
     const tier = { common: 1, magic: 4, rare: 12, unique: 40 }[it.rarity] || 1;
     return 6 + it.ilvl * 4 * tier + (it.affixes ? it.affixes.length * 3 : 0);
   }
@@ -5042,7 +5125,17 @@
   function refreshVendorOffer() {
     game.vendorOffer = [];
     const lv = Math.max(1, game.char.level);
-    for (let i = 0; i < 6; i++) game.vendorOffer.push(rollItem(lv + irand(0, 2)));
+    // Always offer Sanctuary Scrolls — essential utility item
+    game.vendorOffer.push({
+      id: 'sc_' + Math.random().toString(36).slice(2, 9),
+      baseId: 'sanctuary-scroll',
+      rarity: 'magic',
+      affixes: [],
+      ilvl: 1,
+      name: 'Sanctuary Scroll',
+      _consumable: true,
+    });
+    for (let i = 0; i < 5; i++) game.vendorOffer.push(rollItem(lv + irand(0, 2)));
   }
 
   function renderStash() {
@@ -5112,7 +5205,19 @@
       case 'title-continue':
         if (!game.save) return;
         loadIntoSession(game.save);
-        enterTown();
+        // Resume at last known location if saved
+        const ws = game.save.worldState;
+        if (ws && ws.kind === 'dungeon' && ws.biomeId) {
+          enterBiome(ws.biomeId, ws.floor || 1);
+          // restore exact player position within the dungeon
+          if (game.world && game.world.player && typeof ws.x === 'number') {
+            game.world.player.x = ws.x;
+            game.world.player.y = ws.y;
+            snapCamera();
+          }
+        } else {
+          enterTown();
+        }
         return;
       case 'title-new':
         navigateTo('class-select'); return;
@@ -5143,6 +5248,40 @@
           enterTown();
           // close the open menu screen
           game.history = [];
+        }
+        return;
+      case 'menu-use-scroll':
+        if (game.world && game.world.kind === 'dungeon' && game.char.sanctuaryScrolls > 0) {
+          // Snapshot dungeon state so player can return here later
+          game.save.savedDungeon = {
+            biomeId: game.activeBiomeId,
+            floor: game.activeFloor,
+            x: game.world.player.x,
+            y: game.world.player.y,
+          };
+          game.char.sanctuaryScrolls -= 1;
+          saveGame();
+          enterTown();
+          game.history = [];
+          showHudToast(`Sanctuary Scroll used. ${game.char.sanctuaryScrolls} left.`);
+        } else if (game.char.sanctuaryScrolls <= 0) {
+          showHudToast('No Sanctuary Scrolls. Buy from vendor.');
+        }
+        return;
+      case 'menu-return-dungeon':
+        if (game.save.savedDungeon && game.world && game.world.kind === 'town') {
+          const sd = game.save.savedDungeon;
+          enterBiome(sd.biomeId, sd.floor);
+          // restore player to exact spot
+          if (game.world && game.world.player && typeof sd.x === 'number') {
+            game.world.player.x = sd.x;
+            game.world.player.y = sd.y;
+            snapCamera();
+          }
+          game.save.savedDungeon = null;
+          saveGame();
+          game.history = [];
+          showHudToast('Returned to dungeon.');
         }
         return;
       case 'menu-title':
@@ -5284,6 +5423,15 @@
     if (!it) return;
     const cost = itemCost(it);
     if (game.char.gold < cost) { showHudToast('Not enough gold.'); return; }
+    // Sanctuary Scroll: increment counter, stays in vendor (always available)
+    if (it.baseId === 'sanctuary-scroll') {
+      game.char.gold -= cost;
+      game.char.sanctuaryScrolls = (game.char.sanctuaryScrolls || 0) + 1;
+      showHudToast(`Sanctuary Scroll acquired! Have ${game.char.sanctuaryScrolls}.`);
+      saveGame();
+      renderVendor();
+      return;
+    }
     if (game.char.inventory.length >= 24) { showHudToast('Inventory full.'); return; }
     game.char.gold -= cost;
     game.char.inventory.push(it);
