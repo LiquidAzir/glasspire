@@ -21,6 +21,8 @@
     minComboGap: 30,          // ms — to reject key repeat ghosts
     biomeFloors: 4,           // floors per biome before boss
     autoAttackPad: 0.15,      // tile padding on attack range for forgiveness
+    maxLevel: 99,             // hard cap on character level; excess XP becomes paragon XP
+    paragonXpMul: 1.4,        // paragon XP bar scales 40% slower than the level cap bar
   };
 
   // ============================================================
@@ -391,6 +393,7 @@
 
     // ===== CONSUMABLES =====
     'sanctuary-scroll':   { type: 'consumable', name: 'Sanctuary Scroll', icon: '✉', base: {}, ilvl: 1 },
+    'glass-tear':         { type: 'consumable', name: 'Glass Tear',       icon: '◊', base: {}, ilvl: 1 },
 
     // ===== GEMS (socket into items for permanent bonus) =====
     'ruby':       { type: 'gem', name: 'Ruby',       icon: '◆', base: {}, ilvl: 1, gemId: 'ruby' },
@@ -659,6 +662,11 @@
         sanctuaryScrolls: 0,  // consumable: warp to town from anywhere
         tomes: 0,             // currency for passive skill unlocks
         passives: {},         // unlocked passives map: { [passiveId]: true }
+        glassTears: 0,        // consumable: reroll an item's affixes at vendor
+        paragonLevel: 0,      // post-cap progression level
+        paragonXp: 0,         // XP toward next paragon level
+        paragonPoints: 0,     // unspent paragon points
+        paragonStats: { str: 0, int: 0, dex: 0, vit: 0 }, // allocated paragon stat bonuses
         selectedSkill: cls.skills[0],  // track which skill is active
       },
       stash: [],
@@ -668,6 +676,7 @@
       questsCompleted: 0,
       worldState: null,    // persisted location for resume on reload
       savedDungeon: null,  // dungeon to return to after using Sanctuary Scroll
+      mysteryVendor: null, // { day: number, baseId: string, bought: bool }
     };
   }
 
@@ -703,6 +712,13 @@
       // migrate: ensure worldState/savedDungeon fields exist
       if (obj.worldState === undefined) obj.worldState = null;
       if (obj.savedDungeon === undefined) obj.savedDungeon = null;
+      // migrate: paragon system + glass tears + mystery vendor
+      if (obj.char && obj.char.glassTears === undefined)   obj.char.glassTears = 0;
+      if (obj.char && obj.char.paragonLevel === undefined) obj.char.paragonLevel = 0;
+      if (obj.char && obj.char.paragonXp === undefined)    obj.char.paragonXp = 0;
+      if (obj.char && obj.char.paragonPoints === undefined) obj.char.paragonPoints = 0;
+      if (obj.char && !obj.char.paragonStats) obj.char.paragonStats = { str: 0, int: 0, dex: 0, vit: 0 };
+      if (obj.mysteryVendor === undefined) obj.mysteryVendor = null; // { day, baseId, bought }
       // Reconcile equipped item references with inventory entries by id.
       // JSON round-trips lose object identity, so equip.weapon and the inventory
       // copy are different objects after load. Re-link them so isEquipped works.
@@ -795,14 +811,21 @@
     applyItem(char.equip.ring);
     applyItem(char.equip.amulet);
 
+    // Paragon stat bonuses (added on top of base + gear bonuses)
+    const para = char.paragonStats || { str: 0, int: 0, dex: 0, vit: 0 };
+    const totalStr = char.stats.str + bonusStats.str + para.str;
+    const totalInt = char.stats.int + bonusStats.int + para.int;
+    const totalDex = char.stats.dex + bonusStats.dex + para.dex;
+    const totalVit = char.stats.vit + bonusStats.vit + para.vit;
+
     // stat-derived
-    const statStrDmg = Math.max(0, char.stats.str + bonusStats.str - 2);
-    const statDexDmg = Math.floor((char.stats.dex + bonusStats.dex) / 2);
+    const statStrDmg = Math.max(0, totalStr - 2);
+    const statDexDmg = Math.floor(totalDex / 2);
     const statIntDmg = (cls.id === 'mage' || cls.id === 'summoner')
-      ? Math.floor((char.stats.int + bonusStats.int) / 2) : 0;
+      ? Math.floor(totalInt / 2) : 0;
     dmg += statStrDmg + statDexDmg + statIntDmg;
-    crit += Math.floor((char.stats.dex + bonusStats.dex) / 2);
-    hpMax += (char.stats.vit + bonusStats.vit) * 6;
+    crit += Math.floor(totalDex / 2);
+    hpMax += totalVit * 6;
     const statsDmg = statStrDmg + statDexDmg + statIntDmg;
 
     // ===== Passive skill tree bonuses =====
@@ -905,20 +928,49 @@
   // XP / LEVEL
   // ============================================================
   function xpForLevel(lv) { return Math.floor(40 * Math.pow(lv, 1.55)); }
+  // Paragon XP cost scales gently: same curve as max level but a bit slower
+  function xpForParagon(pLv) {
+    return Math.floor(xpForLevel(CFG.maxLevel) * CFG.paragonXpMul * (1 + pLv * 0.05));
+  }
   function gainXp(amount) {
     const c = game.char;
-    c.xp += amount;
     floatText(`+${amount} XP`, game.world.player.x, game.world.player.y, 'xp');
-    while (c.xp >= xpForLevel(c.level)) {
-      c.xp -= xpForLevel(c.level);
-      c.level += 1;
-      c.statPoints += 3;
-      applyDerivedToChar();
-      c.hp = c.hpMax;
-      c.mp = c.mpMax;
-      navigateTo('levelup');
-      $('levelup-sub').textContent =
-        `You are now level ${c.level}. +3 stat points. HP/MP restored.`;
+
+    // Normal levels first
+    while (c.level < CFG.maxLevel && amount > 0) {
+      const need = xpForLevel(c.level) - c.xp;
+      if (amount < need) {
+        c.xp += amount;
+        amount = 0;
+      } else {
+        amount -= need;
+        c.xp = 0;
+        c.level += 1;
+        c.statPoints += 3;
+        applyDerivedToChar();
+        c.hp = c.hpMax;
+        c.mp = c.mpMax;
+        navigateTo('levelup');
+        $('levelup-sub').textContent =
+          `You are now level ${c.level}. +3 stat points. HP/MP restored.`;
+      }
+    }
+
+    // At cap: route remaining XP into paragon
+    if (c.level >= CFG.maxLevel && amount > 0) {
+      // Ensure paragon fields exist on legacy char
+      if (c.paragonLevel === undefined) c.paragonLevel = 0;
+      if (c.paragonXp === undefined) c.paragonXp = 0;
+      if (c.paragonPoints === undefined) c.paragonPoints = 0;
+      if (!c.paragonStats) c.paragonStats = { str: 0, int: 0, dex: 0, vit: 0 };
+      c.paragonXp += amount;
+      while (c.paragonXp >= xpForParagon(c.paragonLevel)) {
+        c.paragonXp -= xpForParagon(c.paragonLevel);
+        c.paragonLevel += 1;
+        c.paragonPoints += 1;
+        showHudToast(`Paragon Level ${c.paragonLevel}! +1 point`);
+        applyDerivedToChar();
+      }
     }
     saveGame();
     updateHud();
@@ -1026,10 +1078,11 @@
 
     // A small plaza-like layout: center fountain, NPC stalls around
     const npcs = [
-      { id: 'vendor',     name: 'Trader',     glyph: '☉', color: '#ffc857', x: 4,  y: 4,  role: 'vendor' },
-      { id: 'stash',      name: 'Keeper',     glyph: '◈', color: '#6df1ff', x: 16, y: 4,  role: 'stash' },
-      { id: 'quests',     name: 'Captain',    glyph: '✦', color: '#c489ff', x: 4,  y: 12, role: 'quests' },
-      { id: 'waypoint',   name: 'Waystone',   glyph: '✪', color: '#51e6a4', x: 16, y: 12, role: 'waypoint' },
+      { id: 'vendor',     name: 'Trader',         glyph: '☉', color: '#ffc857', x: 4,  y: 4,  role: 'vendor' },
+      { id: 'stash',      name: 'Keeper',         glyph: '◈', color: '#6df1ff', x: 16, y: 4,  role: 'stash' },
+      { id: 'quests',     name: 'Captain',        glyph: '✦', color: '#c489ff', x: 4,  y: 12, role: 'quests' },
+      { id: 'waypoint',   name: 'Waystone',       glyph: '✪', color: '#51e6a4', x: 16, y: 12, role: 'waypoint' },
+      { id: 'mystery',    name: 'Mystery Merchant', glyph: '?', color: '#ff77ff', x: 10, y: 14, role: 'mystery' },
     ];
     // Center "fountain" decoration (block)
     grid[8][10] = 2; // 2 = decor
@@ -1536,6 +1589,7 @@
     else if (npc.role === 'stash') { openStash(); }
     else if (npc.role === 'quests') { openQuests(); }
     else if (npc.role === 'waypoint') { openWaypoint(); }
+    else if (npc.role === 'mystery') { openMysteryVendor(); }
   }
 
   function activatePortal(p) {
@@ -2296,6 +2350,13 @@
         game.items.push({ x: e.x + (rand() - 0.5) * 0.4, y: e.y + 0.2, item: gemItem, age: 0 });
         setTimeout(() => floatText(`${GEMS[gemId].name} gem`, e.x, e.y - 0.6, 'loot'), 200);
       }
+    }
+
+    // Glass Tear drops — reroll material. Rare from everything; common from bosses.
+    const tearChance = e.boss ? 1.0 : (e.elite ? 0.12 : 0.015);
+    if (roll(tearChance)) {
+      game.char.glassTears = (game.char.glassTears || 0) + 1;
+      floatText('+1 Glass Tear', e.x, e.y - 1.1, 'crit');
     }
 
     // Elite enemies always drop a rare item + bonus burst
@@ -5568,6 +5629,7 @@
     if (id === 'skills') renderSkills();
     if (id === 'passives') renderPassives();
     if (id === 'gem-socket') renderGemSocket();
+    if (id === 'mystery-vendor') renderMysteryVendor();
     if (id === 'quests') renderQuests();
     if (id === 'menu') {
       // only show "Return to Town" if we're in a dungeon
@@ -5702,10 +5764,22 @@
     if (b.statsDmg)  dmgParts.push(`+${b.statsDmg} stats`);
     if (b.dmgMul && b.dmgMul !== 1) dmgParts.push(`× ${b.dmgMul.toFixed(2)}`);
     const dmgBreakdown = dmgParts.length > 1 ? `<div class="stat-sub">${dmgParts.join(' · ')}</div>` : '';
+    const para = c.paragonStats || { str: 0, int: 0, dex: 0, vit: 0 };
+    const fmtStat = (base, bonus, p) => {
+      const total = base + bonus + p;
+      const extras = [];
+      if (bonus) extras.push(`+${bonus} gear`);
+      if (p)     extras.push(`+${p} paragon`);
+      return extras.length ? `${total}<div class="stat-sub">${base} base · ${extras.join(' · ')}</div>` : `${total}`;
+    };
+    const atCap = c.level >= CFG.maxLevel;
+    const xpLine = atCap
+      ? `MAX (Paragon ${c.paragonLevel || 0})`
+      : `${c.xp} / ${xpForLevel(c.level)}`;
     const rows = [
       ['Class',    cls.name],
-      ['Level',    c.level],
-      ['XP',       `${c.xp} / ${xpForLevel(c.level)}`],
+      ['Level',    c.level + (atCap ? ' ★' : '')],
+      ['XP',       xpLine],
       ['Damage',   `${d.dmg}${dmgBreakdown}`],
       ['DPS',      `${b.dps || 0}<div class="stat-sub">${b.avgPerHit || 0} avg/hit × ${d.aspd.toFixed(2)} aps</div>`],
       ['Armor',    d.def],
@@ -5714,10 +5788,10 @@
       ['Crit',     `${d.crit}% · ${b.critDmgPct || 180}% dmg`],
       ['Atk Spd',  d.aspd.toFixed(2)],
       ['Gold',     c.gold + 'g'],
-      ['STR',      c.stats.str + d.bonusStats.str],
-      ['INT',      c.stats.int + d.bonusStats.int],
-      ['DEX',      c.stats.dex + d.bonusStats.dex],
-      ['VIT',      c.stats.vit + d.bonusStats.vit],
+      ['STR',      fmtStat(c.stats.str, d.bonusStats.str, para.str)],
+      ['INT',      fmtStat(c.stats.int, d.bonusStats.int, para.int)],
+      ['DEX',      fmtStat(c.stats.dex, d.bonusStats.dex, para.dex)],
+      ['VIT',      fmtStat(c.stats.vit, d.bonusStats.vit, para.vit)],
     ];
     stats.innerHTML = rows.map(([k, v]) => `<div class="stat-row"><span class="stat-label">${k}</span><span class="stat-value">${v}</span></div>`).join('');
     // Show active item sets (any partial progress)
@@ -5735,8 +5809,24 @@
     if (passiveCount > 0 || c.level >= 10) {
       stats.innerHTML += `<div class="stat-row"><span class="stat-label">Passives</span><span class="stat-value">${passiveCount} / ${Object.keys(PASSIVES).length} unlocked · ${c.tomes || 0} tomes</span></div>`;
     }
+    // Paragon section — only shown once at cap
+    if (atCap) {
+      const need = xpForParagon(c.paragonLevel || 0);
+      const cur = c.paragonXp || 0;
+      const pct = Math.min(100, Math.floor(100 * cur / need));
+      stats.innerHTML += `
+        <div class="stat-row" style="margin-top:8px;border-top:1px solid rgba(255,200,87,0.25);padding-top:8px">
+          <span class="stat-label rarity-unique">Paragon</span>
+          <span class="stat-value">Lvl ${c.paragonLevel || 0} · ${c.paragonPoints || 0} pts</span>
+        </div>
+        <div class="stat-row" style="background:transparent;padding:2px 12px">
+          <span class="stat-label" style="font-size:10px">Next: ${cur}/${need} XP (${pct}%)</span>
+        </div>
+      `;
+    }
     const pts = $('char-points-row');
     pts.innerHTML = '';
+    // Regular stat-point spend buttons (level-up gains)
     if (c.statPoints > 0) {
       const make = (k) => {
         const b = document.createElement('button');
@@ -5748,6 +5838,36 @@
       };
       ['str','int','dex','vit'].forEach(k => pts.appendChild(make(k)));
     }
+    // Paragon-point spend buttons (separate, only when paragon points exist)
+    if ((c.paragonPoints || 0) > 0) {
+      const label = document.createElement('div');
+      label.className = 'skill-header rarity-unique';
+      label.textContent = `Spend Paragon Points (${c.paragonPoints})`;
+      pts.appendChild(label);
+      const make = (k) => {
+        const b = document.createElement('button');
+        b.className = 'nav-item focusable';
+        b.dataset.action = 'spend-paragon';
+        b.dataset.stat = k;
+        b.innerHTML = `+1 ${k.toUpperCase()} <span class="pts">${(c.paragonStats || {})[k] || 0} allocated</span>`;
+        return b;
+      };
+      ['str','int','dex','vit'].forEach(k => pts.appendChild(make(k)));
+    }
+  }
+
+  function spendParagon(k) {
+    const c = game.char;
+    if (!c.paragonPoints || c.paragonPoints <= 0) { showHudToast('No paragon points.'); return; }
+    if (!c.paragonStats) c.paragonStats = { str: 0, int: 0, dex: 0, vit: 0 };
+    if (!(k in c.paragonStats)) return;
+    c.paragonStats[k] += 1;
+    c.paragonPoints -= 1;
+    applyDerivedToChar();
+    saveGame();
+    renderCharacter();
+    updateHud();
+    showHudToast(`+1 Paragon ${k.toUpperCase()}`);
   }
 
   function renderSkills() {
@@ -5868,6 +5988,7 @@
     $('vendor-gold').textContent = c.gold;
     const list = $('vendor-list'); list.innerHTML = '';
     document.querySelectorAll('.vendor-tab').forEach(t => t.classList.remove('active'));
+
     if (game.vendorMode === 'buy') {
       document.querySelector('[data-action="vendor-tab-buy"]').classList.add('active');
       if (!game.vendorOffer || game.vendorOffer.length === 0) refreshVendorOffer();
@@ -5888,6 +6009,44 @@
         `;
         list.appendChild(row);
       });
+    } else if (game.vendorMode === 'reroll') {
+      document.querySelector('[data-action="vendor-tab-reroll"]').classList.add('active');
+      const header = document.createElement('div');
+      header.className = 'skill-header';
+      const tears = c.glassTears || 0;
+      header.innerHTML = `Reroll affixes on rare or unique items.<br><span style="color:var(--text-dim)">Cost: gold + 1 Glass Tear. You have <span class="rarity-unique">${tears} Glass Tear${tears === 1 ? '' : 's'}</span>.</span>`;
+      list.appendChild(header);
+      // List rare/unique items in inventory that have at least 1 affix
+      let any = false;
+      c.inventory.forEach((it, idx) => {
+        const base = ITEM_BASES[it.baseId];
+        if (!base) return;
+        if (it.rarity !== 'rare' && it.rarity !== 'unique') return;
+        if (!it.affixes || it.affixes.length === 0) return;
+        any = true;
+        const cost = rerollCost(it);
+        const canAfford = c.gold >= cost && tears > 0;
+        const row = document.createElement('button');
+        row.className = 'inv-row focusable' + (canAfford ? '' : ' disabled');
+        row.dataset.action = 'vendor-reroll';
+        row.dataset.idx = idx;
+        const affixSummary = it.affixes.map(a => `+${a.val} ${a.label}`).join(', ');
+        row.innerHTML = `
+          <div class="inv-icon">${base.icon}</div>
+          <div class="inv-meta">
+            <div class="inv-name rarity-${it.rarity}">${it.name}</div>
+            <div class="inv-sub">${affixSummary}</div>
+          </div>
+          <div class="inv-equipped" style="color:var(--gold)">${cost}g + 1◊</div>
+        `;
+        list.appendChild(row);
+      });
+      if (!any) {
+        const empty = document.createElement('div');
+        empty.className = 'quest-card empty';
+        empty.textContent = 'No rare or unique items to reroll.';
+        list.appendChild(empty);
+      }
     } else {
       document.querySelector('[data-action="vendor-tab-sell"]').classList.add('active');
       c.inventory.forEach((it, idx) => {
@@ -5915,6 +6074,45 @@
       });
       if (list.innerHTML === '') list.innerHTML = '<div class="quest-card empty">Nothing to sell.</div>';
     }
+  }
+
+  function rerollCost(it) {
+    const tier = it.rarity === 'unique' ? 200 : 80;
+    return tier + (it.ilvl || 1) * 8;
+  }
+
+  function rerollItem(idx) {
+    const c = game.char;
+    const it = c.inventory[idx];
+    if (!it) return;
+    if (it.rarity !== 'rare' && it.rarity !== 'unique') { showHudToast('Only rare or unique items.'); return; }
+    if (!it.affixes || it.affixes.length === 0) { showHudToast('No affixes to reroll.'); return; }
+    const cost = rerollCost(it);
+    if (c.gold < cost) { showHudToast('Not enough gold.'); return; }
+    if ((c.glassTears || 0) < 1) { showHudToast('Need 1 Glass Tear.'); return; }
+    c.gold -= cost;
+    c.glassTears -= 1;
+    // Reroll affixes: keep same count, fresh keys/values appropriate to rarity
+    const ilvl = it.ilvl || 1;
+    const newAffixes = [];
+    const usedKeys = new Set();
+    for (let i = 0; i < it.affixes.length; i++) {
+      let af = rollAffix(it.rarity, ilvl);
+      let tries = 0;
+      while (usedKeys.has(af.key) && tries++ < 6) af = rollAffix(it.rarity, ilvl);
+      if (usedKeys.has(af.key)) continue;
+      usedKeys.add(af.key);
+      newAffixes.push(af);
+    }
+    it.affixes = newAffixes;
+    // Refresh name (rare items derive name from affixes via buildItemName)
+    const base = ITEM_BASES[it.baseId];
+    if (base) it.name = buildItemName(base, it.rarity, newAffixes);
+    applyDerivedToChar();
+    saveGame();
+    renderVendor();
+    updateHud();
+    showHudToast(`Rerolled: ${newAffixes.map(a => `+${a.val} ${a.label}`).join(', ')}`);
   }
 
   function itemCost(it) {
@@ -6130,6 +6328,9 @@
       case 'spend-stat':
         spendStat(el.dataset.stat);
         return;
+      case 'spend-paragon':
+        spendParagon(el.dataset.stat);
+        return;
 
       // skills — select active skill
       case 'select-skill': {
@@ -6151,10 +6352,15 @@
       }
 
       // vendor
-      case 'vendor-tab-buy':   game.vendorMode = 'buy';  renderVendor(); return;
-      case 'vendor-tab-sell':  game.vendorMode = 'sell'; renderVendor(); return;
-      case 'vendor-buy':       vendorBuy(parseInt(el.dataset.idx, 10)); return;
-      case 'vendor-sell':      vendorSell(parseInt(el.dataset.idx, 10)); return;
+      case 'vendor-tab-buy':    game.vendorMode = 'buy';    renderVendor(); return;
+      case 'vendor-tab-sell':   game.vendorMode = 'sell';   renderVendor(); return;
+      case 'vendor-tab-reroll': game.vendorMode = 'reroll'; renderVendor(); return;
+      case 'vendor-buy':        vendorBuy(parseInt(el.dataset.idx, 10)); return;
+      case 'vendor-sell':       vendorSell(parseInt(el.dataset.idx, 10)); return;
+      case 'vendor-reroll':     rerollItem(parseInt(el.dataset.idx, 10)); return;
+
+      // mystery vendor
+      case 'mystery-buy':       mysteryBuy(); return;
 
       // stash
       case 'stash-tab-deposit':  game.stashMode = 'deposit';  renderStash(); return;
@@ -6524,6 +6730,127 @@
   function openVendor()   { refreshVendorOffer(); navigateTo('vendor'); }
   function openStash()    { navigateTo('stash'); }
   function openWaypoint() { navigateTo('waypoint'); }
+  function openMysteryVendor() { rollMysteryVendor(); navigateTo('mystery-vendor'); }
+
+  // ============================================================
+  // MYSTERY VENDOR — daily-rotating unique item
+  // ============================================================
+  function currentDayIndex() {
+    // Local-day index; changes once per real-world day for the player
+    const ms = Date.now() - new Date().getTimezoneOffset() * 60000;
+    return Math.floor(ms / (24 * 60 * 60 * 1000));
+  }
+  // Seeded RNG so the same day produces the same item across renders
+  function seededPick(seed, arr) {
+    // Mulberry-style hash on the integer seed
+    let h = (seed | 0) ^ 0x9E3779B9;
+    h = Math.imul(h ^ (h >>> 16), 0x85EBCA6B);
+    h = Math.imul(h ^ (h >>> 13), 0xC2B2AE35);
+    h ^= h >>> 16;
+    const u = (h >>> 0) / 0x100000000;
+    return arr[Math.floor(u * arr.length) % arr.length];
+  }
+  function rollMysteryVendor() {
+    if (!game.save) return;
+    const today = currentDayIndex();
+    if (game.save.mysteryVendor && game.save.mysteryVendor.day === today) return; // already rolled today
+    // Pick a unique-tier item base deterministically for this day
+    const uniqueBases = Object.keys(ITEM_BASES).filter(k => {
+      const b = ITEM_BASES[k];
+      return b && (b.type === 'weapon' || b.type === 'armor' || b.type === 'ring' || b.type === 'amulet')
+        && b.ilvl >= 18; // Legendary tier
+    });
+    const baseId = seededPick(today, uniqueBases);
+    game.save.mysteryVendor = { day: today, baseId, bought: false };
+    saveGame();
+  }
+  function mysteryPrice(item) {
+    // High premium: ~5x normal cost
+    const baseCost = itemCost(item);
+    return Math.max(500, Math.floor(baseCost * 5));
+  }
+  function renderMysteryVendor() {
+    if (!game.save) return;
+    rollMysteryVendor();
+    const c = game.char;
+    $('mystery-gold').textContent = c.gold;
+    const el = $('mystery-content');
+    el.innerHTML = '';
+    const mv = game.save.mysteryVendor;
+    if (!mv || !ITEM_BASES[mv.baseId]) {
+      el.innerHTML = '<div class="quest-card empty">The merchant has nothing today.</div>';
+      return;
+    }
+    // Build the day's item — always unique rarity, 4 affixes (rollItem rule)
+    const base = ITEM_BASES[mv.baseId];
+    // Use a deterministic seeded item by re-rolling each call? Simpler: roll a fresh unique item each render
+    // but cache the displayed item on the save record so affixes don't change between renders
+    if (!mv.itemData) {
+      const item = rollItem(Math.max(15, base.ilvl), 'unique');
+      // Override baseId so it's our chosen item
+      if (item) {
+        item.baseId = mv.baseId;
+        item.ilvl = base.ilvl;
+        item.name = buildItemName(base, 'unique', item.affixes);
+        mv.itemData = item;
+        saveGame();
+      }
+    }
+    const item = mv.itemData;
+    const header = document.createElement('div');
+    header.className = 'skill-header';
+    header.innerHTML = `Today's offering. Stock rotates once per day.<br><span style="color:var(--text-dim)">Day ${mv.day}</span>`;
+    el.appendChild(header);
+
+    const price = mysteryPrice(item);
+    const row = document.createElement('button');
+    if (mv.bought) {
+      row.className = 'inv-row disabled';
+      row.innerHTML = `
+        <div class="inv-icon">${base.icon}</div>
+        <div class="inv-meta">
+          <div class="inv-name rarity-${item.rarity}">${item.name}</div>
+          <div class="inv-sub">SOLD — return tomorrow</div>
+        </div>
+        <div class="inv-equipped">SOLD</div>
+      `;
+    } else {
+      const canAfford = c.gold >= price;
+      row.className = 'inv-row focusable' + (canAfford ? '' : ' disabled');
+      row.dataset.action = 'mystery-buy';
+      const affixList = (item.affixes || []).map(a => `+${a.val} ${a.label}`).join(', ');
+      const socketStr = item.sockets ? ` · ${item.sockets} socket${item.sockets === 1 ? '' : 's'}` : '';
+      row.innerHTML = `
+        <div class="inv-icon">${base.icon}</div>
+        <div class="inv-meta">
+          <div class="inv-name rarity-${item.rarity}">${item.name}</div>
+          <div class="inv-sub">${base.type} · ilvl ${item.ilvl}${socketStr}</div>
+          <div class="inv-sub" style="opacity:0.8">${affixList}</div>
+        </div>
+        <div class="inv-equipped" style="color:var(--gold)">${price}g</div>
+      `;
+    }
+    el.appendChild(row);
+  }
+  function mysteryBuy() {
+    if (!game.save) return;
+    const mv = game.save.mysteryVendor;
+    if (!mv || !mv.itemData) return;
+    if (mv.bought) { showHudToast('Already bought today.'); return; }
+    const price = mysteryPrice(mv.itemData);
+    if (game.char.gold < price) { showHudToast('Not enough gold.'); return; }
+    if (game.char.inventory.length >= 24) { showHudToast('Inventory full.'); return; }
+    game.char.gold -= price;
+    // Clone the item so the save record stays for "SOLD" display
+    const purchased = JSON.parse(JSON.stringify(mv.itemData));
+    purchased.id = 'i_' + Math.random().toString(36).slice(2, 9); // fresh id
+    game.char.inventory.push(purchased);
+    mv.bought = true;
+    saveGame();
+    renderMysteryVendor();
+    updateHud();
+    showHudToast(`Acquired: ${purchased.name}`);
+  }
 
   // ============================================================
   // DEATH / RESPAWN
