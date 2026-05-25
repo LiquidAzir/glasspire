@@ -786,6 +786,12 @@ html, body {
   font-weight: 700;
   letter-spacing: 1px;
 }
+.inv-row.disabled {
+  opacity: 0.55;
+}
+.inv-row.disabled:focus {
+  opacity: 0.75;
+}
 
 /* rarity colors */
 .rarity-common  { color: var(--rarity-common); }

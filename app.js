@@ -597,6 +597,23 @@
       // migrate: ensure worldState/savedDungeon fields exist
       if (obj.worldState === undefined) obj.worldState = null;
       if (obj.savedDungeon === undefined) obj.savedDungeon = null;
+      // Reconcile equipped item references with inventory entries by id.
+      // JSON round-trips lose object identity, so equip.weapon and the inventory
+      // copy are different objects after load. Re-link them so isEquipped works.
+      if (obj.char && obj.char.inventory && obj.char.equip) {
+        const byId = {};
+        for (const it of obj.char.inventory) { if (it && it.id) byId[it.id] = it; }
+        for (const slot of ['weapon', 'armor', 'ring', 'amulet']) {
+          const eq = obj.char.equip[slot];
+          if (eq && eq.id && byId[eq.id]) {
+            // Point equip slot at the inventory's copy
+            obj.char.equip[slot] = byId[eq.id];
+          } else if (eq && eq.id && !byId[eq.id]) {
+            // Equipped item not in inventory — add it (legacy saves may have this)
+            obj.char.inventory.push(eq);
+          }
+        }
+      }
       return obj;
     } catch (e) { return null; }
   }
@@ -4969,8 +4986,11 @@
   }
 
   function isEquipped(it) {
+    if (!it) return false;
     const e = game.char.equip;
-    return e.weapon === it || e.armor === it || e.ring === it || e.amulet === it;
+    // Compare by id (reference equality breaks after JSON save/load round-trips)
+    const match = slot => slot && (slot === it || (slot.id && it.id && slot.id === it.id));
+    return match(e.weapon) || match(e.armor) || match(e.ring) || match(e.amulet);
   }
 
   function renderCharacter() {
@@ -5094,20 +5114,25 @@
     } else {
       document.querySelector('[data-action="vendor-tab-sell"]').classList.add('active');
       c.inventory.forEach((it, idx) => {
-        if (isEquipped(it)) return;
         const base = ITEM_BASES[it.baseId];
+        if (!base) return;
+        const equipped = isEquipped(it);
         const price = Math.max(1, Math.floor(itemCost(it) * 0.4));
         const row = document.createElement('button');
-        row.className = 'inv-row focusable';
+        row.className = 'inv-row focusable' + (equipped ? ' disabled' : '');
         row.dataset.action = 'vendor-sell';
         row.dataset.idx = idx;
+        // Equipped items show "EQ" instead of price and can't be sold
+        const tagHtml = equipped
+          ? `<div class="inv-equipped">EQ</div>`
+          : `<div class="inv-equipped" style="color:var(--gold)">${price}g</div>`;
         row.innerHTML = `
           <div class="inv-icon">${base.icon}</div>
           <div class="inv-meta">
             <div class="inv-name rarity-${it.rarity}">${it.name}</div>
             <div class="inv-sub">${base.type} · ilvl ${it.ilvl}</div>
           </div>
-          <div class="inv-equipped" style="color:var(--gold)">${price}g</div>
+          ${tagHtml}
         `;
         list.appendChild(row);
       });
@@ -5441,7 +5466,8 @@
   }
   function vendorSell(idx) {
     const it = game.char.inventory[idx];
-    if (!it || isEquipped(it)) return;
+    if (!it) return;
+    if (isEquipped(it)) { showHudToast('Unequip first.'); return; }
     const price = Math.max(1, Math.floor(itemCost(it) * 0.4));
     game.char.gold += price;
     game.char.inventory.splice(idx, 1);
