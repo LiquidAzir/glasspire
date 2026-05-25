@@ -455,10 +455,15 @@
     if (opts.addToHistory !== false && game.screen && game.screen !== id) {
       game.history.push(game.screen);
     }
-    // clear held keys when leaving the game screen to prevent stuck movement
+    // clear held keys and impulse when leaving the game screen to prevent stuck movement
     if (game.screen === 'game' && id !== 'game') {
       game.keys = {};
       game.tapped = {};
+      if (game.world && game.world.player) {
+        game.world.player._impulseT = 0;
+        game.world.player._impulseX = 0;
+        game.world.player._impulseY = 0;
+      }
     }
     Object.values(screens).forEach(s => s.classList.add('hidden'));
     if (screens[id]) {
@@ -994,10 +999,11 @@
   }
 
   function onKeyDown(e) {
-    if (e.repeat) {
-      // for in-game allow held-key auto move; for menus block repeat to keep nav clean
-      if (game.screen !== 'game') return;
-    }
+    // Ignore ALL key repeat events. Held-movement is tracked by game.keys (set on
+    // initial keydown, cleared on keyup) — repeats are redundant and cause stuck
+    // movement when stale held-key state persists across screen transitions.
+    if (e.repeat) return;
+
     const key = e.key;
     const inGame = (game.screen === 'game');
 
@@ -1011,8 +1017,10 @@
     }
 
     if (inGame) {
+      // Block all input during the menu-return guard period (200ms after returning from menu)
+      if (game._menuReturnGuardUntil && performance.now() < game._menuReturnGuardUntil) { e.preventDefault(); return; }
       // record arrow taps into combo buffer (4-tap patterns won't fire accidentally)
-      if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(key) && !e.repeat) {
+      if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(key)) {
         const now = performance.now();
         const ch = key.replace('Arrow','').toLowerCase();
         // gap filter to reject key-repeat ghosts
@@ -1021,6 +1029,9 @@
           game.comboBuffer.push({ ch, t: now });
           game.lastKeyTime = now;
           tryCombo();
+          // If combo navigated away from game (e.g. opened menu), bail out —
+          // don't set movement keys for the final combo tap direction
+          if (game.screen !== 'game') { e.preventDefault(); return; }
         }
       }
       // movement keys — set both current state AND tap queue
@@ -1048,7 +1059,8 @@
     }
   }
   function onKeyUp(e) {
-    if (game.screen !== 'game') return;
+    // Always clear key state on release regardless of screen —
+    // prevents stuck keys when returning to game from menu
     if (e.key === 'ArrowUp')    game.keys.up = false;
     if (e.key === 'ArrowDown')  game.keys.down = false;
     if (e.key === 'ArrowLeft')  game.keys.left = false;
@@ -2230,6 +2242,19 @@
   // ============================================================
   function tickPlayer(dt) {
     const p = game.world.player;
+
+    // Guard: for 200ms after returning from a menu/overlay, force-clear ALL movement
+    // state. This catches any stale EMG gestures or key events from menu navigation.
+    if (game._menuReturnGuardUntil && performance.now() < game._menuReturnGuardUntil) {
+      game.keys = {};
+      game.tapped = {};
+      p._impulseT = 0;
+      p._impulseX = 0;
+      p._impulseY = 0;
+      return; // skip this tick — require a fresh input after guard expires
+    }
+    game._menuReturnGuardUntil = 0; // clear expired guard
+
     let vx = 0, vy = 0;
 
     // Track active input — check BOTH held keys AND tap queue
@@ -4770,7 +4795,20 @@
     if (id === 'vendor') renderVendor();
     if (id === 'stash') renderStash();
     if (id === 'waypoint') renderWaypoint();
-    if (id === 'game') updateHud();
+    if (id === 'game') {
+      // ensure no stale movement state when returning to game (e.g. from menu)
+      game.keys = {};
+      game.tapped = {};
+      if (game.world && game.world.player) {
+        game.world.player._impulseT = 0;
+        game.world.player._impulseX = 0;
+        game.world.player._impulseY = 0;
+      }
+      // Set time-based guard — block ALL input for 200ms after returning to game.
+      // This catches any stale EMG wristband gestures or lingering key events.
+      game._menuReturnGuardUntil = performance.now() + 200;
+      updateHud();
+    }
   }
 
   function renderTitle() {
