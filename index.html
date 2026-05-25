@@ -304,17 +304,33 @@
         <h1>Sync Save</h1>
       </header>
       <div class="content">
-        <p class="sync-help">Save files live in your browser only. To move a save between glasses and phone: <b>Export</b> on the device that has the save, copy the code, then <b>Import</b> it on the other device.</p>
+        <p class="sync-help">Save files live in your browser only. Generate a short code on one device, type it on the other.</p>
+
         <div class="sync-section">
-          <h3>Export (this device's save)</h3>
-          <button class="nav-item focusable" data-action="sync-export">Generate Code</button>
-          <textarea id="sync-export-box" class="sync-box" readonly placeholder="Tap Generate Code to view this device's save as text. Copy it all."></textarea>
+          <h3>Export — short code</h3>
+          <button class="nav-item focusable" data-action="sync-short-export">Generate Short Code</button>
+          <div id="sync-short-code" class="sync-code"></div>
         </div>
+
         <div class="sync-section">
-          <h3>Import (paste a code here)</h3>
-          <textarea id="sync-import-box" class="sync-box" placeholder="Paste a save code from another device here..."></textarea>
-          <button class="nav-item focusable danger" data-action="sync-import">Overwrite Save</button>
+          <h3>Import — short code</h3>
+          <input id="sync-short-input" class="sync-short-input" type="text" placeholder="e.g. AbC1234" maxlength="24" autocapitalize="off" autocorrect="off" spellcheck="false" />
+          <button class="nav-item focusable danger" data-action="sync-short-import">Import &amp; Overwrite</button>
         </div>
+
+        <details class="sync-fallback">
+          <summary>Offline / long-code fallback</summary>
+          <div class="sync-section">
+            <h3>Export (long code)</h3>
+            <button class="nav-item focusable" data-action="sync-export">Generate Long Code</button>
+            <textarea id="sync-export-box" class="sync-box" readonly placeholder="Tap Generate Long Code to view this device's save as text. Copy it all."></textarea>
+          </div>
+          <div class="sync-section">
+            <h3>Import (paste long code)</h3>
+            <textarea id="sync-import-box" class="sync-box" placeholder="Paste a long save code from another device here..."></textarea>
+            <button class="nav-item focusable danger" data-action="sync-import">Overwrite Save</button>
+          </div>
+        </details>
       </div>
     </div>
 

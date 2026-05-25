@@ -5731,11 +5731,15 @@
       }
     }
     if (id === 'sync') {
-      // Reset the export box on entry so user has to regenerate (avoids showing stale state)
+      // Reset all fields on entry so the user starts with a clean slate
       const exBox = document.getElementById('sync-export-box');
       const imBox = document.getElementById('sync-import-box');
       if (exBox) exBox.value = '';
       if (imBox) imBox.value = '';
+      const codeBox = document.getElementById('sync-short-code');
+      if (codeBox) { codeBox.textContent = ''; codeBox.classList.add('muted'); }
+      const shortInput = document.getElementById('sync-short-input');
+      if (shortInput) shortInput.value = '';
     }
     if (id === 'vendor') renderVendor();
     if (id === 'stash') renderStash();
@@ -6395,6 +6399,12 @@
       case 'sync-import':
         syncImport();
         return;
+      case 'sync-short-export':
+        syncShortExport();
+        return;
+      case 'sync-short-import':
+        syncShortImport();
+        return;
 
       // inventory
       case 'inv-open':
@@ -7036,6 +7046,95 @@
       setTimeout(() => location.reload(), 800);
     } catch (e) {
       showHudToast('Save failed: storage error.');
+    }
+  }
+
+  // ----- Short-code sync via dpaste.com (public free paste service) -----
+  // Export: POST save → service returns a short URL → extract slug → show to user
+  // Import: GET https://dpaste.com/<slug>.txt → install
+  // If the service is unavailable we fall back to suggesting the long-code path.
+  const SHORT_CODE_BASE = 'https://dpaste.com';
+
+  function setShortCodeBox(text, isMuted) {
+    const box = document.getElementById('sync-short-code');
+    if (!box) return;
+    box.textContent = text;
+    box.classList.toggle('muted', !!isMuted);
+  }
+
+  async function syncShortExport() {
+    const raw = localStorage.getItem(CFG.storageKey);
+    if (!raw) { setShortCodeBox('No save on this device yet.', true); showHudToast('No save to export.'); return; }
+    setShortCodeBox('Generating code...', true);
+    try {
+      // Wrap with a header so import can validate it's a Glasspire save
+      const wrapper = { app: 'glasspire', v: 1, ts: Date.now(), payload: raw };
+      const body = JSON.stringify(wrapper);
+      // dpaste.com API: POST form-encoded `content=...` to /api/v2/ → returns plain-text URL
+      const form = new URLSearchParams();
+      form.set('content', body);
+      form.set('syntax', 'text');
+      form.set('expiry_days', '30');
+      const resp = await fetch(SHORT_CODE_BASE + '/api/v2/', {
+        method: 'POST',
+        body: form,
+      });
+      if (!resp.ok) throw new Error('HTTP ' + resp.status);
+      const url = (await resp.text()).trim();
+      // The response is a URL like https://dpaste.com/AbC1234 — pull out the slug
+      const match = url.match(/dpaste\.com\/([A-Za-z0-9]+)/);
+      if (!match) throw new Error('Bad response: ' + url);
+      const code = match[1];
+      setShortCodeBox(code, false);
+      // Best-effort clipboard copy
+      try {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          await navigator.clipboard.writeText(code);
+          showHudToast(`Code ${code} copied. Expires in 30 days.`);
+        } else {
+          showHudToast(`Your code: ${code}`);
+        }
+      } catch (e) { showHudToast(`Your code: ${code}`); }
+    } catch (e) {
+      setShortCodeBox('Service unavailable — use the long-code fallback below.', true);
+      showHudToast('Could not reach sync service. Try the long-code option.');
+    }
+  }
+
+  async function syncShortImport() {
+    const input = document.getElementById('sync-short-input');
+    if (!input) return;
+    let code = (input.value || '').trim();
+    if (!code) { showHudToast('Enter a code first.'); return; }
+    // If user pasted a full URL, extract just the slug
+    const m = code.match(/dpaste\.com\/([A-Za-z0-9]+)/);
+    if (m) code = m[1];
+    // Slug is alphanumeric only — strip stray whitespace/punctuation
+    code = code.replace(/[^A-Za-z0-9]/g, '');
+    if (!code) { showHudToast('Code looks invalid.'); return; }
+    showHudToast('Fetching code ' + code + '...');
+    try {
+      const resp = await fetch(`${SHORT_CODE_BASE}/${code}.txt`);
+      if (!resp.ok) throw new Error('HTTP ' + resp.status);
+      const text = (await resp.text()).trim();
+      // Validate it's a Glasspire wrapper
+      let wrapper;
+      try { wrapper = JSON.parse(text); } catch (e) { wrapper = null; }
+      if (!wrapper || !wrapper.payload || wrapper.app !== 'glasspire') {
+        showHudToast('Code did not return a valid Glasspire save.');
+        return;
+      }
+      let payloadObj;
+      try { payloadObj = JSON.parse(wrapper.payload); } catch (e) { payloadObj = null; }
+      if (!payloadObj || payloadObj.v !== 2 || !payloadObj.char) {
+        showHudToast('Save payload is invalid.');
+        return;
+      }
+      localStorage.setItem(CFG.storageKey, wrapper.payload);
+      showHudToast('Save imported. Reloading...');
+      setTimeout(() => location.reload(), 800);
+    } catch (e) {
+      showHudToast('Could not fetch code. Check the code and your connection.');
     }
   }
 
