@@ -1,5 +1,5 @@
 /* ============================================================
-   Glasspire — styles for additive-display ARPG
+   HollowLight — styles for additive-display ARPG
    - body background is pure #000 (transparent on the additive
      display so the real world shows through)
    - UI surfaces use dark grays so they read as opaque overlays
@@ -180,50 +180,114 @@ html, body {
     radial-gradient(ellipse at 70% 80%, rgba(196, 137, 255, 0.03) 0%, transparent 50%),
     radial-gradient(ellipse at 50% 50%, rgba(255, 200, 87, 0.02) 0%, transparent 40%);
 }
-.title-glyph {
-  width: 110px;
-  height: 110px;
-  margin-bottom: 16px;
-  background: radial-gradient(circle at 50% 50%, rgba(109, 241, 255, 0.6) 0%, rgba(109, 241, 255, 0.0) 60%);
-  border-radius: 50%;
-  filter: drop-shadow(0 0 30px rgba(109, 241, 255, 0.6));
-  animation: titlePulse 3.6s ease-in-out infinite;
+/* ----- Title emblem: an eclipse of hollow light ----- */
+.title-emblem {
   position: relative;
+  width: 132px;
+  height: 132px;
+  margin-bottom: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
+.title-beam {
+  position: absolute;
+  left: 50%;
+  top: -34px;
+  width: 6px;
+  height: 200px;
+  transform: translateX(-50%);
+  background: linear-gradient(180deg, transparent 4%, rgba(109,241,255,0.45) 50%, transparent 96%);
+  border-radius: 3px;
+  animation: titleBeam 4.2s ease-in-out infinite;
+}
+.title-glyph {
+  width: 116px;
+  height: 116px;
+  position: relative;
+  border-radius: 50%;
+  /* hollow dark core — the light is around the void */
+  background: radial-gradient(circle at 50% 46%, #02030a 48%, rgba(2,3,10,0) 72%);
+  animation: titleFloat 5.5s ease-in-out infinite;
+}
+/* rotating corona ring — conic gradient masked into a thin ring */
 .title-glyph::before {
   content: '';
   position: absolute;
   inset: 0;
   border-radius: 50%;
   background: conic-gradient(from 0deg, var(--crystal), var(--violet), var(--gold), var(--crimson), var(--crystal));
-  animation: titleSpin 12s linear infinite;
-  opacity: 0.6;
+  -webkit-mask: radial-gradient(circle, transparent 49%, #000 52%, #000 62%, transparent 65%);
+          mask: radial-gradient(circle, transparent 49%, #000 52%, #000 62%, transparent 65%);
+  animation: titleSpin 16s linear infinite;
 }
+/* static glow ring under the spinning corona (cheap — doesn't animate) */
+.title-glyph {
+  box-shadow: 0 0 22px rgba(109,241,255,0.35), inset 0 0 14px rgba(109,241,255,0.12);
+}
+/* soft outer halo */
 .title-glyph::after {
   content: '';
   position: absolute;
-  inset: 8px;
+  inset: -32px;
   border-radius: 50%;
-  background: radial-gradient(circle, rgba(20,20,40,0.9) 30%, transparent 70%);
-  border: 1px solid rgba(109, 241, 255, 0.3);
+  background: radial-gradient(circle, rgba(109,241,255,0.16) 0%, rgba(196,137,255,0.06) 42%, transparent 64%);
+  animation: titlePulse 3.6s ease-in-out infinite;
+  z-index: -1;
 }
+@keyframes titleFloat { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }
+@keyframes titleBeam  { 0%, 100% { opacity: 0.4; } 50% { opacity: 0.85; } }
 @keyframes titlePulse {
-  0%, 100% { transform: scale(1); filter: drop-shadow(0 0 30px rgba(109, 241, 255, 0.6)); }
-  50%      { transform: scale(1.06); filter: drop-shadow(0 0 45px rgba(109, 241, 255, 0.8)); }
+  0%, 100% { transform: scale(1);    opacity: 0.9; }
+  50%      { transform: scale(1.12); opacity: 1; }
 }
 @keyframes titleSpin {
   from { transform: rotate(0deg); }
   to   { transform: rotate(360deg); }
 }
+/* drifting embers rising through the scene */
+.title-embers { position: absolute; inset: 0; overflow: hidden; pointer-events: none; z-index: 0; }
+.ember {
+  position: absolute;
+  bottom: -12px;
+  border-radius: 50%;
+  opacity: 0;
+  animation-name: emberRise;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+}
+@keyframes emberRise {
+  0%   { transform: translateY(0) scale(0.5);      opacity: 0; }
+  12%  { opacity: 0.9; }
+  85%  { opacity: 0.45; }
+  100% { transform: translateY(-610px) scale(1.1); opacity: 0; }
+}
+/* atmosphere */
+.title-vignette {
+  position: absolute; inset: 0; z-index: 0; pointer-events: none;
+  background: radial-gradient(ellipse at 50% 40%, transparent 28%, rgba(0,0,0,0.55) 88%);
+}
+.title-divider {
+  position: relative; z-index: 2;
+  width: 210px; height: 1px;
+  margin: 2px 0 16px;
+  background: linear-gradient(90deg, transparent, var(--crystal), transparent);
+  box-shadow: 0 0 8px rgba(109,241,255,0.45);
+  opacity: 0.6;
+}
+/* keep foreground content above the ember/vignette layers */
+.title-emblem, .title-name, .title-tagline, .title-menu { position: relative; z-index: 2; }
+.title-hint { z-index: 2; }
 @keyframes pulse {
   0%, 100% { transform: scale(1); opacity: 0.95; }
   50%      { transform: scale(1.08); opacity: 1; }
 }
 .title-name {
-  font-size: 46px;
+  font-size: 38px;
   font-weight: 800;
-  letter-spacing: 7px;
+  letter-spacing: 3px;
   margin-bottom: 8px;
+  white-space: nowrap;
   background: linear-gradient(180deg, #ffffff 0%, var(--crystal) 60%, var(--violet) 100%);
   -webkit-background-clip: text;
   background-clip: text;
@@ -515,6 +579,32 @@ html, body {
   text-shadow: 0 0 8px rgba(109, 241, 255, 0.5);
   backdrop-filter: blur(4px);
   box-shadow: 0 2px 12px rgba(0,0,0,0.4);
+}
+.hud-rift {
+  background: linear-gradient(135deg, rgba(20,8,30,0.9), rgba(40,20,60,0.85));
+  padding: 6px 14px;
+  border-radius: 16px;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  color: #d9c2ff;
+  border: 1px solid rgba(179, 136, 255, 0.5);
+  text-shadow: 0 0 8px rgba(179, 136, 255, 0.7);
+  backdrop-filter: blur(4px);
+  box-shadow: 0 2px 12px rgba(0,0,0,0.4);
+  margin-top: 6px;
+}
+.hud-rift.hidden { display: none; }
+.hud-rift.low {
+  color: #ff8095;
+  border-color: rgba(255, 80, 110, 0.7);
+  text-shadow: 0 0 10px rgba(255, 80, 110, 0.8);
+  animation: riftPulse 0.8s ease-in-out infinite;
+}
+@keyframes riftPulse { 0%,100% { opacity: 1; } 50% { opacity: 0.55; } }
+.rift-card {
+  background: linear-gradient(135deg, rgba(30,16,46,0.95), rgba(20,10,32,0.9));
+  border: 1px solid rgba(179, 136, 255, 0.35);
 }
 .hud-minimap {
   background: linear-gradient(135deg, rgba(8,8,16,0.9), rgba(15,15,30,0.85));
@@ -959,6 +1049,101 @@ html, body {
   letter-spacing: 0.5px;
 }
 
+/* Skill runes */
+.rune-badge {
+  font-size: 12px;
+  font-weight: 700;
+  color: #b388ff;
+  text-shadow: 0 0 6px rgba(179,136,255,0.6);
+}
+.rune-section { margin-top: 16px; }
+.rune-chips { display: flex; flex-direction: column; gap: 8px; }
+.rune-chip {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  text-align: left;
+  padding: 10px 12px;
+  background: var(--bg-card);
+  border: 1px solid rgba(179, 136, 255, 0.18);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  color: var(--text);
+}
+.rune-chip:focus { outline: none; border-color: var(--focus-ring); box-shadow: 0 0 14px var(--focus-glow); }
+.rune-chip.rune-on {
+  border-color: #b388ff;
+  box-shadow: 0 0 10px rgba(179, 136, 255, 0.35);
+  background: linear-gradient(135deg, var(--bg-card), rgba(40, 24, 60, 0.6));
+}
+.rune-chip-name { font-size: 15px; font-weight: 700; color: #d9c2ff; }
+.rune-chip-desc { font-size: 12px; color: var(--text-dim); }
+
+/* Difficulty selector (Waystone) */
+.diff-selector { margin-bottom: 14px; }
+.diff-label { font-size: 12px; letter-spacing: 1px; color: var(--text-dim); margin-bottom: 6px; }
+.diff-chips { display: flex; gap: 8px; }
+.diff-chip {
+  flex: 1;
+  padding: 10px 6px;
+  font-size: 14px;
+  font-weight: 700;
+  text-align: center;
+  background: var(--bg-card);
+  color: var(--text);
+  border: 2px solid rgba(255,255,255,0.1);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+}
+.diff-chip:focus { outline: none; border-color: var(--focus-ring); box-shadow: 0 0 14px var(--focus-glow); }
+.diff-chip.diff-on { box-shadow: 0 0 12px rgba(255,255,255,0.15); }
+.diff-chip.locked { opacity: 0.4; cursor: default; font-size: 12px; }
+
+/* Permanent upgrades (gold sink) */
+.upgrade-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  background: var(--bg-card);
+  border-radius: var(--radius-md);
+  border: 1px solid rgba(255, 200, 87, 0.15);
+  margin-bottom: 10px;
+}
+.upgrade-icon {
+  width: 44px; height: 44px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 24px; color: var(--gold);
+  border-radius: 10px;
+  background: radial-gradient(circle at 50% 40%, var(--bg-card-hi), var(--bg-strip));
+  text-shadow: 0 0 8px rgba(255,200,87,0.5);
+}
+.upgrade-meta { flex: 1; min-width: 0; }
+.upgrade-name { font-size: 16px; font-weight: 700; color: #fff; }
+.upgrade-lvl { font-size: 12px; color: var(--text-dim); font-weight: 600; }
+.upgrade-desc { font-size: 12px; color: var(--text-dim); margin-top: 2px; }
+.up-pips { display: flex; gap: 4px; margin-top: 6px; }
+.up-pip { width: 16px; height: 5px; border-radius: 3px; background: rgba(255,255,255,0.12); }
+.up-pip.on { background: var(--gold); box-shadow: 0 0 6px rgba(255,200,87,0.6); }
+.upgrade-buy {
+  flex-shrink: 0;
+  padding: 10px 14px;
+  font-size: 14px; font-weight: 800;
+  color: var(--gold);
+  background: var(--bg-card-hi);
+  border: 1px solid rgba(255,200,87,0.4);
+  border-radius: 8px;
+  cursor: pointer;
+}
+.upgrade-buy:focus { outline: none; border-color: var(--focus-ring); box-shadow: 0 0 14px var(--focus-glow); }
+.upgrade-buy.disabled { opacity: 0.4; cursor: default; }
+.upgrade-maxed {
+  flex-shrink: 0; padding: 10px 14px;
+  font-size: 13px; font-weight: 800; letter-spacing: 1px;
+  color: #51e6a4;
+}
+
 /* =========================================================
    QUESTS
    ========================================================= */
@@ -1072,8 +1257,8 @@ html, body {
 .waypoint-card {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 12px;
+  gap: 14px;
+  padding: 14px;
   background: var(--bg-card);
   border-radius: var(--radius-md);
   border: 2px solid transparent;
@@ -1083,21 +1268,126 @@ html, body {
 .waypoint-card:focus { border-color: var(--focus-ring); box-shadow: 0 0 18px var(--focus-glow); }
 .waypoint-card.locked { opacity: 0.45; cursor: default; }
 .waypoint-glyph {
-  width: 44px;
-  height: 44px;
+  width: 48px;
+  height: 48px;
   border-radius: 10px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 24px;
+  font-size: 28px;
   background: radial-gradient(circle at 50% 40%, var(--bg-card-hi), var(--bg-strip));
   flex-shrink: 0;
   border: 1px solid rgba(109, 241, 255, 0.12);
   box-shadow: inset 0 2px 4px rgba(0,0,0,0.3);
 }
 .waypoint-meta { flex: 1; min-width: 0; }
-.waypoint-name { font-size: 15px; font-weight: 700; }
-.waypoint-sub  { font-size: 11px; color: var(--text-dim); }
+.waypoint-name { font-size: 23px; font-weight: 800; letter-spacing: 0.3px; color: #fff; }
+.waypoint-sub  { font-size: 13px; color: var(--text-dim); margin-top: 3px; }
+
+/* =========================================================
+   BESTIARY
+   ========================================================= */
+.bestiary-section { margin-bottom: 18px; }
+.bestiary-biome {
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  margin: 4px 0 8px;
+}
+.bestiary-entry {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  background: var(--bg-card);
+  border-radius: var(--radius-md);
+  border: 1px solid rgba(109, 241, 255, 0.08);
+  margin-bottom: 8px;
+}
+.bestiary-entry.boss {
+  border-color: rgba(255, 170, 0, 0.4);
+  background: linear-gradient(135deg, var(--bg-card), rgba(40, 28, 10, 0.6));
+}
+.bestiary-entry.unknown { opacity: 0.6; }
+.bestiary-glyph {
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 26px;
+  border-radius: 10px;
+  background: radial-gradient(circle at 50% 40%, var(--bg-card-hi), var(--bg-strip));
+  border: 1px solid rgba(255,255,255,0.06);
+}
+.bestiary-meta { flex: 1; min-width: 0; }
+.bestiary-name { font-size: 17px; font-weight: 700; color: #fff; display: flex; align-items: center; gap: 8px; }
+.bestiary-boss-tag {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  color: #ffaa00;
+  border: 1px solid rgba(255,170,0,0.5);
+  border-radius: 4px;
+  padding: 1px 5px;
+}
+.bestiary-lore { font-size: 12px; color: var(--text-dim); margin-top: 3px; line-height: 1.35; }
+.bestiary-kills {
+  font-size: 16px;
+  font-weight: 800;
+  color: #ffc857;
+  flex-shrink: 0;
+  min-width: 38px;
+  text-align: right;
+}
+
+/* =========================================================
+   CRAFTING BENCH
+   ========================================================= */
+.craft-header {
+  font-size: 13px;
+  line-height: 1.5;
+  padding: 10px 12px;
+  margin-bottom: 10px;
+  background: var(--bg-card);
+  border-radius: var(--radius-md);
+  border: 1px solid rgba(109, 241, 255, 0.12);
+}
+.craft-header.hidden { display: none; }
+.craft-card {
+  background: var(--bg-card);
+  border-radius: var(--radius-md);
+  border: 1px solid rgba(109, 241, 255, 0.08);
+  padding: 10px 12px;
+  margin-bottom: 10px;
+}
+.craft-info { display: flex; align-items: center; gap: 10px; }
+.craft-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+.craft-btn {
+  font-size: 14px;
+  font-weight: 700;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: var(--bg-card-hi);
+  color: var(--text);
+  border: 1px solid rgba(109, 241, 255, 0.25);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.craft-btn:focus {
+  border-color: var(--focus-ring);
+  box-shadow: 0 0 14px var(--focus-glow);
+  outline: none;
+}
+.craft-btn.danger { border-color: rgba(255, 100, 120, 0.4); color: #ff8095; }
+.craft-btn.disabled { opacity: 0.4; cursor: default; }
 
 /* =========================================================
    DEATH / LEVEL UP

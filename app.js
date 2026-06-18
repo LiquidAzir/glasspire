@@ -1,5 +1,5 @@
 /* =============================================================
-   GLASSPIRE — action RPG for Meta Ray-Ban Display
+   HOLLOWLIGHT — action RPG for Meta Ray-Ban Display
    Single-file vanilla JS. Canvas 2D for the game world,
    DOM screens for menus. Persistent character via localStorage.
    ============================================================= */
@@ -10,8 +10,9 @@
   // CONFIG
   // ============================================================
   const CFG = {
-    appName: 'Glasspire',
-    storageKey: 'glasspire_save_v2',
+    appName: 'HollowLight',
+    storageKey: 'hollowlight_save_v2',
+    legacyStorageKey: 'glasspire_save_v2',  // pre-rename key — read for backwards compat
     canvas: 600,
     tile: 28,                 // pixels per tile
     viewTiles: 21,            // 21 * 28 ≈ 588, with 6px margin per side
@@ -165,6 +166,21 @@
       desc: '(Soulreaper) Drain souls from all enemies within 4 tiles: 200% damage and heals you for 30% of damage dealt.' },
   };
 
+  // ===== SKILL RUNES — one augment per skill, chosen on the Skill screen =====
+  // Universal archetypes covering the classic damage / uptime / sustain axes.
+  // Applied centrally so every skill (class + legendary) supports them.
+  const RUNES = {
+    empowered: { name: 'Empowered', icon: '◆', desc: '+35% damage, +25% cooldown', dmgMul: 1.35, cdMul: 1.25 },
+    swift:     { name: 'Swift',     icon: '»', desc: '-35% cooldown, -15% damage', dmgMul: 0.85, cdMul: 0.65 },
+    efficient: { name: 'Efficient', icon: '✧', desc: '-50% mana cost',            costMul: 0.5 },
+  };
+  function getSkillRune(skillId) {
+    const c = game.char;
+    if (!c || !c.skillRunes) return null;
+    const rid = c.skillRunes[skillId];
+    return rid ? RUNES[rid] : null;
+  }
+
   const BIOMES = [
     { id: 'crypts',   name: 'The Crypts',          shortName: 'CRYPTS',
       palette: { wall: '#6df1ff', floor: '#1a2a3a', accent: '#c489ff' },
@@ -192,6 +208,35 @@
       boss: 'voidlord',
       unlocked: false },
   ];
+
+  // Difficulty tiers — replay biomes harder for better loot. Each tier scales
+  // enemy HP/damage and grants a flat item-level + reward bonus.
+  const DIFFICULTIES = {
+    normal:    { name: 'Normal',    short: 'N',  color: '#9bbf95', hpMul: 1,   dmgMul: 1,   xpMul: 1,   ilvlBonus: 0, lootMul: 1 },
+    nightmare: { name: 'Nightmare', short: 'NM', color: '#ffc857', hpMul: 2.2, dmgMul: 1.8, xpMul: 1.5, ilvlBonus: 3, lootMul: 1.3 },
+    hell:      { name: 'Hell',      short: 'H',  color: '#ff4d6d', hpMul: 4,   dmgMul: 2.8, xpMul: 2.2, ilvlBonus: 7, lootMul: 1.7 },
+  };
+  const DIFFICULTY_ORDER = ['normal', 'nightmare', 'hell'];
+  function curDifficulty() {
+    return DIFFICULTIES[(game.save && game.save.difficulty) || 'normal'] || DIFFICULTIES.normal;
+  }
+
+  // Permanent gold-sink upgrades — bought once per level, escalating cost.
+  const UPGRADES = {
+    pickup:   { name: 'Lodestone',       icon: '◎', max: 4, perLevel: '+0.6 tile pickup radius', baseCost: 150 },
+    xpgain:   { name: "Sage's Insight",  icon: '✦', max: 5, perLevel: '+10% experience',         baseCost: 200 },
+    goldfind: { name: 'Midas Touch',     icon: '⊛', max: 5, perLevel: '+15% gold found',         baseCost: 200 },
+    potions:  { name: 'Potion Belt',     icon: '+', max: 3, perLevel: '+1 potion capacity',      baseCost: 250 },
+  };
+  function upgradeLevel(key) {
+    return (game.save && game.save.upgrades && game.save.upgrades[key]) || 0;
+  }
+  function upgradeCost(key) {
+    return UPGRADES[key].baseCost * (upgradeLevel(key) + 1);
+  }
+  function potionCapacity() {
+    return 3 + upgradeLevel('potions');
+  }
 
   const ENEMIES = {
     // crypts
@@ -245,6 +290,30 @@
       trait: 'voidpulse', shape: 'voidlord', projColor: '#b388ff' },
   };
 
+  // Bestiary lore — flavor text shown once an enemy has been discovered (killed).
+  const BESTIARY_LORE = {
+    skeleton:        'Bones knit together by crypt-magic. They feel no pain and ask for none.',
+    ghoul:           'Once mourners, now feeders. They lunge at the warmth of the living.',
+    wraith:          'A grudge that outlived its body. It phases through stone to reach you.',
+    lich:            'The Crypts\' undying master. His soul-bolts have unmade braver heroes.',
+    spider:          'Ruin-weavers the size of hounds. They hunt in skittering swarms.',
+    thorn:           'A walking bramble that bleeds sap and spite. Strikes back when struck.',
+    wisp:            'A drifting ember of the old grove, erratic and quick to scald.',
+    druid:           'Keeper of the Overgrowth, mending his own wounds faster than you can open them.',
+    wolf:            'Frost-furred pack hunters. One is danger; the pack is death.',
+    frostgiant:      'A glacier given fists. Its ground-slam shatters footing and bone alike.',
+    icebat:          'Shrieking shards of ice on the wing. They strafe and vanish.',
+    wyrm:            'The Frozen Peaks coil around this ancient serpent\'s frozen breath.',
+    imp:             'Cinder-imps blink through the smoke, flinging fire from nowhere.',
+    hellhound:       'It charges in a line of flame. Do not be standing in that line.',
+    demon:           'Brute infernals that cleave through ranks in a single swing.',
+    archdemon:       'A warlord of the Infernal Depths. Its many arms strike all at once.',
+    voidling:        'Torn from the space between stars. Slain, it splits and splits again.',
+    nullweaver:      'It unravels intent itself, silencing a hero\'s arts mid-cast.',
+    crystalsentinel: 'A faceted guardian that turns your own blows back upon you.',
+    voidlord:        'The Spire\'s heart and hunger. Reality bends, then breaks, around it.',
+  };
+
   // ITEM BASES — weapon, armor, ring, amulet
   const ITEM_BASES = {
     // ===== WEAPONS — Swords (Warrior) =====
@@ -263,7 +332,7 @@
     'vitreous-scepter':   { type: 'weapon', name: 'Vitreous Scepter',   icon: '✦', base: { dmg: 20, mp: 18 }, ilvl: 12, glyph: 'wep' },
     'spire-conductor':    { type: 'weapon', name: 'Spire Conductor',    icon: '✦', base: { dmg: 26, mp: 24 }, ilvl: 15, glyph: 'wep' },
     'crystalweave-staff': { type: 'weapon', name: 'Crystalweave Staff', icon: '✦', base: { dmg: 32, mp: 30 }, ilvl: 18, glyph: 'wep' },
-    'glasspire-focus':    { type: 'weapon', name: 'Glasspire Focus',    icon: '✦', base: { dmg: 38, mp: 40 }, ilvl: 21, glyph: 'wep' },
+    'glasspire-focus':    { type: 'weapon', name: 'Hollowlight Focus',    icon: '✦', base: { dmg: 38, mp: 40 }, ilvl: 21, glyph: 'wep' },
 
     // ===== WEAPONS — Bows (Ranger) =====
     'short-bow':          { type: 'weapon', name: 'Short Bow',          icon: '➹', base: { dmg: 3 }, ilvl: 1, glyph: 'wep' },
@@ -289,7 +358,7 @@
     'plate':              { type: 'armor', name: 'Plate Mail',          icon: '◇', base: { def: 16 }, ilvl: 8 },
     'shard-plate':        { type: 'armor', name: 'Shard Plate',         icon: '◇', base: { def: 22 }, ilvl: 12 },
     'vitrified-cuirass':  { type: 'armor', name: 'Vitrified Cuirass',   icon: '◇', base: { def: 28, hp: 10 }, ilvl: 15 },
-    'glasspire-aegis':    { type: 'armor', name: 'Glasspire Aegis',     icon: '◇', base: { def: 36, hp: 20 }, ilvl: 19 },
+    'glasspire-aegis':    { type: 'armor', name: 'Hollowlight Aegis',     icon: '◇', base: { def: 36, hp: 20 }, ilvl: 19 },
 
     // ===== ARMOR — Light (Ranger-favored) =====
     'hide-tunic':         { type: 'armor', name: 'Hide Tunic',          icon: '◇', base: { def: 3 },  ilvl: 1 },
@@ -312,7 +381,7 @@
     'shard-crown':        { type: 'armor', name: 'Shard Crown',         icon: '◆', base: { def: 6 },  ilvl: 6 },
     'vitreous-helm':      { type: 'armor', name: 'Vitreous Helm',       icon: '◆', base: { def: 10 }, ilvl: 10 },
     'prism-circlet':      { type: 'armor', name: 'Prism Circlet',       icon: '◆', base: { def: 5, mp: 12 }, ilvl: 8 },
-    'glasspire-crown':    { type: 'armor', name: 'Glasspire Crown',     icon: '◆', base: { def: 14, hp: 15 }, ilvl: 14 },
+    'glasspire-crown':    { type: 'armor', name: 'Hollowlight Crown',     icon: '◆', base: { def: 14, hp: 15 }, ilvl: 14 },
     'hollow-diadem':      { type: 'armor', name: 'Hollow Diadem',       icon: '◆', base: { def: 8, mp: 22 }, ilvl: 16 },
 
     // ===== SHIELDS (armor type) =====
@@ -351,7 +420,7 @@
     'spire-locket':       { type: 'amulet', name: 'Spire Locket',       icon: '◈', base: {}, ilvl: 13 },
     'prismatic-choker':   { type: 'amulet', name: 'Prismatic Choker',   icon: '◈', base: { mp: 14 }, ilvl: 15 },
     'void-amulet':        { type: 'amulet', name: 'Void Amulet',        icon: '◈', base: { hp: 20 }, ilvl: 17 },
-    'glasspire-heart':    { type: 'amulet', name: 'Glasspire Heart',    icon: '◈', base: {}, ilvl: 20 },
+    'glasspire-heart':    { type: 'amulet', name: 'Hollowlight Heart',    icon: '◈', base: {}, ilvl: 20 },
     'eye-of-the-spire':   { type: 'amulet', name: 'Eye of the Spire',  icon: '◈', base: { hp: 15, mp: 15 }, ilvl: 22 },
 
     // ===== LEGENDARY WEAPONS =====
@@ -507,6 +576,7 @@
     particles: [],
     enemies: [],
     projectiles: [],
+    telegraphs: [],               // boss AoE wind-up markers (dodgeable)
     items: [],                    // ground loot
     minions: [],                  // summoner pets
     deathFlash: 0,
@@ -527,6 +597,7 @@
     stashMode: 'deposit',
     selectedItemId: null,
     activeQuestKills: {},
+    rift: null,   // { active, level, kills, killsNeeded, timeLeft } during a Greater Rift run
   };
 
   // ============================================================
@@ -663,15 +734,24 @@
         tomes: 0,             // currency for passive skill unlocks
         passives: {},         // unlocked passives map: { [passiveId]: true }
         glassTears: 0,        // consumable: reroll an item's affixes at vendor
+        craftDust: 0,         // crafting material from salvaging items at the Keeper
         paragonLevel: 0,      // post-cap progression level
         paragonXp: 0,         // XP toward next paragon level
         paragonPoints: 0,     // unspent paragon points
         paragonStats: { str: 0, int: 0, dex: 0, vit: 0 }, // allocated paragon stat bonuses
         selectedSkill: cls.skills[0],  // track which skill is active
+        skillRunes: {},        // { [skillId]: runeId } — chosen augment per skill
+        autoPotion: true,      // auto-drink a potion when HP drops below threshold
+        autoPotionPct: 0.35,   // fraction of max HP that triggers an auto-potion
       },
       stash: [],
       unlockedBiomes: { crypts: true, overgrowth: false, frostpeak: false, infernal: false, voidspire: false },
       bossesKilled: {},
+      bestiary: {},   // { [enemyId]: killCount } — populated as enemies are slain
+      bestRift: 0,    // deepest Greater Rift level cleared
+      difficulty: 'normal',     // currently selected difficulty tier
+      maxDifficulty: 'normal',  // highest unlocked tier
+      upgrades: { pickup: 0, xpgain: 0, goldfind: 0, potions: 0 },  // permanent gold-sink perks
       quest: null,    // active bounty
       questsCompleted: 0,
       worldState: null,    // persisted location for resume on reload
@@ -682,7 +762,9 @@
 
   function loadSave() {
     try {
-      const raw = localStorage.getItem(CFG.storageKey);
+      // Read the current key; fall back to the pre-rename key so old saves carry over.
+      // The next saveGame() rewrites under the new key automatically.
+      const raw = localStorage.getItem(CFG.storageKey) || localStorage.getItem(CFG.legacyStorageKey);
       if (!raw) return null;
       const obj = JSON.parse(raw);
       if (!obj || obj.v !== 2) return null;
@@ -719,6 +801,22 @@
       if (obj.char && obj.char.paragonPoints === undefined) obj.char.paragonPoints = 0;
       if (obj.char && !obj.char.paragonStats) obj.char.paragonStats = { str: 0, int: 0, dex: 0, vit: 0 };
       if (obj.mysteryVendor === undefined) obj.mysteryVendor = null; // { day, baseId, bought }
+      // migrate: auto-potion settings for old saves
+      if (obj.char && obj.char.autoPotion === undefined) obj.char.autoPotion = true;
+      if (obj.char && obj.char.autoPotionPct === undefined) obj.char.autoPotionPct = 0.35;
+      // migrate: bestiary kill log for old saves
+      if (!obj.bestiary) obj.bestiary = {};
+      // migrate: crafting dust material for old saves
+      if (obj.char && obj.char.craftDust === undefined) obj.char.craftDust = 0;
+      // migrate: best rift level for old saves
+      if (obj.bestRift === undefined) obj.bestRift = 0;
+      // migrate: per-skill runes for old saves
+      if (obj.char && !obj.char.skillRunes) obj.char.skillRunes = {};
+      // migrate: difficulty tiers for old saves
+      if (!obj.difficulty) obj.difficulty = 'normal';
+      if (!obj.maxDifficulty) obj.maxDifficulty = 'normal';
+      // migrate: permanent upgrades for old saves
+      if (!obj.upgrades) obj.upgrades = { pickup: 0, xpgain: 0, goldfind: 0, potions: 0 };
       // Reconcile equipped item references with inventory entries by id.
       // JSON round-trips lose object identity, so equip.weapon and the inventory
       // copy are different objects after load. Re-link them so isEquipped works.
@@ -862,6 +960,10 @@
     const warcry = (game.world && game.world.player && game.world.player.warcryBuff > 0);
     if (warcry) dmg = Math.floor(dmg * 1.5);
 
+    // Enfeebling curse: -30% damage while active
+    const weakened = (game.world && game.world.player && game.world.player.curses && game.world.player.curses.weaken > 0);
+    if (weakened) dmg = Math.floor(dmg * 0.7);
+
     // ===== DPS calculation =====
     // Expected damage per swing factors in crit chance × crit multiplier (1.8x)
     const critDmgMul = 1.8;
@@ -934,6 +1036,9 @@
   }
   function gainXp(amount) {
     const c = game.char;
+    // Sage's Insight upgrade — +10% XP per level
+    const xpUp = upgradeLevel('xpgain');
+    if (xpUp > 0) amount = Math.floor(amount * (1 + 0.1 * xpUp));
     floatText(`+${amount} XP`, game.world.player.x, game.world.player.y, 'xp');
 
     // Normal levels first
@@ -1055,7 +1160,7 @@
     return `${a} ${b}`;
   }
   function uniqueName(base) {
-    return pick(['Glasspire Heart', 'Hollow Dawn', 'Sigil of the First', 'Tear of the Lich', 'Eye of the Wyrm']);
+    return pick(['Hollow Crown', 'Hollow Dawn', 'Sigil of the First', 'Tear of the Lich', 'Eye of the Wyrm']);
   }
 
   // ============================================================
@@ -1109,35 +1214,77 @@
   }
 
   // Procedural dungeon: rooms-and-corridors
-  function generateDungeon(biome, floor) {
-    const W = 48, H = 48;
+  function generateDungeon(biome, floor, opts) {
+    opts = opts || {};
+    // Bigger maps that grow with depth — deeper floors / rifts feel grander
+    const sizeBoost = Math.min(20, Math.max(0, floor - 1) * 2);
+    const W = 58 + sizeBoost, H = 58 + sizeBoost;
     const grid = makeGrid(W, H, 1);
     const rooms = [];
-    const tries = 80;
+    const tries = Math.floor(W * H / 22);   // scale attempts to area
     for (let i = 0; i < tries; i++) {
-      // Mix of small (alcoves), medium, and large rooms
+      // Mix of small chambers, medium rooms, and grand halls
       const sizeRoll = rand();
       let rw, rh;
-      if (sizeRoll < 0.3) { rw = irand(4, 6); rh = irand(4, 6); }       // small alcoves
-      else if (sizeRoll < 0.75) { rw = irand(6, 9); rh = irand(6, 9); } // medium rooms
-      else { rw = irand(8, 12); rh = irand(8, 12); }                    // large halls
+      if (sizeRoll < 0.26) { rw = irand(6, 8);  rh = irand(6, 8); }        // small chambers
+      else if (sizeRoll < 0.70) { rw = irand(8, 12); rh = irand(8, 12); }  // medium rooms
+      else { rw = irand(12, 18); rh = irand(11, 16); }                     // grand halls
       const rx = irand(1, W - rw - 2);
       const ry = irand(1, H - rh - 2);
-      const r = { x: rx, y: ry, w: rw, h: rh, cx: rx + (rw >> 1), cy: ry + (rh >> 1) };
-      // overlap check (with 1-tile margin)
+      const r = { x: rx, y: ry, w: rw, h: rh, cx: rx + (rw >> 1), cy: ry + (rh >> 1), shape: 'rect', special: null };
+      // overlap check (with 1-tile margin so walls separate rooms)
       let overlap = false;
       for (const o of rooms) {
         if (rx - 1 < o.x + o.w && rx + rw + 1 > o.x && ry - 1 < o.y + o.h && ry + rh + 1 > o.y) {
           overlap = true; break;
         }
       }
-      if (!overlap) {
-        rooms.push(r);
-        for (let y = ry; y < ry + rh; y++)
-          for (let x = rx; x < rx + rw; x++)
-            grid[y][x] = 0;
+      if (!overlap) rooms.push(r);   // carved below, after shapes are assigned
+    }
+    // ----- Assign varied shapes (spawn & exit rooms stay rectangular) -----
+    for (let i = 0; i < rooms.length; i++) {
+      const r = rooms[i];
+      if (i === 0 || i === rooms.length - 1 || r.w < 7 || r.h < 7) { r.shape = 'rect'; continue; }
+      const sr = rand();
+      r.shape = sr < 0.50 ? 'rect' : sr < 0.74 ? 'ellipse' : sr < 0.90 ? 'cross' : 'hall';
+    }
+    // ----- Designate special rooms (arena + vault) among the middle rooms -----
+    if (rooms.length >= 5) {
+      const middle = [];
+      for (let i = 1; i < rooms.length - 1; i++) middle.push(i);
+      // Arena = the largest middle room, reshaped into a grand rotunda
+      let arenaIdx = -1, arenaArea = 0;
+      for (const i of middle) { const a = rooms[i].w * rooms[i].h; if (a > arenaArea) { arenaArea = a; arenaIdx = i; } }
+      if (arenaIdx >= 0 && arenaArea >= 90) { rooms[arenaIdx].special = 'arena'; rooms[arenaIdx].shape = 'ellipse'; }
+      // Vault = a different middle room holding guaranteed loot behind guardians
+      const vaultCandidates = middle.filter(i => i !== arenaIdx);
+      if (vaultCandidates.length && (opts.isRift || rand() < 0.7)) {
+        rooms[vaultCandidates[irand(0, vaultCandidates.length - 1)]].special = 'vault';
       }
     }
+    // ----- Carve each room according to its shape -----
+    function carveRoom(r) {
+      const { x, y, w, h, cx, cy, shape } = r;
+      if (shape === 'ellipse') {
+        const rxr = w / 2, ryr = h / 2;
+        for (let yy = y; yy < y + h; yy++)
+          for (let xx = x; xx < x + w; xx++) {
+            const ndx = (xx + 0.5 - (x + w / 2)) / rxr;
+            const ndy = (yy + 0.5 - (y + h / 2)) / ryr;
+            if (ndx * ndx + ndy * ndy <= 1.05) grid[yy][xx] = 0;
+          }
+      } else if (shape === 'cross') {
+        const bh = Math.max(1, (h >> 1) - 1), bw = Math.max(1, (w >> 1) - 1);
+        for (let yy = Math.max(1, cy - bh); yy <= Math.min(H - 2, cy + bh); yy++)
+          for (let xx = x; xx < x + w; xx++) grid[yy][xx] = 0;
+        for (let yy = y; yy < y + h; yy++)
+          for (let xx = Math.max(1, cx - bw); xx <= Math.min(W - 2, cx + bw); xx++) grid[yy][xx] = 0;
+      } else {
+        for (let yy = y; yy < y + h; yy++)
+          for (let xx = x; xx < x + w; xx++) grid[yy][xx] = 0;
+      }
+    }
+    for (const r of rooms) carveRoom(r);
     // Helper: carve a floor tile if within bounds (keep 1-tile border)
     function carve(cx, cy) {
       if (cx > 0 && cx < W - 1 && cy > 0 && cy < H - 1) grid[cy][cx] = 0;
@@ -1163,34 +1310,60 @@
       carveCorridor(rooms[i - 1].cx, rooms[i - 1].cy, rooms[i].cx, rooms[i].cy);
     }
     // Add extra "loop" corridors between random non-adjacent rooms for intricate layouts
-    const extraConnections = Math.floor(rooms.length * 0.4);
+    const extraConnections = Math.floor(rooms.length * 0.5);
     for (let i = 0; i < extraConnections; i++) {
       const a = rooms[irand(0, rooms.length - 1)];
       const b = rooms[irand(0, rooms.length - 1)];
       if (a === b) continue;
       carveCorridor(a.cx, a.cy, b.cx, b.cy);
     }
-    // Add interior features (pillars) to large rooms for cover and visual interest
+    // Interior features — only convert existing floor, never the center (corridors meet there)
+    function placeFeature(px, py, val) {
+      if (px <= 0 || px >= W - 1 || py <= 0 || py >= H - 1) return;
+      if (grid[py][px] !== 0) return;
+      grid[py][px] = val;
+    }
     for (const r of rooms) {
-      if (r.w >= 8 && r.h >= 8) {
-        // 2-4 pillars in corners-ish (not blocking center)
-        const pillarCount = irand(2, 4);
-        for (let p = 0; p < pillarCount; p++) {
-          const px = r.x + irand(2, r.w - 3);
-          const py = r.y + irand(2, r.h - 3);
-          // don't pillar the room center
+      if (r.special) continue;  // special rooms are decorated separately
+      const area = r.w * r.h;
+      if (r.shape === 'hall' && r.w >= 9 && r.h >= 7) {
+        // Colonnade — two rows of evenly spaced pillars flanking a central aisle
+        for (let px = r.x + 2; px < r.x + r.w - 2; px += 2) {
+          if (Math.abs(px - r.cx) < 2) continue; // keep the aisle clear
+          placeFeature(px, r.cy - 2, 1);
+          placeFeature(px, r.cy + 2, 1);
+        }
+      } else if (area >= 72 && rand() < 0.45) {
+        // Crystal landmark — a small cluster of glowing decor offset from center
+        const ox = r.cx + (rand() < 0.5 ? -1 : 1) * irand(1, 2);
+        const oy = r.cy + (rand() < 0.5 ? -1 : 1) * irand(1, 2);
+        placeFeature(ox, oy, 2);
+        placeFeature(ox + 1, oy, 2);
+        placeFeature(ox, oy + 1, 2);
+        if (rand() < 0.5) placeFeature(ox + 1, oy + 1, 2);
+      } else if (area >= 42 && rand() < 0.4) {
+        // A couple scattered pillars/crystals for cover
+        for (let p = 0; p < irand(1, 3); p++) {
+          const px = r.x + irand(2, r.w - 3), py = r.y + irand(2, r.h - 3);
           if (Math.abs(px - r.cx) < 2 && Math.abs(py - r.cy) < 2) continue;
-          grid[py][px] = 1;
+          placeFeature(px, py, rand() < 0.5 ? 1 : 2);
         }
       }
     }
     // Pick spawn (player) and exit
     const first = rooms[0];
     const last = rooms[rooms.length - 1];
-    const isBossFloor = floor === CFG.biomeFloors;
+    const isBossFloor = !opts.noBoss && floor === CFG.biomeFloors;
+    const enemyLevel = opts.enemyLevel != null ? opts.enemyLevel : floor;
 
     const portals = [];
-    if (!isBossFloor) {
+    if (opts.isRift) {
+      // Rift descend portal — locked until enough enemies are cleared
+      portals.push({
+        x: last.cx + 0.5, y: last.cy + 0.5,
+        kind: 'rift-next', label: '→ Descend (locked)', locked: true,
+      });
+    } else if (!isBossFloor) {
       portals.push({
         x: last.cx + 0.5, y: last.cy + 0.5,
         kind: 'next', label: `→ Floor ${floor + 1}`,
@@ -1198,20 +1371,37 @@
     }
     portals.push({
       x: first.cx - 1.5, y: first.cy + 0.5,
-      kind: 'town', label: '→ Sanctuary',
+      kind: 'town', label: opts.isRift ? '→ Leave Rift' : '→ Sanctuary',
     });
 
-    // Place enemies
+    // Floor-safe spawn — find an open floor tile inside a room (shapes leave wall corners)
+    function floorSpotIn(r) {
+      for (let t = 0; t < 14; t++) {
+        const gx = r.x + 1 + Math.floor(rand() * Math.max(1, r.w - 2));
+        const gy = r.y + 1 + Math.floor(rand() * Math.max(1, r.h - 2));
+        if (gx > 0 && gx < W - 1 && gy > 0 && gy < H - 1 && grid[gy][gx] === 0) return { x: gx + 0.5, y: gy + 0.5 };
+      }
+      return { x: r.cx + 0.5, y: r.cy + 0.5 }; // center is always floor
+    }
+
+    // Place enemies (capped so big maps stay performant)
     const enemies = [];
     const enemyPool = biome.enemies;
-    const baseCount = 6 + floor * 2;
+    const perMin = opts.enemyPerRoom ? opts.enemyPerRoom[0] : 1;
+    const perMax = opts.enemyPerRoom ? opts.enemyPerRoom[1] : 3;
+    const ENEMY_CAP = 46;
     for (const r of rooms.slice(1)) {
-      const n = irand(1, 3);
-      for (let i = 0; i < n; i++) {
-        const ex = r.x + 1 + Math.floor(rand() * (r.w - 2)) + 0.5;
-        const ey = r.y + 1 + Math.floor(rand() * (r.h - 2)) + 0.5;
-        const id = pick(enemyPool);
-        enemies.push(makeEnemy(id, ex, ey, floor));
+      if (r === last && isBossFloor) continue;  // boss room handled below
+      if (enemies.length >= ENEMY_CAP) break;
+      let n;
+      if (r.special === 'arena')      n = perMax + 3 + irand(0, 2);   // dense pack
+      else if (r.special === 'vault') n = 2;                          // guardians
+      else { n = irand(perMin, perMax); if (r.w * r.h >= 120) n += 1; } // grand halls feel full
+      for (let i = 0; i < n && enemies.length < ENEMY_CAP; i++) {
+        const sp = floorSpotIn(r);
+        const e = makeEnemy(pick(enemyPool), sp.x, sp.y, enemyLevel);
+        if (r.special === 'vault' || (r.special === 'arena' && i < 2)) makeElite(e);  // champions
+        enemies.push(e);
       }
     }
     // Boss
@@ -1222,35 +1412,48 @@
       game.bossAlive = false;
     }
 
-    // Place 1-2 shrines in random non-spawn rooms (skip room 0 to avoid blocking spawn)
+    // Vault loot — guaranteed rare/unique items on the ground, depth- & difficulty-scaled
+    const loot = [];
+    const vaultRoom = rooms.find(r => r.special === 'vault');
+    if (vaultRoom) {
+      const lootCount = 2 + (rand() < 0.5 ? 1 : 0);
+      const ilvl = Math.max(1, enemyLevel + 1 + (curDifficulty().ilvlBonus || 0));
+      for (let i = 0; i < lootCount; i++) {
+        const item = rollItem(ilvl, rand() < 0.25 ? 'unique' : 'rare');
+        if (item) { const sp = floorSpotIn(vaultRoom); loot.push({ x: sp.x, y: sp.y, item, age: 0 }); }
+      }
+    }
+
+    // Shrines — the arena always has one; plus 1-2 scattered elsewhere
     const shrines = [];
+    const shrineTypeIds = Object.keys(SHRINES);
+    function placeShrine(sx, sy) {
+      const gx = Math.floor(sx), gy = Math.floor(sy);
+      if (gx <= 0 || gx >= W - 1 || gy <= 0 || gy >= H - 1) return;
+      if (grid[gy][gx] !== 0) grid[gy][gx] = 0; // clear any feature
+      shrines.push({ x: sx, y: sy, type: shrineTypeIds[irand(0, shrineTypeIds.length - 1)], used: false });
+    }
+    const arenaRoom = rooms.find(r => r.special === 'arena');
+    if (arenaRoom) placeShrine(arenaRoom.cx + 0.5, arenaRoom.cy + 0.5);
     if (rooms.length > 2) {
-      const shrineTypeIds = Object.keys(SHRINES);
-      const candidates = rooms.slice(1).filter(r => r !== last); // avoid spawn and boss-room
-      // Shuffle candidates a bit and pick 1-2
-      const numShrines = irand(1, Math.min(2, candidates.length));
-      const used = new Set();
-      for (let i = 0; i < numShrines; i++) {
-        let pick = irand(0, candidates.length - 1);
-        let tries = 0;
-        while (used.has(pick) && tries++ < 6) pick = irand(0, candidates.length - 1);
-        if (used.has(pick)) continue;
-        used.add(pick);
-        const r = candidates[pick];
-        const sx = r.cx + 0.5 + (rand() - 0.5) * 1.5;
-        const sy = r.cy + 0.5 + (rand() - 0.5) * 1.5;
-        // ensure shrine position is on floor (not on a pillar we placed)
-        const gx = Math.floor(sx), gy = Math.floor(sy);
-        if (gx <= 0 || gx >= W - 1 || gy <= 0 || gy >= H - 1) continue;
-        if (grid[gy][gx] !== 0) grid[gy][gx] = 0; // clear pillar if any
-        const type = shrineTypeIds[irand(0, shrineTypeIds.length - 1)];
-        shrines.push({ x: sx, y: sy, type, used: false });
+      const candidates = rooms.slice(1).filter(r => r !== last && r.special !== 'arena' && r.special !== 'vault');
+      if (candidates.length) {
+        const numShrines = irand(1, Math.min(2, candidates.length));
+        const used = new Set();
+        for (let i = 0; i < numShrines; i++) {
+          let p = irand(0, candidates.length - 1), tries = 0;
+          while (used.has(p) && tries++ < 6) p = irand(0, candidates.length - 1);
+          if (used.has(p)) continue;
+          used.add(p);
+          const r = candidates[p];
+          placeShrine(r.cx + 0.5 + (rand() - 0.5) * 1.5, r.cy + 0.5 + (rand() - 0.5) * 1.5);
+        }
       }
     }
 
     return {
       kind: 'dungeon',
-      name: `${biome.shortName} — Floor ${floor}${isBossFloor ? ' (Boss)' : ''}`,
+      name: opts.isRift ? `GREATER RIFT ${floor}` : `${biome.shortName} — Floor ${floor}${isBossFloor ? ' (Boss)' : ''}`,
       grid, w: W, h: H,
       player: { x: first.cx + 0.5, y: first.cy + 0.5, dir: 0, atkCd: 0, skillCd: 0, lastDir: { x: 0, y: 1 }, attackingFor: 0, _impulseT: 0, _impulseX: 0, _impulseY: 0 },
       enemies,
@@ -1258,26 +1461,29 @@
       rooms,
       portals,
       shrines,
+      loot,
       palette: biome.palette,
       biomeId: biome.id,
       floor,
       isBoss: isBossFloor,
+      isRift: !!opts.isRift,
     };
   }
 
   function makeEnemy(id, x, y, levelHint) {
     const base = ENEMIES[id];
     const lvlScale = 1 + Math.max(0, levelHint - 1) * 0.18;
+    const diff = curDifficulty();   // difficulty tier scales HP/damage/XP
     const e = {
       id,
       x, y,
-      hp: Math.floor(base.hp * lvlScale),
-      hpMax: Math.floor(base.hp * lvlScale),
-      dmg: Math.floor(base.dmg * lvlScale),
+      hp: Math.floor(base.hp * lvlScale * diff.hpMul),
+      hpMax: Math.floor(base.hp * lvlScale * diff.hpMul),
+      dmg: Math.floor(base.dmg * lvlScale * diff.dmgMul),
       speed: base.speed,
       range: base.range,
       attackKind: base.attackKind,
-      xp: Math.floor(base.xp * lvlScale),
+      xp: Math.floor(base.xp * lvlScale * diff.xpMul),
       goldRange: base.goldRange,
       name: base.name,
       color: base.color,
@@ -1302,19 +1508,25 @@
       eliteColor: null,
     };
     // 8% chance for a non-boss to become an elite — significantly tougher with affix
-    if (!e.boss && roll(0.08)) {
-      const aff = pick(Object.keys(ELITE_AFFIXES));
-      const def = ELITE_AFFIXES[aff];
-      e.elite = true;
-      e.eliteAffix = aff;
-      e.eliteColor = def.color;
-      e.hp = Math.floor(e.hp * (def.hpMul || 2.2));
-      e.hpMax = e.hp;
-      e.dmg = Math.floor(e.dmg * (def.dmgMul || 1.4));
-      e.xp = Math.floor(e.xp * 2);
-      e.goldRange = [e.goldRange[0] * 2, e.goldRange[1] * 2];
-      if (def.speedMul) e.speed *= def.speedMul;
-    }
+    if (!e.boss && roll(0.08)) makeElite(e);
+    return e;
+  }
+
+  // Promote an enemy to an elite (champion) with a random affix. Reused by the
+  // normal spawn roll and by the Greater Rift (which forces more elites).
+  function makeElite(e) {
+    if (e.boss || e.elite) return e;
+    const aff = pick(Object.keys(ELITE_AFFIXES));
+    const def = ELITE_AFFIXES[aff];
+    e.elite = true;
+    e.eliteAffix = aff;
+    e.eliteColor = def.color;
+    e.hp = Math.floor(e.hp * (def.hpMul || 2.2));
+    e.hpMax = e.hp;
+    e.dmg = Math.floor(e.dmg * (def.dmgMul || 1.4));
+    e.xp = Math.floor(e.xp * 2);
+    e.goldRange = [e.goldRange[0] * 2, e.goldRange[1] * 2];
+    if (def.speedMul) e.speed *= def.speedMul;
     return e;
   }
 
@@ -1328,7 +1540,50 @@
     vampiric:  { color: '#ff4d6d', label: 'Vampiric', hpMul: 2.4, dmgMul: 1.3, onHit: 'lifesteal' },
     swift:     { color: '#ffd166', label: 'Swift',    hpMul: 1.8, dmgMul: 1.2, speedMul: 1.5 },
     iron:      { color: '#cccccc', label: 'Iron',     hpMul: 3.5, dmgMul: 1.6 },
+    // ===== Curse affixes — debuff the PLAYER on hit =====
+    cursed:     { color: '#c489ff', label: 'Cursed',     hpMul: 2.2, dmgMul: 1.2, curse: 'manaburn' },
+    crippling:  { color: '#5b8cff', label: 'Crippling',  hpMul: 2.4, dmgMul: 1.2, curse: 'slow' },
+    enfeebling: { color: '#9be57c', label: 'Enfeebling', hpMul: 2.4, dmgMul: 1.2, curse: 'weaken' },
   };
+  // Curse definitions — what each player debuff does + how it reads in the HUD.
+  const CURSES = {
+    manaburn: { name: 'Mana Burn', icon: '✦', color: '#c489ff', dur: 0 },   // instant, no timer
+    slow:     { name: 'Slowed',    icon: '«', color: '#5b8cff', dur: 3.0 },
+    weaken:   { name: 'Weakened',  icon: '▽', color: '#9be57c', dur: 4.0 },
+  };
+  // Apply a cursing elite's debuff to the player.
+  function applyCurse(curseId) {
+    const p = game.world && game.world.player;
+    if (!p) return;
+    if (!p.curses) p.curses = {};
+    if (curseId === 'manaburn') {
+      const drain = Math.ceil(game.char.mpMax * 0.2);
+      game.char.mp = Math.max(0, game.char.mp - drain);
+      floatText(`-${drain} MP`, p.x, p.y - 0.6, 'xp');
+      burst(p.x, p.y, '#c489ff', 8);
+    } else {
+      const def = CURSES[curseId];
+      if (!def) return;
+      p.curses[curseId] = def.dur;
+      floatText(def.name.toUpperCase(), p.x, p.y - 0.6, 'crit');
+      burst(p.x, p.y, def.color, 8);
+    }
+  }
+  // Returns the curse id an enemy carries (cursing elite), or null.
+  function enemyCurse(e) {
+    if (e && e.elite && e.eliteAffix) {
+      const aff = ELITE_AFFIXES[e.eliteAffix];
+      if (aff && aff.curse) return aff.curse;
+    }
+    return null;
+  }
+  // Enemy deals damage to the player, applying any curse the attacker carries.
+  function enemyHitPlayer(e, dmg) {
+    damagePlayer(dmg);
+    if (game.char.hp <= 0) return;
+    const curse = enemyCurse(e);
+    if (curse) applyCurse(curse);
+  }
 
   // ============================================================
   // ENTERING WORLDS
@@ -1346,6 +1601,7 @@
     game.poisonZones = [];
     game.soulDrains = [];
     game.corpsePositions = [];
+    game.telegraphs = [];
   }
   function enterTown() {
     game.world = generateTown();
@@ -1360,6 +1616,9 @@
     game.activeBuffs = {}; // shrine buffs don't persist across zones
     game.activeBiomeId = null;
     game.activeFloor = 0;
+    game.rift = null;  // any active rift ends when you reach town (e.g. on death)
+    // Refill potions to capacity on returning to town (Potion Belt raises the cap)
+    if (game.char) game.char.potions = Math.max(game.char.potions || 0, potionCapacity());
     snapCamera();
     navigateTo('game');
     showZoneToast('SANCTUARY');
@@ -1373,20 +1632,122 @@
     game.world = generateDungeon(biome, floor);
     game.enemies = game.world.enemies; game.world.enemies = null;
     game.projectiles = [];
-    game.items = [];
+    game.items = game.world.loot || []; game.world.loot = null;  // vault loot on the ground
     game.minions = [];
     game.particles = [];
     game.floatingTexts = [];
     ambientParticles.length = 0;
     clearSkillEffects();
     game.activeBuffs = {}; // shrine buffs don't persist across zones
+    game.rift = null;       // entering a normal biome is never a rift
     game.activeBiomeId = biomeId;
     game.activeFloor = floor;
+    // Tag the zone name with the difficulty tier (non-Normal)
+    const diffId = game.save.difficulty || 'normal';
+    if (diffId !== 'normal') game.world.name += ` [${DIFFICULTIES[diffId].short}]`;
     snapCamera();
     navigateTo('game');
-    showZoneToast(`${biome.shortName} — FLOOR ${floor}`);
+    showZoneToast(`${biome.shortName} — FLOOR ${floor}${diffId !== 'normal' ? ' · ' + DIFFICULTIES[diffId].name.toUpperCase() : ''}`);
     applyDerivedToChar();
     updateHud();
+  }
+
+  // ============================================================
+  // GREATER RIFT — endless, scaling challenge dungeon with a timer
+  // ============================================================
+  const RIFT_BASE_TIME = 150;   // seconds for the first rift level
+  const RIFT_TIME_BONUS = 30;   // extra seconds added when you descend
+  // Build a mixed enemy pool drawn from every biome the player has unlocked.
+  function riftEnemyPool() {
+    const pool = [];
+    BIOMES.forEach(b => {
+      if (game.save.unlockedBiomes[b.id]) pool.push(...b.enemies);
+    });
+    if (pool.length === 0) pool.push(...BIOMES[0].enemies);
+    return pool;
+  }
+  function enterRift(level) {
+    level = level || 1;
+    const pool = riftEnemyPool();
+    const palette = { wall: '#b388ff', floor: '#140b20', accent: '#00e5ff' };
+    const synth = { id: 'voidspire', shortName: 'RIFT', enemies: pool, boss: null, palette };
+    const enemyLevel = Math.max(1, game.char.level + level * 2);
+    const world = generateDungeon(synth, level, {
+      isRift: true, noBoss: true, enemyLevel, enemyPerRoom: [2, 4],
+    });
+    // Rifts run dense & deadly — promote some enemies to elites for flavor and reward
+    world.enemies.forEach(e => {
+      if (!e.elite && roll(0.18)) makeElite(e);
+    });
+    game.world = world;
+    game.enemies = game.world.enemies; game.world.enemies = null;
+    game.projectiles = [];
+    game.items = game.world.loot || []; game.world.loot = null;  // vault loot on the ground
+    game.minions = [];
+    game.particles = [];
+    game.floatingTexts = [];
+    ambientParticles.length = 0;
+    clearSkillEffects();
+    game.activeBuffs = {};
+    game.activeBiomeId = null;   // ephemeral — keeps saveGame from persisting the rift
+    game.activeFloor = 0;
+    // Rift run state — timer accumulates across descents
+    const carryTime = (level > 1 && game.rift) ? game.rift.timeLeft + RIFT_TIME_BONUS : RIFT_BASE_TIME;
+    game.rift = {
+      active: true,
+      level,
+      kills: 0,
+      killsNeeded: Math.max(6, Math.floor(game.enemies.length * 0.7)),
+      timeLeft: carryTime,
+    };
+    snapCamera();
+    navigateTo('game');
+    showZoneToast(`GREATER RIFT ${level}`);
+    applyDerivedToChar();
+    updateHud();
+  }
+  // Reveal the rift descend portal once enough enemies have fallen.
+  function riftCheckProgress() {
+    if (!game.rift || !game.rift.active) return;
+    if (game.rift.kills < game.rift.killsNeeded) return;
+    const portal = (game.world.portals || []).find(p => p.kind === 'rift-next' && p.locked);
+    if (portal) {
+      portal.locked = false;
+      portal.label = `→ Descend to Rift ${game.rift.level + 1}`;
+      showHudToast('RIFT PORTAL OPEN!');
+      floatText('RIFT PORTAL OPEN', game.world.player.x, game.world.player.y - 1, 'crit');
+    }
+  }
+  function tickRift(dt) {
+    if (!game.rift || !game.rift.active) return;
+    if (!game.world || !game.world.isRift) return;
+    game.rift.timeLeft -= dt;
+    if (game.rift.timeLeft <= 0) {
+      game.rift.timeLeft = 0;
+      endRift(false);
+    }
+  }
+  // End a rift run. `banked` = reached via the leave portal (success); otherwise
+  // the timer collapsed. Either way, rewards scale with the deepest level reached.
+  function endRift(banked) {
+    if (!game.rift) { enterTown(); return; }
+    const level = game.rift.level;
+    const c = game.char;
+    // Rewards scale with depth
+    const gold = level * 60;
+    const dust = level * 3;
+    const tears = Math.max(1, Math.floor(level / 3));
+    c.gold += gold;
+    c.craftDust = (c.craftDust || 0) + dust;
+    c.glassTears = (c.glassTears || 0) + tears;
+    // Track personal best
+    let newBest = false;
+    if (level > (game.save.bestRift || 0)) { game.save.bestRift = level; newBest = true; }
+    game.rift.active = false;
+    game.rift = null;
+    saveGame();
+    enterTown();
+    showHudToast(`${banked ? 'Rift banked' : 'Rift collapsed'} at level ${level} · +${gold}g +${dust} dust +${tears} tear${tears === 1 ? '' : 's'}${newBest ? ' · NEW BEST!' : ''}`);
   }
 
   // ============================================================
@@ -1411,8 +1772,8 @@
   function setupTouchControls() {
     const root = document.getElementById('touch-controls');
     if (!root) return;
-    // Restore the user's preference (persists across sessions)
-    const saved = localStorage.getItem('glasspire_touch_enabled');
+    // Restore the user's preference (persists across sessions; old key for back-compat)
+    const saved = localStorage.getItem('hollowlight_touch_enabled') || localStorage.getItem('glasspire_touch_enabled');
     if (saved === '1') showTouchControls(true);
     // Wire every touch button: press = synthetic keydown, release = synthetic keyup
     const buttons = root.querySelectorAll('[data-touch-key]');
@@ -1442,7 +1803,7 @@
     if (!root) return;
     if (on) root.classList.remove('hidden');
     else    root.classList.add('hidden');
-    localStorage.setItem('glasspire_touch_enabled', on ? '1' : '0');
+    localStorage.setItem('hollowlight_touch_enabled', on ? '1' : '0');
   }
   function toggleTouchControls() {
     const root = document.getElementById('touch-controls');
@@ -1569,17 +1930,26 @@
   }
 
   function openInGameMenu() { navigateTo('menu'); }
-  function drinkPotion() {
+  function drinkPotion(auto) {
     const c = game.char;
-    if (c.potions <= 0) { showHudToast('No potions.'); return; }
-    if (c.hp >= c.hpMax) { showHudToast('Already full.'); return; }
+    if (c.potions <= 0) { if (!auto) showHudToast('No potions.'); return; }
+    if (c.hp >= c.hpMax) { if (!auto) showHudToast('Already full.'); return; }
     c.potions -= 1;
     const heal = Math.floor(c.hpMax * 0.4);
     c.hp = Math.min(c.hpMax, c.hp + heal);
     floatText(`+${heal}`, game.world.player.x, game.world.player.y, 'heal');
-    showHudToast(`Potion used. ${c.potions} left.`);
+    showHudToast(auto ? `Auto-potion. ${c.potions} left.` : `Potion used. ${c.potions} left.`);
     saveGame();
     updateHud();
+  }
+  // Auto-drink a potion when HP falls below the configured threshold.
+  function checkAutoPotion() {
+    const c = game.char;
+    if (!c || !c.autoPotion) return;
+    if (c.hp <= 0 || c.potions <= 0) return;
+    if (c.hp <= c.hpMax * (c.autoPotionPct || 0.35)) {
+      drinkPotion(true);
+    }
   }
   function tryDash(dirX, dirY) {
     const p = game.world.player;
@@ -1658,8 +2028,16 @@
     if (p.kind === 'next') {
       const next = game.activeFloor + 1;
       enterBiome(game.activeBiomeId, next);
+    } else if (p.kind === 'rift-next') {
+      if (p.locked) { showHudToast('Clear more enemies to open the portal.'); return; }
+      enterRift((game.rift ? game.rift.level : 0) + 1);
     } else if (p.kind === 'town') {
-      enterTown();
+      // Leaving via a rift's portal banks the run for rewards
+      if (game.world && game.world.isRift && game.rift && game.rift.active) {
+        endRift(true);
+      } else {
+        enterTown();
+      }
     }
   }
 
@@ -1700,11 +2078,15 @@
     // Nullweaver silence check
     if (p.silenced && p.silenced > 0) { showHudToast('SILENCED!'); return; }
     if (p.skillCd > 0) { showHudToast(`Skill cooling: ${p.skillCd.toFixed(1)}s`); return; }
-    const cost = skill.cost || cls.activeSkillCost;
+    const rune = getSkillRune(skillId);
+    const cost = Math.round((skill.cost || cls.activeSkillCost) * (rune ? (rune.costMul || 1) : 1));
     if (c.mp < cost) { showHudToast('Not enough mana'); return; }
     c.mp -= cost;
-    p.skillCd = skill.cooldown;
-
+    p.skillCd = skill.cooldown * (rune ? (rune.cdMul || 1) : 1);
+    // Skill damage multiplier from the equipped rune — read by hitEnemy + spawnProjectile.
+    // try/finally guarantees it resets even if a skill takes an early return.
+    game._skillDmgMul = rune ? (rune.dmgMul || 1) : 1;
+    try {
     if (skillId === 'whirlwind') {
       const radius = 2.4;
       const d = derived(c);
@@ -1847,7 +2229,8 @@
     }
     else if (skillId === 'meteor') {
       const d = derived(c);
-      const dmg = Math.floor(d.dmg * 4.0);
+      // Bake the rune multiplier in now — impact is delayed, after the mul resets
+      const dmg = Math.floor(d.dmg * 4.0 * (game._skillDmgMul || 1));
       const dir = p.lastDir.x || p.lastDir.y ? p.lastDir : { x: 0, y: 1 };
       const targetX = p.x + dir.x * 3;
       const targetY = p.y + dir.y * 3;
@@ -1881,7 +2264,8 @@
     }
     else if (skillId === 'poisontrap') {
       const d = derived(c);
-      const dmg = Math.floor(d.dmg * 0.6);
+      // Bake the rune multiplier in now — the zone ticks damage later
+      const dmg = Math.floor(d.dmg * 0.6 * (game._skillDmgMul || 1));
       // Place a poison zone at current position
       if (!game.poisonZones) game.poisonZones = [];
       game.poisonZones.push({
@@ -1953,7 +2337,7 @@
       if (near) {
         if (!game.soulDrains) game.soulDrains = [];
         game.soulDrains.push({
-          target: near, dmg: Math.floor(d.dmg * 1.0), crit: d.crit,
+          target: near, dmg: Math.floor(d.dmg * 1.0 * (game._skillDmgMul || 1)), crit: d.crit,
           ttl: 3.0, tickTimer: 0, tickInterval: 0.4,
         });
         burst(p.x, p.y, '#c489ff', 8);
@@ -2156,7 +2540,8 @@
     }
     else if (skillId === 'starfall') {
       const d = derived(c);
-      const baseDmg = Math.floor(d.dmg * 2.5);
+      // Bake the rune multiplier in now — meteors land later via setTimeout
+      const baseDmg = Math.floor(d.dmg * 2.5 * (game._skillDmgMul || 1));
       // Find nearest enemy as the strike center (else 3 tiles ahead)
       let cx = p.x, cy = p.y;
       const dir = (p.lastDir.x || p.lastDir.y) ? p.lastDir : { x: 0, y: 1 };
@@ -2218,6 +2603,9 @@
         floatText(`+${heal}`, p.x, p.y - 0.4, 'heal');
       }
       burst(p.x, p.y, '#c489ff', 14);
+    }
+    } finally {
+      game._skillDmgMul = 1;
     }
     updateHud();
   }
@@ -2311,7 +2699,8 @@
 
   function hitEnemy(e, baseDmg, critPct) {
     const isCrit = roll((critPct || 5) / 100);
-    const dmg = Math.max(1, Math.floor(baseDmg * (isCrit ? 1.8 : 1) * (0.85 + rand() * 0.3)));
+    const runeMul = game._skillDmgMul || 1;  // active only during a rune-augmented skill cast
+    const dmg = Math.max(1, Math.floor(baseDmg * runeMul * (isCrit ? 1.8 : 1) * (0.85 + rand() * 0.3)));
     e.hp -= dmg;
     e.hitFlash = 0.18;
     e.stagger = Math.max(e.stagger, 0.12);
@@ -2355,6 +2744,16 @@
     burst(e.x, e.y, e.color, e.boss ? 35 : 20);
     burst(e.x, e.y, '#ffffff', e.boss ? 12 : 5);
     game.screenShake = Math.max(game.screenShake, e.boss ? 0.45 : 0.12);
+    // Bestiary: record the kill (first kill "discovers" the entry)
+    if (game.save) {
+      if (!game.save.bestiary) game.save.bestiary = {};
+      game.save.bestiary[e.id] = (game.save.bestiary[e.id] || 0) + 1;
+    }
+    // Greater Rift: count progress toward opening the descend portal
+    if (game.rift && game.rift.active && game.world && game.world.isRift) {
+      game.rift.kills++;
+      riftCheckProgress();
+    }
     // Voidling split: spawns 2 smaller copies on death (only if not already a split)
     if (e.trait === 'split' && !e._isSplit && game.enemies.length < 24) {
       for (let i = 0; i < 2; i++) {
@@ -2380,10 +2779,15 @@
 
     // Apply passive multipliers to XP and gold
     const passives = game.char.passives || {};
+    const diff = curDifficulty();   // difficulty boosts gold + drop item level
+    const dropIlvlBonus = diff.ilvlBonus || 0;
     let xp = e.xp;
-    let gold = irand(e.goldRange[0], e.goldRange[1]) * (e.boss ? 3 : 1);
+    let gold = Math.floor(irand(e.goldRange[0], e.goldRange[1]) * (e.boss ? 3 : 1) * (diff.lootMul || 1));
     if (passives.scholar) xp = Math.floor(xp * 1.3);
     if (passives.greedy)  gold = Math.floor(gold * 1.3);
+    // Midas Touch upgrade — +15% gold per level
+    const gf = upgradeLevel('goldfind');
+    if (gf > 0) gold = Math.floor(gold * (1 + 0.15 * gf));
     gainXp(xp);
     game.char.gold += gold;
     floatText(`+${gold}g`, e.x + 0.3, e.y - 0.2, 'loot');
@@ -2423,7 +2827,7 @@
 
     // Elite enemies always drop a rare item + bonus burst
     if (e.elite && !e.boss) {
-      const item = rollItem(Math.max(1, e.ilvl + 1), 'rare');
+      const item = rollItem(Math.max(1, e.ilvl + 1 + dropIlvlBonus), 'rare');
       if (item) {
         game.items.push({ x: e.x, y: e.y, item, age: 0 });
         setTimeout(() => floatText(item.name, e.x, e.y - 0.7, 'loot'), 250);
@@ -2444,7 +2848,7 @@
       const rarities = ['rare', 'rare', 'unique'];
       for (let di = 0; di < bossDropCount; di++) {
         const r = rarities[di] || 'rare';
-        const item = rollItem(Math.max(1, e.ilvl + 1), r);
+        const item = rollItem(Math.max(1, e.ilvl + 1 + dropIlvlBonus), r);
         if (item) {
           const ox = (di - 1) * 0.6; // spread items left/center/right
           game.items.push({ x: e.x + ox, y: e.y + 0.3, item, age: 0 });
@@ -2465,7 +2869,7 @@
           color: pick(['#ffc857', '#ffaa00', '#c77dff', '#6df1ff']), life: 0.8 + Math.random() * 0.5, age: 0, size: 3 });
       }
     } else if (roll(0.15)) {
-      const item = rollItem(Math.max(1, e.ilvl), null);
+      const item = rollItem(Math.max(1, e.ilvl + dropIlvlBonus), null);
       if (item) {
         game.items.push({ x: e.x, y: e.y, item, age: 0 });
       }
@@ -2492,6 +2896,13 @@
       }
       // place a return-to-town portal where the boss fell
       game.world.portals.push({ x: e.x, y: e.y, kind: 'town', label: '→ Sanctuary' });
+      // Unlock the next difficulty tier on a boss kill
+      const curIdx = DIFFICULTY_ORDER.indexOf(game.save.difficulty || 'normal');
+      const maxIdx = DIFFICULTY_ORDER.indexOf(game.save.maxDifficulty || 'normal');
+      if (curIdx >= maxIdx && curIdx + 1 < DIFFICULTY_ORDER.length) {
+        game.save.maxDifficulty = DIFFICULTY_ORDER[curIdx + 1];
+        showHudToast(`${DIFFICULTIES[game.save.maxDifficulty].name.toUpperCase()} DIFFICULTY UNLOCKED!`);
+      }
     }
 
     // remove from list
@@ -2504,9 +2915,13 @@
   // ============================================================
   // PROJECTILES
   // ============================================================
-  function spawnProjectile(x, y, dx, dy, speed, dmg, color, kind, friendly) {
+  function spawnProjectile(x, y, dx, dy, speed, dmg, color, kind, friendly, srcCurse) {
+    // Bake the active skill-rune damage multiplier into friendly projectiles at
+    // spawn time (they resolve later, when the multiplier has reset to 1).
+    const finalDmg = friendly ? Math.floor(dmg * (game._skillDmgMul || 1)) : dmg;
     game.projectiles.push({
-      x, y, dx, dy, speed, dmg, color, kind, friendly,
+      x, y, dx, dy, speed, dmg: finalDmg, color, kind, friendly,
+      curse: srcCurse || null,   // curse an enemy projectile applies to the player on hit
       life: 1.6, age: 0,
     });
   }
@@ -2560,6 +2975,7 @@
         const pl = game.world.player;
         if (dist(pl, p) < 0.45) {
           damagePlayer(p.dmg);
+          if (p.curse && game.char.hp > 0) applyCurse(p.curse);  // cursing elite's projectile
           game.projectiles.splice(i, 1);
           burst(p.x, p.y, p.color, 8);
           continue;
@@ -2567,6 +2983,84 @@
       }
       if (p.age > p.life) game.projectiles.splice(i, 1);
     }
+  }
+
+  // ============================================================
+  // BOSS MECHANICS — telegraphed AoE, enrage timer, add-summon phases
+  // ============================================================
+  const BOSS_ENRAGE_TIME = 75;   // seconds before a boss enrages
+  // Spawn a dodgeable ground-marker AoE. After `windup` seconds it detonates,
+  // damaging the player only if they're still inside the radius.
+  function spawnTelegraph(x, y, radius, windup, dmg, color) {
+    if (!game.telegraphs) game.telegraphs = [];
+    game.telegraphs.push({ x, y, radius, windup, age: 0, dmg, color: color || '#ff4d6d' });
+  }
+  function tickTelegraphs(dt) {
+    if (!game.telegraphs || !game.telegraphs.length) return;
+    const p = game.world && game.world.player;
+    for (let i = game.telegraphs.length - 1; i >= 0; i--) {
+      const tg = game.telegraphs[i];
+      tg.age += dt;
+      if (tg.age >= tg.windup) {
+        // Detonate
+        if (p) {
+          const dx = p.x - tg.x, dy = p.y - tg.y;
+          if (dx * dx + dy * dy <= tg.radius * tg.radius) {
+            damagePlayer(tg.dmg);
+          }
+        }
+        burst(tg.x, tg.y, tg.color, 22);
+        game.screenShake = Math.max(game.screenShake, 0.28);
+        game.telegraphs.splice(i, 1);
+      }
+    }
+  }
+  // Per-boss special behaviors layered on top of its trait. Returns nothing;
+  // mutates the boss + world. Called each tick for boss enemies.
+  function tickBoss(e, dt, d, p) {
+    // --- Enrage timer ---
+    e.fightTime = (e.fightTime || 0) + dt;
+    if (!e.enraged && e.fightTime >= BOSS_ENRAGE_TIME) {
+      e.enraged = true;
+      e.dmg = Math.floor(e.dmg * 1.6);
+      e.speed *= 1.25;
+      showHudToast(`${e.name} ENRAGES!`);
+      floatText('ENRAGED', e.x, e.y - 1.2, 'crit');
+      burst(e.x, e.y, '#ff2b3c', 30);
+    }
+    // --- Add-summon phases at 66% and 33% HP ---
+    const frac = e.hp / e.hpMax;
+    if (e.addsPhase === undefined) e.addsPhase = 0;
+    if ((frac <= 0.66 && e.addsPhase < 1) || (frac <= 0.33 && e.addsPhase < 2)) {
+      e.addsPhase = frac <= 0.33 ? 2 : 1;
+      summonBossAdds(e);
+    }
+    // --- Telegraphed ground smash: periodic, dodgeable AoE aimed at the player ---
+    if (d < 9) {
+      e.smashCd = (e.smashCd || (3 + rand() * 2)) - dt;
+      if (e.smashCd <= 0) {
+        e.smashCd = (e.enraged ? 4 : 6) + rand() * 2;
+        // mark the player's CURRENT spot — they must move out of it
+        spawnTelegraph(p.x, p.y, 2.2, 1.0, Math.floor(e.dmg * 1.6), e.eliteColor || e.projColor || '#ff4d6d');
+      }
+    }
+  }
+  function summonBossAdds(e) {
+    const biome = BIOMES.find(b => b.id === game.world.biomeId);
+    const pool = (biome && biome.enemies) || ['skeleton'];
+    const count = 2 + (roll(0.5) ? 1 : 0);
+    let spawned = 0;
+    // Higher cap than trash spawns — boss reinforcements are a key fight beat
+    for (let i = 0; i < count && game.enemies.length < 42; i++) {
+      const ang = rand() * PI2;
+      const sx = e.x + Math.cos(ang) * 2, sy = e.y + Math.sin(ang) * 2;
+      const gx = Math.floor(sx), gy = Math.floor(sy);
+      if (gx <= 0 || gx >= game.world.w || gy <= 0 || gy >= game.world.h || game.world.grid[gy][gx] !== 0) continue;
+      game.enemies.push(makeEnemy(pick(pool), sx, sy, e.ilvl));
+      burst(sx, sy, e.color, 10);
+      spawned++;
+    }
+    if (spawned) { showHudToast(`${e.name} summons reinforcements!`); }
   }
 
   // ============================================================
@@ -2640,6 +3134,8 @@
       if (e.stagger > 0) continue;
       const dx = p.x - e.x, dy = p.y - e.y;
       const d = Math.sqrt(dx * dx + dy * dy);
+      // Boss mechanics (enrage / summon / telegraphed smash) run before awareness cull
+      if (e.boss) tickBoss(e, dt, d, p);
       if (d > 12) continue; // out of awareness
 
       // --- Trait-based special behaviors (fired before basic AI) ---
@@ -2650,7 +3146,7 @@
               e.lunging = 0.3;
               const lx = dx / d * 2.5, ly = dy / d * 2.5;
               tryMove(e, lx, ly);
-              if (dist(e, p) < 1.2) { damagePlayer(Math.floor(e.dmg * 1.4)); burst(p.x, p.y, e.color, 10); }
+              if (dist(e, p) < 1.2) { enemyHitPlayer(e, Math.floor(e.dmg * 1.4)); burst(p.x, p.y, e.color, 10); }
               e.traitCd = 3.5 + rand();
               e.atkCd = 1.0;
               continue;
@@ -2726,7 +3222,7 @@
             break;
           case 'slam': // Frost Giant: ground slam AoE when in range
             if (d < 2.0) {
-              damagePlayer(Math.floor(e.dmg * 1.5));
+              enemyHitPlayer(e, Math.floor(e.dmg * 1.5));
               burst(e.x, e.y, '#ffffff', 14);
               game.screenShake = 0.2;
               // stun nearby other enemies too (collateral)
@@ -2741,7 +3237,7 @@
               const speed = e.speed * dt * 3;
               tryMove(e, dx / d * speed, dy / d * speed);
               if (dist(e, p) < 1.1) {
-                damagePlayer(e.dmg);
+                enemyHitPlayer(e, e.dmg);
                 burst(p.x, p.y, e.color, 6);
                 // bounce away
                 tryMove(e, -dx / d * 2, -dy / d * 2);
@@ -2784,7 +3280,7 @@
               const speed = e.speed * dt * 4;
               tryMove(e, dx / d * speed, dy / d * speed);
               if (dist(e, p) < 1.2) {
-                damagePlayer(Math.floor(e.dmg * 1.3));
+                enemyHitPlayer(e, Math.floor(e.dmg * 1.3));
                 burst(p.x, p.y, e.color, 10);
                 e.atkCd = 1.5;
               }
@@ -2794,7 +3290,7 @@
             break;
           case 'cleave': // Demon: hits in an arc, damages even if slightly off
             if (d < 1.8) {
-              damagePlayer(Math.floor(e.dmg * 1.2));
+              enemyHitPlayer(e, Math.floor(e.dmg * 1.2));
               burst(p.x, p.y, e.color, 10);
               // screen shake for impact
               game.screenShake = Math.max(game.screenShake, 0.15);
@@ -2854,7 +3350,7 @@
           const speed = e.speed * dt * speedMul;
           tryMove(e, dx / d * speed, dy / d * speed);
         } else if (e.atkCd <= 0) {
-          damagePlayer(e.dmg);
+          enemyHitPlayer(e, e.dmg);
           burst(p.x, p.y, '#ff4d6d', 6);
           e.atkCd = 1.2;
         }
@@ -2869,7 +3365,7 @@
           tryMove(e, -dx / d * speed, -dy / d * speed);
         }
         if (d < e.range && e.atkCd <= 0) {
-          spawnProjectile(e.x, e.y, dx / d, dy / d, 6.5, e.dmg, e.projColor || '#c489ff', 'soul', false);
+          spawnProjectile(e.x, e.y, dx / d, dy / d, 6.5, e.dmg, e.projColor || '#c489ff', 'soul', false, enemyCurse(e));
           e.atkCd = 2.0 + rand() * 0.6;
         }
       }
@@ -2938,6 +3434,8 @@
     game.damageFlash = 0.15; // red flash timer
     burst(game.world.player.x, game.world.player.y, '#ff4d6d', 6);
     updateHud();
+    // Auto-potion: try to heal before checking death so it can save the player.
+    if (game.char.hp > 0) checkAutoPotion();
     if (game.char.hp <= 0) onDeath();
   }
   function onDeath() {
@@ -3054,7 +3552,8 @@
       const my = p._impulseY || 0;
       if (mx !== 0 || my !== 0) {
         p.lastDir.x = mx; p.lastDir.y = my;
-        const sp = CFG.playerSpeed * dt;
+        const slowMul = (p.curses && p.curses.slow > 0) ? 0.5 : 1;  // Crippling curse
+        const sp = CFG.playerSpeed * dt * slowMul;
         tryMove(p, mx * sp, my * sp);
       }
       // Only consume impulse when keys are released AND no tap queued
@@ -3100,6 +3599,18 @@
     if (p.silenced !== undefined && p.silenced > 0) {
       p.silenced -= dt;
       if (p.silenced <= 0) p.silenced = 0;
+    }
+    // Curse debuff countdowns (Crippling slow, Enfeebling weaken)
+    if (p.curses) {
+      for (const k in p.curses) {
+        if (p.curses[k] > 0) {
+          p.curses[k] -= dt;
+          if (p.curses[k] <= 0) {
+            delete p.curses[k];
+            if (k === 'weaken') applyDerivedToChar();  // restore damage
+          }
+        }
+      }
     }
   }
 
@@ -3233,11 +3744,12 @@
       }
     }
     game.nearbyShrine = sn;
-    // Item — auto-pickup if close
+    // Item — auto-pickup if close (Lodestone upgrade widens the radius)
+    const pickRadius = 0.6 + 0.6 * upgradeLevel('pickup');
     let it = null, idx = -1;
     for (let i = 0; i < game.items.length; i++) {
       const gi = game.items[i];
-      if (dist(gi, p) < 0.6) { it = gi; idx = i; break; }
+      if (dist(gi, p) < pickRadius) { it = gi; idx = i; break; }
     }
     if (it && game.char.inventory.length < 24) {
       game.items.splice(idx, 1);
@@ -3392,10 +3904,12 @@
     ctx.translate(sx, sy);
 
     drawWorld();
+    drawTownFeatures();
     drawAmbient();
     drawItems();
     drawPortals();
     drawShrines();
+    drawTelegraphs();
     drawNpcs();
     drawProjectiles();
     drawMinions();
@@ -3638,8 +4152,30 @@
           ctx.globalAlpha = 1;
 
           switch (biome) {
-            case 'crypts':
             case 'town':
+              // Warm sanctuary flagstones — an amber-lit plaza, not a cold dungeon
+              ctx.fillStyle = '#2c2114';
+              ctx.globalAlpha = 0.55;
+              ctx.fillRect(s.x, s.y, t, t);
+              ctx.globalAlpha = 1;
+              // neat square paving with warm mortar
+              ctx.strokeStyle = '#5a4326';
+              ctx.globalAlpha = 0.4;
+              ctx.lineWidth = 1;
+              ctx.strokeRect(s.x + 1.5, s.y + 1.5, t - 3, t - 3);
+              ctx.globalAlpha = 1;
+              // occasional inlaid accent tile (cyan/gold sanctuary motif)
+              if (hash % 7 === 0) {
+                ctx.fillStyle = (hash2 % 2 === 0) ? '#6df1ff' : '#ffc857';
+                ctx.globalAlpha = 0.10;
+                ctx.beginPath();
+                ctx.arc(s.x + t * 0.5, s.y + t * 0.5, t * 0.13, 0, PI2);
+                ctx.fill();
+                ctx.globalAlpha = 1;
+              }
+              break;
+
+            case 'crypts':
               // Flagstone floor with mortar gaps
               ctx.strokeStyle = '#2a3a4a';
               ctx.globalAlpha = 0.2;
@@ -4109,13 +4645,15 @@
     for (const p of game.world.portals) {
       const s = w2s(p.x, p.y);
       const t = CFG.tile;
-      const col = p.kind === 'town' ? '#ffc857' : '#6df1ff';
+      const isRiftPortal = p.kind === 'rift-next';
+      const col = p.kind === 'town' ? '#ffc857' : (isRiftPortal ? '#b388ff' : '#6df1ff');
       const spin = now / 1200;
       ctx.save();
       ctx.translate(s.x, s.y);
       // ground glow — large so player can see it from a distance
+      // locked rift portal renders dimmer until enough enemies are slain
       ctx.fillStyle = col;
-      ctx.globalAlpha = 0.15;
+      ctx.globalAlpha = (isRiftPortal && p.locked) ? 0.06 : 0.15;
       ctx.beginPath();
       ctx.ellipse(0, 6, t * 0.9, t * 0.35, 0, 0, PI2);
       ctx.fill();
@@ -4149,7 +4687,35 @@
       ctx.fillStyle = col;
       ctx.font = 'bold 22px sans-serif';
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.fillText(p.kind === 'town' ? '⌂' : '▼', 0, -1);
+      const icon = p.kind === 'town' ? '⌂' : (isRiftPortal ? (p.locked ? '🔒' : '✷') : '▼');
+      ctx.fillText(icon, 0, -1);
+      ctx.restore();
+    }
+  }
+
+  function drawTelegraphs() {
+    if (!game.telegraphs || !game.telegraphs.length) return;
+    const t = CFG.tile;
+    for (const tg of game.telegraphs) {
+      const s = w2s(tg.x, tg.y);
+      const prog = Math.min(1, tg.age / tg.windup);   // 0 → 1 as it charges
+      const R = tg.radius * t;
+      ctx.save();
+      ctx.translate(s.x, s.y);
+      // outer warning ring (full radius)
+      ctx.strokeStyle = tg.color;
+      ctx.globalAlpha = 0.5 + 0.3 * Math.sin(tg.age * 18);
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.ellipse(0, 0, R, R * 0.62, 0, 0, PI2);
+      ctx.stroke();
+      // filling danger zone — grows to full as detonation nears
+      ctx.globalAlpha = 0.18 + 0.22 * prog;
+      ctx.fillStyle = tg.color;
+      ctx.beginPath();
+      ctx.ellipse(0, 0, R * prog, R * 0.62 * prog, 0, 0, PI2);
+      ctx.fill();
+      ctx.globalAlpha = 1;
       ctx.restore();
     }
   }
@@ -4203,6 +4769,84 @@
     }
   }
 
+  // Sanctuary-only atmosphere: a glowing plaza, a grand central fountain, brazier light.
+  function drawTownFeatures() {
+    if (!game.world || game.world.kind !== 'town') return;
+    const now = performance.now();
+    const t = CFG.tile;
+    // Fountain sits at the town centre (grid 10,8)
+    const fc = w2s(10.5, 8.5);
+
+    // ---- Plaza: faint concentric rings radiating from the fountain ----
+    ctx.save();
+    ctx.lineWidth = 2;
+    for (let i = 1; i <= 3; i++) {
+      ctx.strokeStyle = '#ffc857';
+      ctx.globalAlpha = 0.05 + 0.02 * Math.sin(now / 1500 + i);
+      ctx.beginPath();
+      ctx.ellipse(fc.x, fc.y, i * t * 1.7, i * t * 1.7 * 0.62, 0, 0, PI2);
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+    ctx.restore();
+
+    // ---- Brazier light pools at the four corner pillars ----
+    const braziers = [[3, 3], [17, 3], [3, 13], [17, 13]];
+    for (let i = 0; i < braziers.length; i++) {
+      const b = braziers[i];
+      const s = w2s(b[0] + 0.5, b[1] + 0.5);
+      const flick = 0.7 + 0.3 * Math.sin(now / 190 + i * 1.7);
+      ctx.fillStyle = '#ff9a3c';
+      ctx.globalAlpha = 0.16 * flick;
+      ctx.beginPath(); ctx.arc(s.x, s.y, t * 1.1, 0, PI2); ctx.fill();
+      ctx.globalAlpha = 0.85 * flick;
+      ctx.fillStyle = '#ffd166';
+      ctx.beginPath(); ctx.arc(s.x, s.y - 2, 3, 0, PI2); ctx.fill();
+      ctx.globalAlpha = 1;
+    }
+
+    // ---- Grand fountain ----
+    ctx.save();
+    ctx.translate(fc.x, fc.y);
+    const R = t * 0.9;
+    // ground glow
+    ctx.fillStyle = '#6df1ff';
+    ctx.globalAlpha = 0.13;
+    ctx.beginPath(); ctx.ellipse(0, 5, R * 1.3, R * 0.8, 0, 0, PI2); ctx.fill();
+    // stone basin rim
+    ctx.globalAlpha = 1;
+    ctx.strokeStyle = '#ffc857';
+    ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.ellipse(0, 5, R, R * 0.55, 0, 0, PI2); ctx.stroke();
+    // water surface
+    ctx.fillStyle = '#15485a';
+    ctx.globalAlpha = 0.7;
+    ctx.beginPath(); ctx.ellipse(0, 5, R * 0.82, R * 0.42, 0, 0, PI2); ctx.fill();
+    ctx.globalAlpha = 1;
+    // animated ripple rings on the water
+    for (let i = 0; i < 2; i++) {
+      const ph = ((now / 1200) + i * 0.5) % 1;
+      ctx.strokeStyle = '#9befff';
+      ctx.globalAlpha = 0.45 * (1 - ph);
+      ctx.lineWidth = 1.5;
+      const rr = R * 0.18 + R * 0.6 * ph;
+      ctx.beginPath(); ctx.ellipse(0, 5, rr, rr * 0.5, 0, 0, PI2); ctx.stroke();
+    }
+    // shimmering central jet
+    const jh = 16 + Math.sin(now / 300) * 3;
+    const grad = ctx.createLinearGradient(0, 5 - jh, 0, 5);
+    grad.addColorStop(0, 'rgba(155,239,255,0)');
+    grad.addColorStop(1, 'rgba(155,239,255,0.85)');
+    ctx.fillStyle = grad;
+    ctx.fillRect(-2, 5 - jh, 4, jh);
+    // sparkle at the top of the jet
+    ctx.globalAlpha = 0.6 + 0.4 * Math.sin(now / 180);
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath(); ctx.arc(0, 5 - jh, 2.2, 0, PI2); ctx.fill();
+    ctx.globalAlpha = 1;
+    ctx.restore();
+  }
+
   function drawNpcs() {
     if (!game.world.npcs) return;
     const now = performance.now();
@@ -4230,23 +4874,31 @@
       ctx.fillRect(-7, -6 + bob, 14, 3);
       // role indicator icon (floating above)
       ctx.fillStyle = n.color;
-      ctx.globalAlpha = 0.7;
-      ctx.font = 'bold 14px sans-serif';
+      ctx.globalAlpha = 1;
+      ctx.font = 'bold 16px sans-serif';
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.shadowColor = n.color;
+      ctx.shadowBlur = 6;
       ctx.fillText(n.glyph, 0, -22 + bob);
+      ctx.shadowBlur = 0;
       ctx.globalAlpha = 1;
-      // name plate
-      ctx.fillStyle = 'rgba(8,8,16,0.85)';
+      // name plate — large enough for glasses waveguide
+      ctx.font = 'bold 12px sans-serif';
       const tw = ctx.measureText(n.name).width;
-      ctx.fillRect(-(tw + 12) / 2, 14, tw + 12, 15);
+      const npH = 18, npY = 16;
+      ctx.fillStyle = 'rgba(8,8,16,0.92)';
+      ctx.fillRect(-(tw + 14) / 2, npY, tw + 14, npH);
       ctx.strokeStyle = n.color;
-      ctx.globalAlpha = 0.35;
-      ctx.lineWidth = 0.5;
-      ctx.strokeRect(-(tw + 12) / 2, 14, tw + 12, 15);
+      ctx.lineWidth = 1.2;
+      ctx.globalAlpha = 0.6;
+      ctx.strokeRect(-(tw + 14) / 2, npY, tw + 14, npH);
       ctx.globalAlpha = 1;
-      ctx.fillStyle = '#fff';
-      ctx.font = '10px sans-serif';
-      ctx.fillText(n.name, 0, 22);
+      // text glow for additive display readability
+      ctx.shadowColor = n.color;
+      ctx.shadowBlur = 4;
+      ctx.fillStyle = n.color;
+      ctx.fillText(n.name, 0, npY + npH / 2);
+      ctx.shadowBlur = 0;
       ctx.restore();
     }
   }
@@ -4589,8 +5241,11 @@
   let _hpGradBoss = null, _hpGradNorm = null;
   function drawEnemies() {
     const now = performance.now();
+    const C = CFG.canvas;
     for (const e of game.enemies) {
       const s = w2s(e.x, e.y);
+      // viewport cull — big maps can hold many enemies; only draw what's on-screen
+      if (s.x < -50 || s.x > C + 50 || s.y < -50 || s.y > C + 50) continue;
       ctx.save();
       ctx.translate(s.x, s.y);
       const isBoss = e.boss;
@@ -4614,6 +5269,18 @@
         ctx.beginPath();
         ctx.arc(0, 0, 14 * scale, 0, PI2);
         ctx.fill();
+        ctx.globalAlpha = 1;
+      }
+
+      // Enraged boss aura — angry red pulsing ring
+      if (e.enraged) {
+        const pulse = 0.6 + 0.4 * Math.sin(now / 120);
+        ctx.strokeStyle = '#ff2b3c';
+        ctx.globalAlpha = 0.5 * pulse;
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        ctx.arc(0, 0, 17 * scale, 0, PI2);
+        ctx.stroke();
         ctx.globalAlpha = 1;
       }
 
@@ -5311,8 +5978,10 @@
 
   function drawItems() {
     const now = performance.now();
+    const C = CFG.canvas;
     for (const gi of game.items) {
       const s = w2s(gi.x, gi.y);
+      if (s.x < -40 || s.x > C + 40 || s.y < -40 || s.y > C + 40) continue;  // viewport cull
       const pulse = 0.7 + 0.3 * Math.sin(now / 220 + gi.x);
       const float = Math.sin(now / 400 + gi.y * 3) * 2;
       ctx.save();
@@ -5387,8 +6056,8 @@
       const bounce = Math.sin(now / 300) * 2;
       ctx.save();
       ctx.translate(s.x, s.y - 28 + bounce);
-      ctx.font = '10px sans-serif';
-      const padX = 10, h = 18;
+      ctx.font = 'bold 11px sans-serif';
+      const padX = 10, h = 20;
       const tw = ctx.measureText(label).width;
       const w = tw + padX * 2;
       // pill background
@@ -5657,6 +6326,20 @@
       else { cdEl.textContent = 'READY'; cdEl.classList.add('ready'); }
     }
     $('hud-zone').textContent = game.world ? game.world.name : '—';
+    // Greater Rift timer + progress
+    const riftEl = $('hud-rift');
+    if (riftEl) {
+      if (game.rift && game.rift.active) {
+        const t = Math.max(0, Math.ceil(game.rift.timeLeft));
+        const low = t <= 20;
+        const prog = Math.min(game.rift.kills, game.rift.killsNeeded);
+        riftEl.classList.remove('hidden');
+        riftEl.classList.toggle('low', low);
+        riftEl.innerHTML = `⏱ ${t}s · ${prog}/${game.rift.killsNeeded}`;
+      } else {
+        riftEl.classList.add('hidden');
+      }
+    }
     // Active shrine buffs (icon + remaining seconds)
     const buffsEl = $('hud-buffs');
     if (buffsEl) {
@@ -5670,6 +6353,16 @@
         if (!m) continue;
         const t = Math.max(0, Math.ceil(buffs[k]));
         html += `<div class="hud-buff" style="border-color:${m.color};color:${m.color}">${m.icon} ${m.name} ${t}s</div>`;
+      }
+      // Active curses (player debuffs) — shown as red-tinted timed chips
+      const pl = game.world && game.world.player;
+      if (pl && pl.curses) {
+        for (const k in pl.curses) {
+          const def = CURSES[k];
+          if (!def || pl.curses[k] <= 0) continue;
+          const t = Math.max(0, Math.ceil(pl.curses[k]));
+          html += `<div class="hud-buff hud-curse" style="border-color:${def.color};color:${def.color}">${def.icon} ${def.name} ${t}s</div>`;
+        }
       }
       buffsEl.innerHTML = html;
     }
@@ -5696,11 +6389,18 @@
     if (id === 'gem-socket') renderGemSocket();
     if (id === 'mystery-vendor') renderMysteryVendor();
     if (id === 'quests') renderQuests();
+    if (id === 'bestiary') renderBestiary();
+    if (id === 'upgrades') renderUpgrades();
     if (id === 'menu') {
-      // only show "Return to Town" if we're in a dungeon
+      const inRift = !!(game.world && game.world.isRift);
+      // only show "Return to Town" if we're in a dungeon (or "Leave Rift" in a rift)
       const btn = $('menu-town-btn');
-      if (game.world && game.world.kind === 'dungeon') btn.classList.remove('hidden');
-      else btn.classList.add('hidden');
+      if (game.world && game.world.kind === 'dungeon') {
+        btn.textContent = inRift ? 'Leave Rift (bank rewards)' : 'Return to Town';
+        btn.classList.remove('hidden');
+      } else {
+        btn.classList.add('hidden');
+      }
       // Passives button — only show after level 10, with tome count badge
       const passivesBtn = $('menu-passives-btn');
       if (game.char && game.char.level >= 10) {
@@ -5710,9 +6410,9 @@
       } else {
         passivesBtn.classList.add('hidden');
       }
-      // Sanctuary Scroll button — only in dungeon, shows count
+      // Sanctuary Scroll button — only in a normal dungeon (not rifts), shows count
       const scrollBtn = $('menu-scroll-btn');
-      if (game.world && game.world.kind === 'dungeon') {
+      if (game.world && game.world.kind === 'dungeon' && !inRift) {
         const count = game.char.sanctuaryScrolls || 0;
         scrollBtn.textContent = count > 0
           ? `Use Sanctuary Scroll (${count})`
@@ -5740,6 +6440,12 @@
         const tRoot = document.getElementById('touch-controls');
         const isOn = tRoot && !tRoot.classList.contains('hidden');
         tBtn.textContent = `Touch Controls: ${isOn ? 'ON' : 'OFF'}`;
+      }
+      // Update auto-potion toggle button label
+      const apBtn = $('menu-autopotion-btn');
+      if (apBtn && game.char) {
+        const pct = Math.round((game.char.autoPotionPct || 0.35) * 100);
+        apBtn.textContent = game.char.autoPotion ? `Auto-Potion: ON (${pct}%)` : 'Auto-Potion: OFF';
       }
     }
     if (id === 'sync') {
@@ -5779,6 +6485,25 @@
     const cont = $('title-continue');
     if (game.save) cont.classList.remove('disabled');
     else cont.classList.add('disabled');
+    // Build the drifting ember field once (cosmetic — plain Math.random is fine)
+    const field = $('title-embers');
+    if (field && !field.childElementCount) {
+      const colors = ['#6df1ff', '#c489ff', '#ffc857', '#9bd0ff', '#ff77ff'];
+      for (let i = 0; i < 16; i++) {
+        const e = document.createElement('div');
+        e.className = 'ember';
+        const sz = (1.4 + Math.random() * 3).toFixed(1);
+        const col = colors[(Math.random() * colors.length) | 0];
+        const dur = 7 + Math.random() * 9;
+        e.style.left = (Math.random() * 100).toFixed(1) + '%';
+        e.style.width = e.style.height = sz + 'px';
+        e.style.background = col;
+        e.style.boxShadow = `0 0 ${Math.round(5 + sz * 2)}px ${col}`;
+        e.style.animationDuration = dur.toFixed(1) + 's';
+        e.style.animationDelay = (-Math.random() * dur).toFixed(1) + 's';
+        field.appendChild(e);
+      }
+    }
   }
 
   function renderInventory() {
@@ -5968,17 +6693,37 @@
       if (!s) continue;
       const isActive = skillId === activeId;
       const isGranted = !cls.skills.includes(skillId);
+      const runeId = c.skillRunes && c.skillRunes[skillId];
+      const rune = runeId ? RUNES[runeId] : null;
       const card = document.createElement('button');
       card.className = 'skill-card focusable' + (isActive ? ' skill-active' : '');
       card.dataset.action = 'select-skill';
       card.dataset.skill = skillId;
       const grantBadge = isGranted ? ' <span class="rarity-unique">(Legendary)</span>' : '';
+      const runeBadge = rune ? ` <span class="rune-badge">${rune.icon} ${rune.name}</span>` : '';
       card.innerHTML = `
-        <div class="skill-name">${s.name}${isActive ? ' ★' : ''}${grantBadge}</div>
+        <div class="skill-name">${s.name}${isActive ? ' ★' : ''}${grantBadge}${runeBadge}</div>
         <div class="skill-desc">${s.desc}</div>
         <div class="skill-meta">Cooldown: ${s.cooldown}s · Mana: ${s.cost}</div>
       `;
       el.appendChild(card);
+    }
+    // Rune picker for the active skill
+    const aS = SKILLS[activeId];
+    if (aS) {
+      const sec = document.createElement('div');
+      sec.className = 'rune-section';
+      const curRune = c.skillRunes && c.skillRunes[activeId];
+      let chips = `<button class="rune-chip focusable${!curRune ? ' rune-on' : ''}" data-action="set-rune" data-skill="${activeId}" data-rune="">None</button>`;
+      for (const rid in RUNES) {
+        const r = RUNES[rid];
+        const on = curRune === rid;
+        chips += `<button class="rune-chip focusable${on ? ' rune-on' : ''}" data-action="set-rune" data-skill="${activeId}" data-rune="${rid}">
+          <span class="rune-chip-name">${r.icon} ${r.name}</span><span class="rune-chip-desc">${r.desc}</span>
+        </button>`;
+      }
+      sec.innerHTML = `<div class="skill-header">Rune — ${aS.name}:</div><div class="rune-chips">${chips}</div>`;
+      el.appendChild(sec);
     }
   }
 
@@ -6242,7 +6987,13 @@
   function renderStash() {
     const list = $('stash-list'); list.innerHTML = '';
     document.querySelectorAll('#stash .vendor-tab').forEach(t => t.classList.remove('active'));
+    const craftHeader = $('craft-header');
+    if (craftHeader) craftHeader.classList.add('hidden');
     const c = game.char;
+    if (game.stashMode === 'craft') {
+      renderCraft();
+      return;
+    }
     if (game.stashMode === 'deposit') {
       document.querySelector('[data-action="stash-tab-deposit"]').classList.add('active');
       c.inventory.forEach((it, idx) => {
@@ -6271,9 +7022,174 @@
     }
   }
 
+  // ===== CRAFTING BENCH (at the Keeper) =====
+  const SALVAGE_YIELD = { common: 1, magic: 3, rare: 6, unique: 15 };
+  const CRAFT_SOCKET_COST = 8;
+  const CRAFT_SOCKET_MAX = 2;
+  const CRAFT_RARITY_NEXT = { common: 'magic', magic: 'rare' };
+  function craftUpgradeCost(it) {
+    return it.rarity === 'common' ? 5 : it.rarity === 'magic' ? 12 : 0;
+  }
+  // Number of affixes an item should carry once upgraded to a given rarity.
+  function targetAffixCount(rarity) {
+    return rarity === 'magic' ? 1 : rarity === 'rare' ? 3 : 0;
+  }
+  function isCraftable(it) {
+    const base = ITEM_BASES[it.baseId];
+    return base && (base.type === 'weapon' || base.type === 'armor' || base.type === 'ring' || base.type === 'amulet');
+  }
+
+  function renderCraft() {
+    const list = $('stash-list'); list.innerHTML = '';
+    document.querySelector('[data-action="stash-tab-craft"]').classList.add('active');
+    const c = game.char;
+    const dust = c.craftDust || 0;
+    const header = $('craft-header');
+    if (header) {
+      header.classList.remove('hidden');
+      header.innerHTML = `Salvage gear into <span class="rarity-unique">Glass Dust</span>, then upgrade rarity or add sockets.<br>
+        <span style="color:var(--text-dim)">You have <span class="rarity-unique">${dust}</span> Glass Dust.</span>`;
+    }
+    let any = false;
+    c.inventory.forEach((it, idx) => {
+      if (!isCraftable(it)) return;
+      any = true;
+      const base = ITEM_BASES[it.baseId];
+      const equipped = isEquipped(it);
+      const sockets = it.sockets || 0;
+      const card = document.createElement('div');
+      card.className = 'craft-card';
+      const sub = `${base.type} · ilvl ${it.ilvl} · ${sockets} socket${sockets === 1 ? '' : 's'}${equipped ? ' · EQ' : ''}`;
+      let buttons = '';
+      // Salvage (non-equipped only)
+      if (!equipped) {
+        const yld = SALVAGE_YIELD[it.rarity] || 1;
+        buttons += `<button class="craft-btn focusable danger" data-action="craft-salvage" data-idx="${idx}">Salvage +${yld}</button>`;
+      }
+      // Upgrade rarity
+      const nextR = CRAFT_RARITY_NEXT[it.rarity];
+      if (nextR) {
+        const cost = craftUpgradeCost(it);
+        const afford = dust >= cost;
+        buttons += `<button class="craft-btn focusable${afford ? '' : ' disabled'}" data-action="craft-upgrade" data-idx="${idx}"${afford ? '' : ' tabindex="-1"'}>→ ${nextR} (${cost})</button>`;
+      }
+      // Add socket
+      if (sockets < CRAFT_SOCKET_MAX) {
+        const afford = dust >= CRAFT_SOCKET_COST;
+        buttons += `<button class="craft-btn focusable${afford ? '' : ' disabled'}" data-action="craft-socket" data-idx="${idx}"${afford ? '' : ' tabindex="-1"'}>+Socket (${CRAFT_SOCKET_COST})</button>`;
+      }
+      card.innerHTML = `
+        <div class="craft-info">
+          <div class="inv-icon">${base.icon}</div>
+          <div class="inv-meta"><div class="inv-name rarity-${it.rarity}">${it.name}</div><div class="inv-sub">${sub}</div></div>
+        </div>
+        <div class="craft-actions">${buttons}</div>
+      `;
+      list.appendChild(card);
+    });
+    if (!any) list.innerHTML = '<div class="quest-card empty">No gear to craft. Pick up some equipment first.</div>';
+  }
+
+  function craftSalvage(idx) {
+    const c = game.char;
+    const it = c.inventory[idx];
+    if (!it || !isCraftable(it)) return;
+    if (isEquipped(it)) { showHudToast('Unequip it first.'); return; }
+    const yld = SALVAGE_YIELD[it.rarity] || 1;
+    // Return any socketed gems to the inventory so they aren't destroyed
+    let gemsBack = 0;
+    if (it.gems && it.gems.length) {
+      it.gems.forEach(gemId => {
+        const g = makeGemItem(gemId);
+        if (g) { c.inventory.push(g); gemsBack++; }
+      });
+    }
+    const removeId = it.id;
+    c.inventory = c.inventory.filter(x => !(x && x.id === removeId));
+    c.craftDust = (c.craftDust || 0) + yld;
+    saveGame();
+    renderCraft();
+    updateHud();
+    showHudToast(`Salvaged for ${yld} dust${gemsBack ? ` (+${gemsBack} gem${gemsBack === 1 ? '' : 's'} returned)` : ''}.`);
+  }
+
+  function craftUpgrade(idx) {
+    const c = game.char;
+    const it = c.inventory[idx];
+    if (!it || !isCraftable(it)) return;
+    const nextR = CRAFT_RARITY_NEXT[it.rarity];
+    if (!nextR) { showHudToast('Already at max craftable rarity.'); return; }
+    const cost = craftUpgradeCost(it);
+    if ((c.craftDust || 0) < cost) { showHudToast(`Need ${cost} Glass Dust.`); return; }
+    c.craftDust -= cost;
+    it.rarity = nextR;
+    // Add affixes (with unique keys) up to the new tier's target count
+    if (!it.affixes) it.affixes = [];
+    const used = new Set(it.affixes.map(a => a.key));
+    const target = targetAffixCount(nextR);
+    let guard = 0;
+    while (it.affixes.length < target && guard++ < 30) {
+      const af = rollAffix(nextR, it.ilvl || 1);
+      if (used.has(af.key)) continue;
+      used.add(af.key);
+      it.affixes.push(af);
+    }
+    const base = ITEM_BASES[it.baseId];
+    if (base) it.name = buildItemName(base, it.rarity, it.affixes);
+    applyDerivedToChar();
+    saveGame();
+    renderCraft();
+    updateHud();
+    showHudToast(`Upgraded to ${nextR}: ${it.name}`);
+  }
+
+  function craftAddSocket(idx) {
+    const c = game.char;
+    const it = c.inventory[idx];
+    if (!it || !isCraftable(it)) return;
+    if ((it.sockets || 0) >= CRAFT_SOCKET_MAX) { showHudToast('Max sockets reached.'); return; }
+    if ((c.craftDust || 0) < CRAFT_SOCKET_COST) { showHudToast(`Need ${CRAFT_SOCKET_COST} Glass Dust.`); return; }
+    c.craftDust -= CRAFT_SOCKET_COST;
+    it.sockets = (it.sockets || 0) + 1;
+    saveGame();
+    renderCraft();
+    updateHud();
+    showHudToast('Added a socket.');
+  }
+
   function renderWaypoint() {
     const el = $('waypoint-content');
     el.innerHTML = '';
+    // Difficulty selector — Normal / Nightmare / Hell
+    const maxIdx = DIFFICULTY_ORDER.indexOf(game.save.maxDifficulty || 'normal');
+    const diffWrap = document.createElement('div');
+    diffWrap.className = 'diff-selector';
+    let diffChips = '<div class="diff-label">DIFFICULTY</div><div class="diff-chips">';
+    DIFFICULTY_ORDER.forEach((did, i) => {
+      const d = DIFFICULTIES[did];
+      const unlocked = i <= maxIdx;
+      const on = (game.save.difficulty || 'normal') === did;
+      diffChips += `<button class="diff-chip focusable${on ? ' diff-on' : ''}${unlocked ? '' : ' locked'}"
+        ${unlocked ? `data-action="set-difficulty" data-diff="${did}"` : 'tabindex="-1"'}
+        style="${on ? `border-color:${d.color};color:${d.color}` : ''}">${unlocked ? d.name : '🔒 ' + d.name}</button>`;
+    });
+    diffChips += '</div>';
+    diffWrap.innerHTML = diffChips;
+    el.appendChild(diffWrap);
+    // Greater Rift — endgame endless mode, unlocked after the first boss falls
+    const riftUnlocked = !!game.save.unlockedBiomes.overgrowth;
+    const best = game.save.bestRift || 0;
+    const riftCard = document.createElement('button');
+    riftCard.className = 'waypoint-card rift-card focusable' + (riftUnlocked ? '' : ' locked');
+    if (riftUnlocked) { riftCard.dataset.action = 'enter-rift'; } else { riftCard.tabIndex = -1; }
+    riftCard.innerHTML = `
+      <div class="waypoint-glyph" style="color:#b388ff;text-shadow:0 0 12px #b388ff">${riftUnlocked ? '✷' : '?'}</div>
+      <div class="waypoint-meta">
+        <div class="waypoint-name" style="color:${riftUnlocked ? '#d9c2ff' : '#9a9ab0'};text-shadow:0 0 8px #b388ff">Greater Rift</div>
+        <div class="waypoint-sub">${riftUnlocked ? (best > 0 ? `Endless · Best: Level ${best}` : 'Endless · Beat the timer, go deep') : 'Locked — defeat the first boss'}</div>
+      </div>
+    `;
+    el.appendChild(riftCard);
     BIOMES.forEach(b => {
       const unlocked = game.save.unlockedBiomes[b.id];
       const card = document.createElement('button');
@@ -6284,15 +7200,117 @@
       } else {
         card.tabIndex = -1;
       }
+      const nameColor = unlocked ? '#ffffff' : '#9a9ab0';
       card.innerHTML = `
         <div class="waypoint-glyph" style="color:${b.palette.wall};text-shadow:0 0 12px ${b.palette.wall}">${unlocked ? '✦' : '?'}</div>
         <div class="waypoint-meta">
-          <div class="waypoint-name">${b.name}</div>
-          <div class="waypoint-sub">${unlocked ? 'Discovered' : 'Locked — kill the boss before to unlock'}</div>
+          <div class="waypoint-name" style="color:${nameColor};text-shadow:0 0 6px ${b.palette.wall}">${b.name}</div>
+          <div class="waypoint-sub">${unlocked ? 'Discovered' : 'Locked — defeat boss to unlock'}</div>
         </div>
       `;
       el.appendChild(card);
     });
+  }
+
+  function renderBestiary() {
+    const el = $('bestiary-content');
+    if (!el) return;
+    el.innerHTML = '';
+    const bestiary = (game.save && game.save.bestiary) || {};
+    // Count discovery progress across all enemies
+    const allIds = Object.keys(ENEMIES);
+    const discovered = allIds.filter(id => (bestiary[id] || 0) > 0).length;
+    const prog = $('bestiary-progress');
+    if (prog) prog.textContent = `${discovered} / ${allIds.length}`;
+
+    // Build one section per biome: its enemies, then its boss.
+    BIOMES.forEach(b => {
+      const ids = (b.enemies || []).slice();
+      if (b.boss) ids.push(b.boss);
+
+      const section = document.createElement('div');
+      section.className = 'bestiary-section';
+      const head = document.createElement('div');
+      head.className = 'bestiary-biome';
+      head.style.color = b.palette.wall;
+      head.style.textShadow = `0 0 8px ${b.palette.wall}`;
+      head.textContent = b.name;
+      section.appendChild(head);
+
+      ids.forEach(id => {
+        const def = ENEMIES[id];
+        if (!def) return;
+        const kills = bestiary[id] || 0;
+        const known = kills > 0;
+        const row = document.createElement('div');
+        row.className = 'bestiary-entry' + (known ? '' : ' unknown') + (def.boss ? ' boss' : '');
+        const glyphColor = known ? def.color : '#3a3a4a';
+        const name = known ? def.name : '???';
+        const lore = known ? (BESTIARY_LORE[id] || '') : 'Slay one to record its tale.';
+        row.innerHTML = `
+          <div class="bestiary-glyph" style="color:${glyphColor};${known ? `text-shadow:0 0 8px ${def.color}` : ''}">${known ? def.glyph : '?'}</div>
+          <div class="bestiary-meta">
+            <div class="bestiary-name">${name}${def.boss ? ' <span class="bestiary-boss-tag">BOSS</span>' : ''}</div>
+            <div class="bestiary-lore">${lore}</div>
+          </div>
+          <div class="bestiary-kills">${known ? '×' + kills : ''}</div>
+        `;
+        section.appendChild(row);
+      });
+      el.appendChild(section);
+    });
+  }
+
+  function renderUpgrades() {
+    const el = $('upgrades-content');
+    if (!el) return;
+    el.innerHTML = '';
+    const goldEl = $('upgrades-gold');
+    if (goldEl) goldEl.textContent = `${game.char.gold}g`;
+    for (const key in UPGRADES) {
+      const u = UPGRADES[key];
+      const lvl = upgradeLevel(key);
+      const maxed = lvl >= u.max;
+      const cost = upgradeCost(key);
+      const afford = game.char.gold >= cost;
+      const card = document.createElement('div');
+      card.className = 'upgrade-card';
+      // pip row showing levels filled
+      let pips = '';
+      for (let i = 0; i < u.max; i++) pips += `<span class="up-pip${i < lvl ? ' on' : ''}"></span>`;
+      const btn = maxed
+        ? `<div class="upgrade-maxed">MAX</div>`
+        : `<button class="upgrade-buy focusable${afford ? '' : ' disabled'}" data-action="buy-upgrade" data-key="${key}"${afford ? '' : ' tabindex="-1"'}>${cost}g</button>`;
+      card.innerHTML = `
+        <div class="upgrade-icon">${u.icon}</div>
+        <div class="upgrade-meta">
+          <div class="upgrade-name">${u.name} <span class="upgrade-lvl">Lv ${lvl}/${u.max}</span></div>
+          <div class="upgrade-desc">${u.perLevel}</div>
+          <div class="up-pips">${pips}</div>
+        </div>
+        ${btn}
+      `;
+      el.appendChild(card);
+    }
+  }
+
+  function buyUpgrade(key) {
+    const u = UPGRADES[key];
+    if (!u) return;
+    const lvl = upgradeLevel(key);
+    if (lvl >= u.max) { showHudToast('Already maxed.'); return; }
+    const cost = upgradeCost(key);
+    if (game.char.gold < cost) { showHudToast('Not enough gold.'); return; }
+    game.char.gold -= cost;
+    if (!game.save.upgrades) game.save.upgrades = { pickup: 0, xpgain: 0, goldfind: 0, potions: 0 };
+    game.save.upgrades[key] = lvl + 1;
+    // Potion Belt immediately tops up your flasks
+    if (key === 'potions') game.char.potions = potionCapacity();
+    applyDerivedToChar();
+    saveGame();
+    renderUpgrades();
+    updateHud();
+    showHudToast(`${u.name} → Lv ${lvl + 1}`);
   }
 
   // ============================================================
@@ -6347,15 +7365,24 @@
       case 'menu-skills': navigateTo('skills'); return;
       case 'menu-passives': navigateTo('passives'); return;
       case 'menu-quests': navigateTo('quests'); return;
+      case 'menu-bestiary': navigateTo('bestiary'); return;
+      case 'menu-upgrades': navigateTo('upgrades'); return;
+      case 'buy-upgrade': buyUpgrade(el.dataset.key); return;
       case 'menu-town':
-        if (game.world && game.world.kind === 'dungeon') {
+        if (game.world && game.world.isRift && game.rift && game.rift.active) {
+          // In a rift, leaving banks the run for rewards
+          endRift(true);
+          game.history = [];
+        } else if (game.world && game.world.kind === 'dungeon') {
           enterTown();
           // close the open menu screen
           game.history = [];
         }
         return;
       case 'menu-use-scroll':
-        if (game.world && game.world.kind === 'dungeon' && game.char.sanctuaryScrolls > 0) {
+        if (game.world && game.world.isRift) {
+          showHudToast('Use the Leave Rift portal to exit a rift.');
+        } else if (game.world && game.world.kind === 'dungeon' && game.char.sanctuaryScrolls > 0) {
           // Snapshot dungeon state so player can return here later
           game.save.savedDungeon = {
             biomeId: game.activeBiomeId,
@@ -6401,6 +7428,32 @@
           const isOn = tRoot && !tRoot.classList.contains('hidden');
           if (tBtn) tBtn.textContent = `Touch Controls: ${isOn ? 'ON' : 'OFF'}`;
           showHudToast(`Touch controls ${isOn ? 'enabled' : 'disabled'}.`);
+        }
+        return;
+      case 'menu-autopotion-toggle':
+        {
+          const c = game.char;
+          // Cycle: OFF -> 25% -> 35% -> 50% -> OFF
+          const cycle = [
+            { on: false, pct: 0.35 },
+            { on: true,  pct: 0.25 },
+            { on: true,  pct: 0.35 },
+            { on: true,  pct: 0.50 },
+          ];
+          // find current index
+          let idx = 0;
+          if (c.autoPotion) {
+            const p = c.autoPotionPct;
+            idx = p <= 0.25 ? 1 : (p >= 0.5 ? 3 : 2);
+          }
+          const next = cycle[(idx + 1) % cycle.length];
+          c.autoPotion = next.on;
+          c.autoPotionPct = next.pct;
+          saveGame();
+          const apBtn = $('menu-autopotion-btn');
+          const pctLabel = Math.round(c.autoPotionPct * 100);
+          if (apBtn) apBtn.textContent = c.autoPotion ? `Auto-Potion: ON (${pctLabel}%)` : 'Auto-Potion: OFF';
+          showHudToast(c.autoPotion ? `Auto-potion ON at ${pctLabel}% HP.` : 'Auto-potion OFF.');
         }
         return;
       case 'menu-sync':
@@ -6471,6 +7524,23 @@
         return;
       }
 
+      // skill rune — choose an augment for a skill ('' clears it)
+      case 'set-rune': {
+        const skillId = el.dataset.skill;
+        const runeId = el.dataset.rune;
+        if (!game.char.skillRunes) game.char.skillRunes = {};
+        if (runeId && RUNES[runeId]) {
+          game.char.skillRunes[skillId] = runeId;
+          showHudToast(`${SKILLS[skillId].name}: ${RUNES[runeId].name} rune`);
+        } else {
+          delete game.char.skillRunes[skillId];
+          showHudToast(`${SKILLS[skillId].name}: rune removed`);
+        }
+        saveGame();
+        renderSkills();
+        return;
+      }
+
       // passives — unlock a passive node
       case 'unlock-passive': {
         unlockPassive(el.dataset.passive);
@@ -6491,14 +7561,35 @@
       // stash
       case 'stash-tab-deposit':  game.stashMode = 'deposit';  renderStash(); return;
       case 'stash-tab-withdraw': game.stashMode = 'withdraw'; renderStash(); return;
+      case 'stash-tab-craft':    game.stashMode = 'craft';    renderStash(); return;
       case 'stash-deposit':      stashDeposit(parseInt(el.dataset.idx, 10)); return;
       case 'stash-withdraw':     stashWithdraw(parseInt(el.dataset.idx, 10)); return;
+
+      // crafting bench (at the Keeper)
+      case 'craft-salvage':  craftSalvage(parseInt(el.dataset.idx, 10)); return;
+      case 'craft-upgrade':  craftUpgrade(parseInt(el.dataset.idx, 10)); return;
+      case 'craft-socket':   craftAddSocket(parseInt(el.dataset.idx, 10)); return;
 
       // waypoint
       case 'travel':
         enterBiome(el.dataset.biome, 1);
         game.history = [];
         return;
+      case 'enter-rift':
+        enterRift(1);
+        game.history = [];
+        return;
+      case 'set-difficulty': {
+        const did = el.dataset.diff;
+        const maxIdx = DIFFICULTY_ORDER.indexOf(game.save.maxDifficulty || 'normal');
+        if (DIFFICULTIES[did] && DIFFICULTY_ORDER.indexOf(did) <= maxIdx) {
+          game.save.difficulty = did;
+          saveGame();
+          renderWaypoint();
+          showHudToast(`Difficulty: ${DIFFICULTIES[did].name}`);
+        }
+        return;
+      }
 
       // quests
       case 'turn-in-quest': turnInQuest(); return;
@@ -7011,8 +8102,8 @@
       showHudToast('No save to export.');
       return;
     }
-    // Encode with a small wrapper so an Import knows it's a valid Glasspire save
-    const wrapper = { app: 'glasspire', v: 1, ts: Date.now(), payload: raw };
+    // Encode with a small wrapper so an Import knows it's a valid HollowLight save
+    const wrapper = { app: 'hollowlight', v: 1, ts: Date.now(), payload: raw };
     let code;
     try {
       // base64 of the JSON wrapper — easier to copy/paste (no quotes inside)
@@ -7053,11 +8144,11 @@
       showHudToast('Invalid code. Make sure you copied the whole thing.');
       return;
     }
-    // Validate the inner payload is a real Glasspire save
+    // Validate the inner payload is a real HollowLight save
     let payloadObj;
     try { payloadObj = JSON.parse(parsed.payload); } catch (e) { payloadObj = null; }
     if (!payloadObj || payloadObj.v !== 2 || !payloadObj.char) {
-      showHudToast('Code is not a valid Glasspire save.');
+      showHudToast('Code is not a valid HollowLight save.');
       return;
     }
     // Overwrite localStorage and reload the page so all state is fresh
@@ -7088,8 +8179,8 @@
     if (!raw) { setShortCodeBox('No save on this device yet.', true); showHudToast('No save to export.'); return; }
     setShortCodeBox('Generating code...', true);
     try {
-      // Wrap with a header so import can validate it's a Glasspire save
-      const wrapper = { app: 'glasspire', v: 1, ts: Date.now(), payload: raw };
+      // Wrap with a header so import can validate it's a HollowLight save
+      const wrapper = { app: 'hollowlight', v: 1, ts: Date.now(), payload: raw };
       const body = JSON.stringify(wrapper);
       // dpaste.com API: POST form-encoded `content=...` to /api/v2/ → returns plain-text URL
       const form = new URLSearchParams();
@@ -7138,11 +8229,11 @@
       const resp = await fetch(`${SHORT_CODE_BASE}/${code}.txt`);
       if (!resp.ok) throw new Error('HTTP ' + resp.status);
       const text = (await resp.text()).trim();
-      // Validate it's a Glasspire wrapper
+      // Validate it's a HollowLight wrapper (accept the old 'glasspire' tag too)
       let wrapper;
       try { wrapper = JSON.parse(text); } catch (e) { wrapper = null; }
-      if (!wrapper || !wrapper.payload || wrapper.app !== 'glasspire') {
-        showHudToast('Code did not return a valid Glasspire save.');
+      if (!wrapper || !wrapper.payload || (wrapper.app !== 'hollowlight' && wrapper.app !== 'glasspire')) {
+        showHudToast('Code did not return a valid HollowLight save.');
         return;
       }
       let payloadObj;
@@ -7229,9 +8320,11 @@
       tickEnemies(dt);
       tickMinions(dt);
       tickProjectiles(dt);
+      tickTelegraphs(dt);
       tickSkillEffects(dt);
       tickEffects(dt);
       tickAmbient(dt);
+      tickRift(dt);
       tickInteraction();
       updateCamera();
       render();
@@ -7257,8 +8350,8 @@
     }
     navigateTo('title', { addToHistory: false });
     requestAnimationFrame(frame);
-    // expose for debugging
-    window.__glasspire = { game, enterBiome, enterTown, CLASSES, BIOMES };
+    // expose for debugging (old alias kept for back-compat)
+    window.__hollowlight = window.__glasspire = { game, enterBiome, enterTown, CLASSES, BIOMES };
   }
 
   if (document.readyState === 'loading') {

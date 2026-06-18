@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=600, height=600, initial-scale=1.0, user-scalable=no">
-  <title>Glasspire</title>
+  <title>HollowLight</title>
   <link rel="icon" type="image/png" href="favicon.png">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="stylesheet" href="styles.css">
@@ -16,8 +16,14 @@
     <!-- ============================================================ -->
     <div id="title" class="screen">
       <div class="title-frame">
-        <div class="title-glyph"></div>
-        <h1 class="title-name">GLASSPIRE</h1>
+        <div class="title-embers" id="title-embers"></div>
+        <div class="title-vignette"></div>
+        <div class="title-emblem">
+          <div class="title-beam"></div>
+          <div class="title-glyph"></div>
+        </div>
+        <h1 class="title-name">HOLLOWLIGHT</h1>
+        <div class="title-divider"></div>
         <p class="title-tagline">An action RPG for Meta Ray-Ban Display</p>
         <nav class="title-menu">
           <button class="title-btn focusable" data-action="title-continue" id="title-continue">Continue</button>
@@ -173,6 +179,7 @@
       <div id="hud" class="hud">
         <div class="hud-top">
           <div class="hud-zone" id="hud-zone">—</div>
+          <div class="hud-rift hidden" id="hud-rift"></div>
           <div class="hud-minimap"><canvas id="minimap" width="96" height="96"></canvas></div>
         </div>
         <div class="hud-buffs" id="hud-buffs"></div>
@@ -226,10 +233,13 @@
         <button class="nav-item focusable" data-action="menu-skills">Skill</button>
         <button class="nav-item focusable" data-action="menu-passives" id="menu-passives-btn">Passives</button>
         <button class="nav-item focusable" data-action="menu-quests">Quest Log</button>
+        <button class="nav-item focusable" data-action="menu-bestiary">Bestiary</button>
+        <button class="nav-item focusable" data-action="menu-upgrades">Permanent Upgrades</button>
         <button class="nav-item focusable" data-action="menu-use-scroll" id="menu-scroll-btn">Use Sanctuary Scroll</button>
         <button class="nav-item focusable" data-action="menu-return-dungeon" id="menu-return-dungeon-btn">Return to Dungeon</button>
         <button class="nav-item focusable" data-action="menu-town" id="menu-town-btn">Return to Town</button>
         <button class="nav-item focusable" data-action="menu-touch-toggle" id="menu-touch-toggle-btn">Touch Controls: OFF</button>
+        <button class="nav-item focusable" data-action="menu-autopotion-toggle" id="menu-autopotion-btn">Auto-Potion: ON</button>
         <button class="nav-item focusable" data-action="menu-sync">Sync Save (export / import)</button>
         <button class="nav-item focusable danger" data-action="menu-title">Save &amp; Quit</button>
       </div>
@@ -445,9 +455,11 @@
       </header>
       <div class="content">
         <div class="vendor-tabs">
-          <button class="vendor-tab focusable" data-action="stash-tab-deposit">Deposit (Inventory)</button>
-          <button class="vendor-tab focusable" data-action="stash-tab-withdraw">Withdraw (Stash)</button>
+          <button class="vendor-tab focusable" data-action="stash-tab-deposit">Deposit</button>
+          <button class="vendor-tab focusable" data-action="stash-tab-withdraw">Withdraw</button>
+          <button class="vendor-tab focusable" data-action="stash-tab-craft">Craft</button>
         </div>
+        <div id="craft-header" class="craft-header hidden"></div>
         <div class="inv-list" id="stash-list"></div>
       </div>
     </div>
@@ -461,6 +473,30 @@
         <h1>Waypoint</h1>
       </header>
       <div class="content" id="waypoint-content"></div>
+    </div>
+
+    <!-- ============================================================ -->
+    <!-- PERMANENT UPGRADES (gold sink)                                -->
+    <!-- ============================================================ -->
+    <div id="upgrades" class="screen hidden">
+      <header class="header">
+        <button class="back-btn focusable" data-action="back">&#8592;</button>
+        <h1>Upgrades</h1>
+        <span class="header-meta" id="upgrades-gold"></span>
+      </header>
+      <div class="content" id="upgrades-content"></div>
+    </div>
+
+    <!-- ============================================================ -->
+    <!-- BESTIARY (enemy kill log + lore)                              -->
+    <!-- ============================================================ -->
+    <div id="bestiary" class="screen hidden">
+      <header class="header">
+        <button class="back-btn focusable" data-action="back">&#8592;</button>
+        <h1>Bestiary</h1>
+        <span class="header-meta" id="bestiary-progress"></span>
+      </header>
+      <div class="content" id="bestiary-content"></div>
     </div>
 
     <!-- ============================================================ -->

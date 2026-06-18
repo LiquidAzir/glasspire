@@ -1,4 +1,4 @@
-# Glasspire
+# HollowLight
 
 Action RPG for Meta Ray-Ban Display glasses. 600×600 dark additive display, 4-way D-pad + single-pinch input.
 
@@ -25,7 +25,7 @@ Combo gestures (deliberate multi-tap patterns):
 4. Settings:
    - **Build command:** *(leave empty)*
    - **Publish directory:** `.`
-5. Click **Create Static Site**. Done in ~30s — you get a URL like `https://glasspire.onrender.com`.
+5. Click **Create Static Site**. Done in ~30s — you get a URL like `https://hollowlight.onrender.com`.
 
 The bundled `render.yaml` lets Render auto-detect these settings if you use Infrastructure as Code.
 
@@ -33,7 +33,7 @@ The bundled `render.yaml` lets Render auto-detect these settings if you use Infr
 
 1. Open the **Meta AI** app on your phone.
 2. **Devices → Display Glasses → App connections → Web apps → Add a web app**.
-3. Name: `Glasspire`. URL: the Render URL from above.
+3. Name: `HollowLight`. URL: the Render URL from above.
 
 Or generate a QR code from the URL and scan it on your phone to deep-link the install.
 
@@ -61,7 +61,7 @@ Unlock in order by beating each boss:
 A small hook is exposed for inspection from the browser console:
 
 ```js
-__glasspire.game            // live game state
-__glasspire.enterBiome('crypts', 1)
-__glasspire.enterTown()
+__hollowlight.game            // live game state
+__hollowlight.enterBiome('crypts', 1)
+__hollowlight.enterTown()
 ```
