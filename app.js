@@ -424,41 +424,49 @@
     'eye-of-the-spire':   { type: 'amulet', name: 'Eye of the Spire',  icon: '◈', base: { hp: 15, mp: 15 }, ilvl: 22 },
 
     // ===== LEGENDARY WEAPONS =====
-    'demonslayer':        { type: 'weapon', name: 'Demonslayer',         icon: '⚔', base: { dmg: 42, hp: 30, str: 3 }, ilvl: 23, glyph: 'wep', grantsSkill: 'demonslash' },
-    'frostbite-edge':     { type: 'weapon', name: 'Frostbite Edge',      icon: '⚔', base: { dmg: 38, def: 8 },  ilvl: 21, glyph: 'wep' },
-    'starfall-staff':     { type: 'weapon', name: 'Starfall Staff',      icon: '✦', base: { dmg: 44, mp: 50, int: 3 }, ilvl: 23, glyph: 'wep', grantsSkill: 'starfall' },
-    'voidweaver':         { type: 'weapon', name: 'Voidweaver',          icon: '✦', base: { dmg: 40, mp: 35 }, ilvl: 22, glyph: 'wep' },
-    'typhoon-bow':        { type: 'weapon', name: 'Typhoon Bow',         icon: '➹', base: { dmg: 38, dex: 3 }, ilvl: 23, glyph: 'wep', grantsSkill: 'typhoonshot' },
-    'shadowpiercer':      { type: 'weapon', name: 'Shadowpiercer',       icon: '➹', base: { dmg: 34, crit: 8 }, ilvl: 21, glyph: 'wep' },
-    'soulreaper':         { type: 'weapon', name: 'Soulreaper',          icon: '☠', base: { dmg: 40, mp: 25, hp: 15 }, ilvl: 23, glyph: 'wep', grantsSkill: 'soulharvest' },
-    'gravecaller':        { type: 'weapon', name: 'Gravecaller',         icon: '☠', base: { dmg: 36, mp: 18 }, ilvl: 21, glyph: 'wep' },
+    'demonslayer':        { type: 'weapon', name: 'Demonslayer',         icon: '⚔', base: { dmg: 42, hp: 30, str: 3 }, ilvl: 23, glyph: 'wep', grantsSkill: 'demonslash', legendary: true, look: 'demon' },
+    'frostbite-edge':     { type: 'weapon', name: 'Frostbite Edge',      icon: '⚔', base: { dmg: 38, def: 8 },  ilvl: 21, glyph: 'wep', legendary: true, look: 'frost' },
+    'starfall-staff':     { type: 'weapon', name: 'Starfall Staff',      icon: '✦', base: { dmg: 44, mp: 50, int: 3 }, ilvl: 23, glyph: 'wep', grantsSkill: 'starfall', legendary: true, look: 'star' },
+    'voidweaver':         { type: 'weapon', name: 'Voidweaver',          icon: '✦', base: { dmg: 40, mp: 35 }, ilvl: 22, glyph: 'wep', legendary: true, look: 'void' },
+    'typhoon-bow':        { type: 'weapon', name: 'Typhoon Bow',         icon: '➹', base: { dmg: 38, dex: 3 }, ilvl: 23, glyph: 'wep', grantsSkill: 'typhoonshot', legendary: true, look: 'storm' },
+    'shadowpiercer':      { type: 'weapon', name: 'Shadowpiercer',       icon: '➹', base: { dmg: 34, crit: 8 }, ilvl: 21, glyph: 'wep', legendary: true, look: 'shadow' },
+    'soulreaper':         { type: 'weapon', name: 'Soulreaper',          icon: '☠', base: { dmg: 40, mp: 25, hp: 15 }, ilvl: 23, glyph: 'wep', grantsSkill: 'soulharvest', legendary: true, look: 'soul' },
+    'gravecaller':        { type: 'weapon', name: 'Gravecaller',         icon: '☠', base: { dmg: 36, mp: 18 }, ilvl: 21, glyph: 'wep', legendary: true, look: 'bone' },
+    // ----- new legendary weapons -----
+    'emberforge-maul':    { type: 'weapon', name: 'Emberforge Maul',     icon: '⚔', base: { dmg: 48, str: 4 }, ilvl: 24, glyph: 'wep', legendary: true, look: 'flame' },
+    'tempest-spire':      { type: 'weapon', name: 'Tempest Spire',       icon: '✦', base: { dmg: 41, mp: 45, dex: 2 }, ilvl: 24, glyph: 'wep', legendary: true, look: 'storm' },
+    'duskfang':           { type: 'weapon', name: 'Duskfang',            icon: '☠', base: { dmg: 39, crit: 6, mp: 20 }, ilvl: 23, glyph: 'wep', legendary: true, look: 'shadow' },
 
-    // ===== ELITE ARMOR =====
-    'dragonscale-plate':  { type: 'armor', name: 'Dragonscale Plate',    icon: '◇', base: { def: 42, hp: 30 }, ilvl: 22 },
-    'abyssal-robe':       { type: 'armor', name: 'Abyssal Robe',         icon: '◇', base: { def: 24, mp: 65 }, ilvl: 22 },
-    'nightstalker-coat':  { type: 'armor', name: 'Nightstalker Coat',    icon: '◇', base: { def: 30, dex: 2 }, ilvl: 21 },
-    'bonelord-mantle':    { type: 'armor', name: 'Bonelord Mantle',      icon: '◇', base: { def: 26, mp: 40, hp: 20 }, ilvl: 22 },
+    // ===== LEGENDARY ARMOR =====
+    'dragonscale-plate':  { type: 'armor', name: 'Dragonscale Plate',    icon: '◇', base: { def: 42, hp: 30 }, ilvl: 22, legendary: true, look: 'wings' },
+    'abyssal-robe':       { type: 'armor', name: 'Abyssal Robe',         icon: '◇', base: { def: 24, mp: 65 }, ilvl: 22, legendary: true, look: 'cape' },
+    'nightstalker-coat':  { type: 'armor', name: 'Nightstalker Coat',    icon: '◇', base: { def: 30, dex: 2 }, ilvl: 21, legendary: true, look: 'cape' },
+    'bonelord-mantle':    { type: 'armor', name: 'Bonelord Mantle',      icon: '◇', base: { def: 26, mp: 40, hp: 20 }, ilvl: 22, legendary: true, look: 'spectral' },
+    'seraph-aegis':       { type: 'armor', name: 'Seraph Aegis',         icon: '◇', base: { def: 40, hp: 25, mp: 25 }, ilvl: 24, legendary: true, look: 'wings' },
 
-    // ===== ELITE HELMETS =====
-    'crown-of-ashes':     { type: 'armor', name: 'Crown of Ashes',       icon: '◆', base: { def: 18, dmg: 5 }, ilvl: 20 },
-    'mindshatter-circlet':{ type: 'armor', name: 'Mindshatter Circlet',  icon: '◆', base: { def: 12, mp: 30, int: 2 }, ilvl: 19 },
+    // ===== LEGENDARY HELMETS =====
+    'crown-of-ashes':     { type: 'armor', name: 'Crown of Ashes',       icon: '◆', base: { def: 18, dmg: 5 }, ilvl: 20, legendary: true, look: 'crown' },
+    'mindshatter-circlet':{ type: 'armor', name: 'Mindshatter Circlet',  icon: '◆', base: { def: 12, mp: 30, int: 2 }, ilvl: 19, legendary: true, look: 'halo' },
+    'halo-of-the-first':  { type: 'armor', name: 'Halo of the First',    icon: '◆', base: { def: 16, hp: 18, mp: 18 }, ilvl: 24, legendary: true, look: 'halo' },
 
-    // ===== ELITE SHIELDS =====
-    'aegis-of-the-spire': { type: 'armor', name: 'Aegis of the Spire',  icon: '⊡', base: { def: 38, hp: 35 }, ilvl: 21 },
+    // ===== LEGENDARY SHIELDS =====
+    'aegis-of-the-spire': { type: 'armor', name: 'Aegis of the Spire',  icon: '⊡', base: { def: 38, hp: 35 }, ilvl: 21, legendary: true, look: 'plate' },
 
-    // ===== ELITE BOOTS =====
-    'voidstep-boots':     { type: 'armor', name: 'Voidstep Boots',       icon: '◈', base: { def: 14, dex: 2 }, ilvl: 19 },
-    'flamewalk-greaves':  { type: 'armor', name: 'Flamewalk Greaves',    icon: '◈', base: { def: 18, hp: 20, str: 1 }, ilvl: 21 },
+    // ===== LEGENDARY BOOTS =====
+    'voidstep-boots':     { type: 'armor', name: 'Voidstep Boots',       icon: '◈', base: { def: 14, dex: 2 }, ilvl: 19, legendary: true, look: 'spectral' },
+    'flamewalk-greaves':  { type: 'armor', name: 'Flamewalk Greaves',    icon: '◈', base: { def: 18, hp: 20, str: 1 }, ilvl: 21, legendary: true, look: 'plate' },
 
     // ===== LEGENDARY RINGS =====
-    'ring-of-the-archdemon': { type: 'ring', name: 'Ring of the Archdemon', icon: '○', base: { dmg: 6, crit: 5 }, ilvl: 22 },
-    'frostfire-band':     { type: 'ring', name: 'Frostfire Band',        icon: '○', base: { mp: 18, hp: 10 }, ilvl: 20 },
-    'blood-signet':       { type: 'ring', name: 'Blood Signet',          icon: '○', base: { hp: 25, vit: 3 }, ilvl: 21 },
+    'ring-of-the-archdemon': { type: 'ring', name: 'Ring of the Archdemon', icon: '○', base: { dmg: 6, crit: 5 }, ilvl: 22, legendary: true, look: 'demon' },
+    'frostfire-band':     { type: 'ring', name: 'Frostfire Band',        icon: '○', base: { mp: 18, hp: 10 }, ilvl: 20, legendary: true, look: 'frost' },
+    'blood-signet':       { type: 'ring', name: 'Blood Signet',          icon: '○', base: { hp: 25, vit: 3 }, ilvl: 21, legendary: true, look: 'demon' },
+    'starlight-loop':     { type: 'ring', name: 'Starlight Loop',        icon: '○', base: { mp: 14, crit: 4, int: 2 }, ilvl: 23, legendary: true, look: 'star' },
 
     // ===== LEGENDARY AMULETS =====
-    'heart-of-the-wyrm':  { type: 'amulet', name: 'Heart of the Wyrm',  icon: '◈', base: { hp: 30, def: 8, vit: 2 }, ilvl: 22 },
-    'pendant-of-souls':   { type: 'amulet', name: 'Pendant of Souls',   icon: '◈', base: { mp: 25, dmg: 4, int: 2 }, ilvl: 21 },
-    'stormcaller-chain':  { type: 'amulet', name: 'Stormcaller Chain',   icon: '◈', base: { dmg: 6, aspd: 8, dex: 2 }, ilvl: 23 },
+    'heart-of-the-wyrm':  { type: 'amulet', name: 'Heart of the Wyrm',  icon: '◈', base: { hp: 30, def: 8, vit: 2 }, ilvl: 22, legendary: true, look: 'frost' },
+    'pendant-of-souls':   { type: 'amulet', name: 'Pendant of Souls',   icon: '◈', base: { mp: 25, dmg: 4, int: 2 }, ilvl: 21, legendary: true, look: 'soul' },
+    'stormcaller-chain':  { type: 'amulet', name: 'Stormcaller Chain',   icon: '◈', base: { dmg: 6, aspd: 8, dex: 2 }, ilvl: 23, legendary: true, look: 'storm' },
+    'oblivion-tear':      { type: 'amulet', name: 'Oblivion Tear',       icon: '◈', base: { dmg: 8, mp: 20, hp: 20 }, ilvl: 24, legendary: true, look: 'void' },
 
     // ===== CONSUMABLES =====
     'sanctuary-scroll':   { type: 'consumable', name: 'Sanctuary Scroll', icon: '✉', base: {}, ilvl: 1 },
@@ -554,8 +562,10 @@
     { key: 'aspd', label: 'Attack Speed %', max: 12, rarities: ['rare','unique'] },
   ];
 
-  const RARITY_TIERS = ['common', 'magic', 'rare', 'unique'];
-  const RARITY_WEIGHTS = [[ 'common', 70 ], [ 'magic', 22 ], [ 'rare', 7 ], [ 'unique', 1 ]];
+  const RARITY_TIERS = ['common', 'magic', 'rare', 'unique', 'mythic'];
+  const RARITY_WEIGHTS = [[ 'common', 70 ], [ 'magic', 22 ], [ 'rare', 7 ], [ 'unique', 1 ], [ 'mythic', 0.2 ]];
+  // Rank used to compare rarities (e.g. for "is this an upgrade" glow, mythic > unique).
+  const RARITY_RANK = { common: 0, magic: 1, rare: 2, unique: 3, mythic: 4 };
 
   // ============================================================
   // GAME STATE
@@ -1085,9 +1095,12 @@
   // ITEM GENERATION
   // ============================================================
   function rollAffix(rarity, ilvl) {
-    const pool = AFFIXES.filter(a => a.rarities.includes(rarity));
-    const a = pick(pool);
-    const val = 1 + Math.floor(rand() * Math.min(a.max, 1 + ilvl));
+    // Mythic draws from the full (unique-tier) affix pool, rolled at a premium.
+    const poolRarity = rarity === 'mythic' ? 'unique' : rarity;
+    const pool = AFFIXES.filter(a => a.rarities.includes(poolRarity));
+    const a = pick(pool) || AFFIXES[0]; // guard against an empty pool
+    let val = 1 + Math.floor(rand() * Math.min(a.max, 1 + ilvl));
+    if (rarity === 'mythic') val = Math.ceil(val * 1.4);
     return { key: a.key, label: a.label, val };
   }
 
@@ -1100,10 +1113,14 @@
     if (eligible.length === 0) return null;
     const baseId = pick(eligible);
     const base = ITEM_BASES[baseId];
-    const rarity = rarityOverride || chance(RARITY_WEIGHTS);
+    // Named legendary bases always roll at legendary tier (small chance to ascend to mythic),
+    // so they keep their identity instead of becoming a random rare/common.
+    let rarity = rarityOverride || chance(RARITY_WEIGHTS);
+    if (base.legendary && rarity !== 'mythic') rarity = roll(0.12) ? 'mythic' : 'unique';
     const affixCount = rarity === 'common' ? 0
                       : rarity === 'magic'  ? 1
                       : rarity === 'rare'   ? (1 + irand(1, 2))
+                      : rarity === 'mythic' ? 5
                       : 4;
     const affixes = [];
     const usedKeys = new Set();
@@ -1121,6 +1138,7 @@
     if (equipType) {
       if (rarity === 'rare')   sockets = roll(0.4) ? (roll(0.25) ? 2 : 1) : 0;
       if (rarity === 'unique') sockets = roll(0.7) ? (roll(0.4)  ? 2 : 1) : 0;
+      if (rarity === 'mythic') sockets = roll(0.5) ? 3 : 2;
     }
     return {
       id: 'i_' + Math.random().toString(36).slice(2, 9),
@@ -1135,6 +1153,8 @@
   }
 
   function buildItemName(base, rarity, affixes) {
+    // Named legendary bases keep their identity at any tier
+    if (base.legendary) return base.name;
     if (rarity === 'common') return base.name;
     if (rarity === 'magic') {
       const af = affixes[0];
@@ -1143,6 +1163,9 @@
     }
     if (rarity === 'rare') {
       return rareName(base.name);
+    }
+    if (rarity === 'mythic') {
+      return mythicName(base.name);
     }
     // unique
     return uniqueName(base.name);
@@ -1161,6 +1184,11 @@
   }
   function uniqueName(base) {
     return pick(['Hollow Crown', 'Hollow Dawn', 'Sigil of the First', 'Tear of the Lich', 'Eye of the Wyrm']);
+  }
+  function mythicName(base) {
+    const a = pick(['Worldbreaker', 'Starless', 'Apex', 'The Last', 'Godfall', 'Eternity\'s']);
+    const b = pick(['Verdict', 'Requiem', 'Ascendance', 'Paragon', 'Genesis', 'Oblivion']);
+    return `${a} ${b}`;
   }
 
   // ============================================================
@@ -1419,7 +1447,8 @@
       const lootCount = 2 + (rand() < 0.5 ? 1 : 0);
       const ilvl = Math.max(1, enemyLevel + 1 + (curDifficulty().ilvlBonus || 0));
       for (let i = 0; i < lootCount; i++) {
-        const item = rollItem(ilvl, rand() < 0.25 ? 'unique' : 'rare');
+        const vr = rand() < 0.04 ? 'mythic' : (rand() < 0.25 ? 'unique' : 'rare');
+        const item = rollItem(ilvl, vr);
         if (item) { const sp = floorSpotIn(vaultRoom); loot.push({ x: sp.x, y: sp.y, item, age: 0 }); }
       }
     }
@@ -2845,7 +2874,8 @@
     if (e.boss) {
       // Boss treasure hoard: 2-3 items spread around the kill point
       const bossDropCount = 2 + (roll(0.5) ? 1 : 0);
-      const rarities = ['rare', 'rare', 'unique'];
+      // The guaranteed legendary slot has a chance to ascend to mythic
+      const rarities = ['rare', 'rare', roll(0.12) ? 'mythic' : 'unique'];
       for (let di = 0; di < bossDropCount; di++) {
         const r = rarities[di] || 'rare';
         const item = rollItem(Math.max(1, e.ilvl + 1 + dropIlvlBonus), r);
@@ -4903,6 +4933,133 @@
     }
   }
 
+  // The most impressive equipped look's color (mythic shimmers prismatic).
+  function auraColorFor(c, now) {
+    let anyMythic = false, col = null;
+    for (const sl of ['weapon', 'armor', 'ring', 'amulet']) {
+      const it = c.equip[sl]; if (!it) continue;
+      if (it.rarity === 'mythic') anyMythic = true;
+      const lk = gearLook(it);
+      if (lk && GEAR_LOOKS[lk] && !col) col = GEAR_LOOKS[lk].color;
+    }
+    if (anyMythic) return mythicShimmer(now, 0);
+    return col;
+  }
+  // Orbiting motes + ground ring driven by equipped legendary/mythic gear.
+  function drawGearAura(c, now) {
+    let anyMythic = false, col = null;
+    for (const sl of ['weapon', 'armor', 'ring', 'amulet']) {
+      const it = c.equip[sl]; if (!it) continue;
+      if (it.rarity === 'mythic') anyMythic = true;
+      const lk = gearLook(it);
+      if (lk && GEAR_LOOKS[lk] && !col) col = GEAR_LOOKS[lk].color;
+    }
+    if (!col && !anyMythic) return;
+    const base = anyMythic ? mythicShimmer(now, 0) : col;
+    const n = anyMythic ? 5 : 3;
+    ctx.globalAlpha = 0.65;
+    for (let i = 0; i < n; i++) {
+      const ang = now / 700 + i * PI2 / n;
+      const ox = Math.cos(ang) * 16, oy = Math.sin(ang) * 8 - 2;
+      ctx.fillStyle = anyMythic ? mythicShimmer(now, i) : base;
+      ctx.beginPath(); ctx.arc(ox, oy, anyMythic ? 2 : 1.6, 0, PI2); ctx.fill();
+    }
+    ctx.globalAlpha = 0.2 + 0.1 * Math.sin(now / 350);
+    ctx.strokeStyle = base; ctx.lineWidth = anyMythic ? 2 : 1.4;
+    ctx.beginPath(); ctx.ellipse(0, 9, anyMythic ? 18 : 15, anyMythic ? 7 : 6, 0, 0, PI2); ctx.stroke();
+    ctx.globalAlpha = 1;
+  }
+  // Cosmetics drawn BEHIND the body (cape, wings, spectral aura).
+  function drawArmorBack(look, bob, now) {
+    const def = GEAR_LOOKS[look];
+    if (!def || def.slot !== 'armor') return;
+    const col = def.color;
+    if (def.body === 'cape') {
+      const sway = Math.sin(now / 400) * 2;
+      ctx.fillStyle = col; ctx.globalAlpha = 0.7;
+      ctx.beginPath();
+      ctx.moveTo(-5, -3 + bob); ctx.lineTo(5, -3 + bob);
+      ctx.lineTo(4 + sway, 9 + bob); ctx.lineTo(-4 + sway, 9 + bob);
+      ctx.closePath(); ctx.fill();
+      ctx.fillStyle = '#000'; ctx.globalAlpha = 0.18;
+      ctx.beginPath(); ctx.moveTo(0, -3 + bob); ctx.lineTo(2 + sway * 0.5, 8 + bob); ctx.lineTo(-2 + sway * 0.5, 8 + bob); ctx.closePath(); ctx.fill();
+      ctx.globalAlpha = 1;
+    } else if (def.body === 'wings') {
+      const flap = Math.sin(now / 300) * 0.3;
+      ctx.fillStyle = col; ctx.globalAlpha = 0.5;
+      for (const d of [-1, 1]) {
+        ctx.beginPath();
+        ctx.moveTo(d * 3, -3 + bob);
+        ctx.quadraticCurveTo(d * (13 + flap * 6), -8 + bob, d * 11, 2 + bob);
+        ctx.quadraticCurveTo(d * 8, -1 + bob, d * 3, 0 + bob);
+        ctx.closePath(); ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+    } else if (def.body === 'spectral') {
+      ctx.fillStyle = col; ctx.globalAlpha = 0.16 + 0.06 * Math.sin(now / 300);
+      ctx.beginPath(); ctx.ellipse(0, 0 + bob, 9, 12, 0, 0, PI2); ctx.fill();
+      ctx.globalAlpha = 1;
+    }
+  }
+  // Cosmetics drawn ABOVE/OVER the body (crown, halo, heavy pauldrons).
+  function drawArmorFront(look, bob, now) {
+    const def = GEAR_LOOKS[look];
+    if (!def || def.slot !== 'armor') return;
+    const col = def.color;
+    if (def.body === 'crown') {
+      const cy = -15 + bob;
+      ctx.fillStyle = col; ctx.globalAlpha = 1;
+      ctx.beginPath();
+      ctx.moveTo(-4, cy + 3); ctx.lineTo(-4, cy); ctx.lineTo(-2, cy + 1.5); ctx.lineTo(0, cy - 1.5);
+      ctx.lineTo(2, cy + 1.5); ctx.lineTo(4, cy); ctx.lineTo(4, cy + 3); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = '#fff'; ctx.globalAlpha = 0.7 + 0.3 * Math.sin(now / 250);
+      ctx.beginPath(); ctx.arc(0, cy + 1, 1, 0, PI2); ctx.fill();
+      ctx.globalAlpha = 1;
+    } else if (def.body === 'halo') {
+      ctx.strokeStyle = col; ctx.lineWidth = 1.5;
+      ctx.globalAlpha = 0.6 + 0.2 * Math.sin(now / 300);
+      ctx.beginPath(); ctx.ellipse(0, -16 + bob, 5, 1.8, 0, 0, PI2); ctx.stroke();
+      ctx.globalAlpha = 1;
+    } else if (def.body === 'plate') {
+      ctx.fillStyle = col; ctx.globalAlpha = 0.85;
+      ctx.beginPath(); ctx.moveTo(-8, -4 + bob); ctx.lineTo(-7, -9 + bob); ctx.lineTo(-5, -4 + bob); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(8, -4 + bob); ctx.lineTo(7, -9 + bob); ctx.lineTo(5, -4 + bob); ctx.fill();
+      ctx.globalAlpha = 1;
+    }
+  }
+  // Elemental FX emitted from the weapon.
+  function drawWeaponFx(look, wx, wy, now) {
+    const def = GEAR_LOOKS[look];
+    if (!def || def.slot !== 'weapon') return;
+    const col = def.color, fx = def.fx;
+    ctx.save();
+    ctx.translate(wx, wy);
+    if (fx === 'fire' || fx === 'wisp' || fx === 'void' || fx === 'smoke') {
+      for (let i = 0; i < 3; i++) {
+        const ph = ((now / 500) + i / 3) % 1;
+        const yy = -ph * 12, xx = Math.sin(now / 200 + i * 2) * 2;
+        ctx.fillStyle = col; ctx.globalAlpha = 0.6 * (1 - ph);
+        ctx.beginPath(); ctx.arc(xx, yy, 1.8 * (1 - ph * 0.5), 0, PI2); ctx.fill();
+      }
+    } else if (fx === 'ice') {
+      ctx.fillStyle = col; ctx.globalAlpha = 0.65;
+      for (let i = 0; i < 3; i++) {
+        const ang = now / 400 + i * PI2 / 3;
+        ctx.save(); ctx.translate(Math.cos(ang) * 4, Math.sin(ang) * 4); ctx.rotate(ang);
+        ctx.fillRect(-0.6, -2, 1.2, 4); ctx.restore();
+      }
+    } else if (fx === 'spark') {
+      ctx.strokeStyle = col; ctx.lineWidth = 1;
+      ctx.globalAlpha = 0.5 + 0.5 * Math.sin(now / 100);
+      for (let i = 0; i < 2; i++) {
+        const a = now / 120 + i * Math.PI;
+        ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(Math.cos(a) * 5, Math.sin(a) * 5 - 4); ctx.stroke();
+      }
+    }
+    ctx.globalAlpha = 1;
+    ctx.restore();
+  }
+
   function drawPlayer() {
     const p = game.world.player;
     const cls = CLASSES[game.char.classId];
@@ -4932,24 +5089,16 @@
     ctx.arc(0, 0, 80, 0, PI2);
     ctx.fill();
 
-    // Unique gear: orbiting particles
-    if (hasUniqueGear) {
-      const uCol = rarityColor('unique');
-      ctx.fillStyle = uCol;
-      ctx.globalAlpha = 0.6;
-      for (let i = 0; i < 3; i++) {
-        const ang = now / 800 + i * PI2 / 3;
-        const ox = Math.cos(ang) * 16, oy = Math.sin(ang) * 8;
-        ctx.beginPath();
-        ctx.arc(ox, oy, 1.5, 0, PI2);
-        ctx.fill();
-      }
-      ctx.globalAlpha = 1;
-    }
-    // Rare gear: pulsing aura ring
-    if (hasRareGear && !hasUniqueGear) {
-      const rCol = rarityColor('rare');
-      ctx.strokeStyle = rCol;
+    // Look-driven cosmetics align to the sprite's bob
+    const bob = Math.sin(now / 220) * 1.5;
+    const armorLook = gearLook(armItem);
+    const weaponLook = gearLook(wepItem);
+
+    // Gear aura — legendary/mythic & elemental looks (orbiting motes + ring)
+    drawGearAura(c, now);
+    // Rare gear with no fancier look still gets a simple pulsing ring
+    if (hasRareGear && !hasUniqueGear && !armorLook && !weaponLook) {
+      ctx.strokeStyle = rarityColor('rare');
       ctx.lineWidth = 1.5;
       ctx.globalAlpha = 0.15 + 0.1 * Math.sin(now / 400);
       ctx.beginPath();
@@ -4966,17 +5115,25 @@
     ctx.fill();
     ctx.globalAlpha = 1;
 
-    // rim-light ground glow — color changes with unique gear
-    const glowCol = hasUniqueGear ? rarityColor('unique') : (hasRareGear ? rarityColor('rare') : cls.color);
+    // rim-light ground glow — tinted by the best equipped look
+    const auraCol = auraColorFor(c, now);
+    const glowCol = auraCol || (hasRareGear ? rarityColor('rare') : cls.color);
     ctx.fillStyle = glowCol;
-    ctx.globalAlpha = 0.2 + (p.attackingFor > 0 ? 0.15 : 0) + (hasUniqueGear ? 0.1 : 0);
+    ctx.globalAlpha = 0.2 + (p.attackingFor > 0 ? 0.15 : 0) + (auraCol ? 0.12 : 0);
     ctx.beginPath();
     ctx.ellipse(0, 9, 14, 5, 0, 0, PI2);
     ctx.fill();
     ctx.globalAlpha = 1;
 
+    // cape / wings behind the body
+    drawArmorBack(armorLook, bob, now);
+
     // sprite — procedural pixel-art figure
     drawCharSprite(cls.color, cls.id, p.lastDir.x, p.lastDir.y, p.attackingFor > 0);
+
+    // crown / halo / pauldrons over the body, and weapon elemental FX
+    drawArmorFront(armorLook, bob, now);
+    drawWeaponFx(weaponLook, p.lastDir.x >= 0 ? 7 : -7, -7 + bob, now);
 
     ctx.restore();
   }
@@ -5987,27 +6144,35 @@
       ctx.save();
       ctx.translate(s.x, s.y + float);
       const r = ITEM_BASES[gi.item.baseId];
-      const col = rarityColor(gi.item.rarity);
+      const isMythic = gi.item.rarity === 'mythic';
+      const col = isMythic ? mythicShimmer(now, gi.x) : rarityColor(gi.item.rarity);
       // ground glow
       ctx.fillStyle = col;
-      ctx.globalAlpha = 0.12 * pulse;
+      ctx.globalAlpha = (isMythic ? 0.2 : 0.12) * pulse;
       ctx.beginPath();
-      ctx.ellipse(0, 8 - float, 12, 4, 0, 0, PI2);
+      ctx.ellipse(0, 8 - float, isMythic ? 16 : 12, isMythic ? 5 : 4, 0, 0, PI2);
       ctx.fill();
       ctx.globalAlpha = 1;
       // rarity beam (for rare+ items)
-      if (gi.item.rarity === 'rare' || gi.item.rarity === 'unique') {
+      if (gi.item.rarity === 'rare' || gi.item.rarity === 'unique' || isMythic) {
         ctx.strokeStyle = col;
-        ctx.globalAlpha = 0.15 + 0.1 * Math.sin(now / 300);
-        ctx.lineWidth = gi.item.rarity === 'unique' ? 2.5 : 1.5;
+        ctx.globalAlpha = 0.15 + 0.12 * Math.sin(now / 300);
+        ctx.lineWidth = isMythic ? 3 : (gi.item.rarity === 'unique' ? 2.5 : 1.5);
         ctx.beginPath();
-        ctx.moveTo(0, -22);
+        ctx.moveTo(0, isMythic ? -28 : -22);
         ctx.lineTo(0, 12);
         ctx.stroke();
-        // unique: add side beams
-        if (gi.item.rarity === 'unique') {
+        // unique/mythic: add side beams
+        if (gi.item.rarity === 'unique' || isMythic) {
           ctx.beginPath();
-          ctx.moveTo(-4, -16); ctx.lineTo(0, -22); ctx.lineTo(4, -16);
+          ctx.moveTo(-4, -16); ctx.lineTo(0, isMythic ? -28 : -22); ctx.lineTo(4, -16);
+          ctx.stroke();
+        }
+        // mythic: a second crossing beam for a prismatic burst
+        if (isMythic) {
+          ctx.strokeStyle = mythicShimmer(now, gi.x + 2);
+          ctx.beginPath();
+          ctx.moveTo(-7, -18); ctx.lineTo(7, -18);
           ctx.stroke();
         }
         ctx.globalAlpha = 1;
@@ -6161,7 +6326,48 @@
   }
 
   function rarityColor(r) {
-    return ({ common: '#cfcfcf', magic: '#6db4ff', rare: '#ffe066', unique: '#ff8c42' })[r] || '#fff';
+    return ({ common: '#cfcfcf', magic: '#6db4ff', rare: '#ffe066', unique: '#ff8c42', mythic: '#f062ff' })[r] || '#fff';
+  }
+  // Mythic items shimmer through a prismatic gradient over time.
+  function mythicShimmer(now, offset) {
+    const hues = ['#f062ff', '#6df1ff', '#ffd166', '#ff4d6d', '#9bff8a'];
+    const f = ((now / 600) + (offset || 0)) % hues.length;
+    return hues[Math.floor(f)];
+  }
+
+  // ---- Gear "looks": legendary/mythic items visibly transform the character ----
+  // weapon looks add an elemental FX to the weapon + tint the aura;
+  // armor looks add a body cosmetic (cape / wings / crown / halo / etc).
+  const GEAR_LOOKS = {
+    // weapon elemental signatures
+    flame:    { color: '#ff6a2c', slot: 'weapon', fx: 'fire' },
+    demon:    { color: '#ff3355', slot: 'weapon', fx: 'fire' },
+    frost:    { color: '#9be8ff', slot: 'weapon', fx: 'ice' },
+    void:     { color: '#b388ff', slot: 'weapon', fx: 'void' },
+    storm:    { color: '#7fd4ff', slot: 'weapon', fx: 'spark' },
+    shadow:   { color: '#9a6cff', slot: 'weapon', fx: 'smoke' },
+    soul:     { color: '#7dffb0', slot: 'weapon', fx: 'wisp' },
+    star:     { color: '#ffe27a', slot: 'weapon', fx: 'spark' },
+    bone:     { color: '#e8e2cf', slot: 'weapon', fx: 'wisp' },
+    // armor body cosmetics
+    cape:     { color: '#9a6cff', slot: 'armor', body: 'cape' },
+    wings:    { color: '#ff8c42', slot: 'armor', body: 'wings' },
+    crown:    { color: '#ffd166', slot: 'armor', body: 'crown' },
+    halo:     { color: '#9be8ff', slot: 'armor', body: 'halo' },
+    spectral: { color: '#7dffb0', slot: 'armor', body: 'spectral' },
+    plate:    { color: '#cfd6e6', slot: 'armor', body: 'plate' },
+    // generic rarity-driven defaults (items with no specific look)
+    __legend: { color: '#ff8c42', slot: 'aura' },
+    __mythic: { color: '#f062ff', slot: 'aura', prismatic: true },
+  };
+  // Resolve the look id for an equipped item (base look, else rarity default).
+  function gearLook(item) {
+    if (!item) return null;
+    const base = ITEM_BASES[item.baseId];
+    if (base && base.look && GEAR_LOOKS[base.look]) return base.look;
+    if (item.rarity === 'mythic') return '__mythic';
+    if (item.rarity === 'unique') return '__legend';
+    return null;
   }
 
   function itemTypeLabel(base) {
@@ -6185,7 +6391,7 @@
     // Returns an SVG string for the item icon used in inventory UI
     const w = 28, h = 28;
     const cx = w/2, cy = h/2;
-    const glow = rarity === 'unique' ? `filter="url(#glow)"` : (rarity === 'rare' ? `filter="url(#glowSm)"` : '');
+    const glow = (rarity === 'unique' || rarity === 'mythic') ? `filter="url(#glow)"` : (rarity === 'rare' ? `filter="url(#glowSm)"` : '');
     let shape = '';
     switch (icon) {
       case '⚔': // Sword
@@ -6847,12 +7053,12 @@
       const tears = c.glassTears || 0;
       header.innerHTML = `Reroll affixes on rare or unique items.<br><span style="color:var(--text-dim)">Cost: gold + 1 Glass Tear. You have <span class="rarity-unique">${tears} Glass Tear${tears === 1 ? '' : 's'}</span>.</span>`;
       list.appendChild(header);
-      // List rare/unique items in inventory that have at least 1 affix
+      // List rare/unique/mythic items in inventory that have at least 1 affix
       let any = false;
       c.inventory.forEach((it, idx) => {
         const base = ITEM_BASES[it.baseId];
         if (!base) return;
-        if (it.rarity !== 'rare' && it.rarity !== 'unique') return;
+        if (it.rarity !== 'rare' && it.rarity !== 'unique' && it.rarity !== 'mythic') return;
         if (!it.affixes || it.affixes.length === 0) return;
         any = true;
         const cost = rerollCost(it);
@@ -6916,7 +7122,7 @@
     const c = game.char;
     const it = c.inventory[idx];
     if (!it) return;
-    if (it.rarity !== 'rare' && it.rarity !== 'unique') { showHudToast('Only rare or unique items.'); return; }
+    if (it.rarity !== 'rare' && it.rarity !== 'unique' && it.rarity !== 'mythic') { showHudToast('Only rare or better items.'); return; }
     if (!it.affixes || it.affixes.length === 0) { showHudToast('No affixes to reroll.'); return; }
     const cost = rerollCost(it);
     if (c.gold < cost) { showHudToast('Not enough gold.'); return; }
@@ -6956,7 +7162,7 @@
     // Gems have a fixed price by type
     const base = ITEM_BASES[it.baseId];
     if (base && base.type === 'gem') return 60;
-    const tier = { common: 1, magic: 4, rare: 12, unique: 40 }[it.rarity] || 1;
+    const tier = { common: 1, magic: 4, rare: 12, unique: 40, mythic: 90 }[it.rarity] || 1;
     const socketBonus = (it.sockets || 0) * 8;
     const gemBonus = (it.gems || []).length * 5;
     return 6 + it.ilvl * 4 * tier + (it.affixes ? it.affixes.length * 3 : 0) + socketBonus + gemBonus;
@@ -7023,7 +7229,7 @@
   }
 
   // ===== CRAFTING BENCH (at the Keeper) =====
-  const SALVAGE_YIELD = { common: 1, magic: 3, rare: 6, unique: 15 };
+  const SALVAGE_YIELD = { common: 1, magic: 3, rare: 6, unique: 15, mythic: 35 };
   const CRAFT_SOCKET_COST = 8;
   const CRAFT_SOCKET_MAX = 2;
   const CRAFT_RARITY_NEXT = { common: 'magic', magic: 'rare' };

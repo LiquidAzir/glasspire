@@ -28,6 +28,7 @@
   --rarity-magic:     #6db4ff;
   --rarity-rare:      #ffe066;
   --rarity-unique:    #ff8c42;
+  --rarity-mythic:    #f062ff;
 
   --focus-ring:    var(--crystal);
   --focus-glow:    rgba(109, 241, 255, 0.45);
@@ -908,6 +909,7 @@ html, body {
 .rarity-magic   { color: var(--rarity-magic); }
 .rarity-rare    { color: var(--rarity-rare); }
 .rarity-unique  { color: var(--rarity-unique); }
+.rarity-mythic  { color: var(--rarity-mythic); text-shadow: 0 0 8px rgba(240, 98, 255, 0.6); }
 
 /* item detail */
 .item-card {
