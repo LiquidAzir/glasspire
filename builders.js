@@ -1546,7 +1546,9 @@ export function buildMinion(opts) {
   const c = (opts && opts.color) || '#c489ff';
   const g = new T.Group();
   const body = matAdd(c, 0.5);
-  const eye = matAdd('#ff00ff', 0.9);
+  // unique (uncached) eye material — the anim mutates its opacity per-instance, so it
+  // must NOT be the shared matAdd cache entry.
+  const eye = new T.MeshBasicMaterial({ color: '#ff00ff', fog: false, transparent: true, opacity: 0.9, blending: T.AdditiveBlending, depthWrite: false });
   const ribs = m(box(0.22, 0.26, 0.16), body); ribs.position.y = 0.4;
   const legL = m(box(0.06, 0.24, 0.06), matAdd(c, 0.35)); legL.position.set(-0.07, 0.12, 0);
   const legR = m(box(0.06, 0.24, 0.06), matAdd(c, 0.35)); legR.position.set(0.07, 0.12, 0);

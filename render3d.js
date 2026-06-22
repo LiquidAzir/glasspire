@@ -59,6 +59,13 @@ GL._dbg = () => ({
 });
 
 GL._builders = Builders;   // exposed for the construction self-test
+GL._pdbg = () => particleSys ? {
+  inScene: scene.children.indexOf(particleSys) >= 0, visible: particleSys.visible,
+  drawRange: particleSys.geometry.drawRange.count, matSize: particleSys.material.size,
+  hasMap: !!particleSys.material.map, vertexColors: particleSys.material.vertexColors,
+  pos0: [pPos[0], pPos[1], pPos[2]], col0: [+pCol[0].toFixed(2), +pCol[1].toFixed(2), +pCol[2].toFixed(2)],
+  boundingSphere: particleSys.geometry.boundingSphere ? particleSys.geometry.boundingSphere.radius : null,
+} : 'no particleSys';
 // world→screen projector for app.js UI text (floating damage, hints) so it tracks
 // the tilted 3D scene instead of the flat w2s mapping. Returns {x,y} px or null.
 GL.project = (wx, wy, h) => { if (!cam) return null; const p = projectToScreen(wx, h || 0, wy); return p.vis ? p : null; };
@@ -118,9 +125,11 @@ function init() {
 // =============================================================
 // CAMERA — follows game.cam exactly; never recomputes the clamp
 // =============================================================
+let _viewCX = 0, _viewCZ = 0;       // view-center in world tiles (for off-screen culling)
 function updateCamera3D(game) {
   const cx = game.cam.x + HALF;     // view-center in world tiles (matches drawWorld window)
   const cz = game.cam.y + HALF;
+  _viewCX = cx; _viewCZ = cz;
   // shared screen-shake set by app.js render() (px) → world units
   const sx = (game._shakeX || 0) / TILE;
   const sz = (game._shakeY || 0) / TILE;
@@ -229,6 +238,7 @@ function ensurePlayer() {
   if (playerMesh) return;
   playerMesh = Builders.buildPlayer({});
   playerMesh.userData.equipKey = '';
+  playerMesh.userData.eyeMat.color.set('#d6f4ff');   // constant — set once
   scene.add(playerMesh);
 }
 
@@ -259,22 +269,20 @@ function syncPlayer(game, now) {
   ensurePlayer();
   const pm = playerMesh, ud = pm.userData, p = game.world.player, char = game.char;
 
-  // --- tint (cheap, every frame) ---
+  // --- recompute the equip signature; everything visual below changes only on a change ---
   const cls = DATA.CLASSES && char ? DATA.CLASSES[char.classId] : null;
-  ud.bodyMat.color.set((cls && cls.color) || '#8899aa').multiplyScalar(0.85); // gothic: darkened armour
   const accent = char ? bestRarityColor(char) : '#9fd8ff';
-  ud.trimMat.color.set(accent);
-  ud.eyeMat.color.set('#d6f4ff');
-
-  // --- swap weapon + gear cosmetics only when equipment changes ---
   const wKind = weaponKindFor(char);
   const wpn = char && char.equip && char.equip.weapon;
   const wLook = lookDef(wpn);
   const aLook = lookDef(char && char.equip && char.equip.armor);
   const wColor = (wLook && wLook.color) || (wpn && DATA.rarityColor && DATA.rarityColor(wpn.rarity)) || accent;
-  const key = wKind + '|' + wColor + '|' + (aLook ? aLook.id : '_') + '|' + (wLook ? wLook.id : '_');
+  const key = (char && char.classId) + '|' + accent + '|' + wKind + '|' + wColor + '|' + (aLook ? aLook.id : '_') + '|' + (wLook ? wLook.id : '_');
   if (key !== ud.equipKey) {
     ud.equipKey = key;
+    // tint (only on change, not every frame)
+    ud.bodyMat.color.set((cls && cls.color) || '#8899aa').multiplyScalar(0.85); // gothic: darkened armour
+    ud.trimMat.color.set(accent);
     clearMount(ud.weaponMount);
     const wb = (Builders['buildWeapon_' + wKind] || Builders.buildWeapon_sword)({ color: wColor });
     ud.weaponMount.add(wb);
@@ -353,7 +361,10 @@ function projectToScreen(x, y, z) {
   return { x: (_proj.x * 0.5 + 0.5) * 600, y: (1 - (_proj.y * 0.5 + 0.5)) * 600, vis: _proj.z < 1 && _proj.z > -1 };
 }
 
-function makeLayer(spec, sync) {
+// makeLayer(sigFn, descFn, sync): sigFn(e) returns a cheap primitive string compared
+// every frame on the hot path; descFn(e) builds the heavy {fn|factory, opts} descriptor
+// ONLY when the sig changes (rebuild). No per-frame object/opts allocation in steady state.
+function makeLayer(sigFn, descFn, sync) {
   const pool = new Map();        // uid -> { obj, sig, lx, lz, phase }
   const liveTmp = new Set();
   return {
@@ -362,15 +373,16 @@ function makeLayer(spec, sync) {
       if (list) for (let i = 0; i < list.length; i++) {
         const e = list[i]; if (!e) continue;
         const id = uid(e); liveTmp.add(id);
-        const s = spec(e);
+        const sig = sigFn(e);
         let slot = pool.get(id);
-        if (!slot || slot.sig !== s.sig) {
+        if (!slot || slot.sig !== sig) {
           if (slot) { scene.remove(slot.obj); disposeObj(slot.obj); }
+          const d = descFn(e);
           let obj;
-          try { obj = s.factory ? s.factory(s.opts || {}) : builderFor(s.fn)(s.opts || {}); }
-          catch (err) { if (!_warned.has(s.fn)) { _warned.add(s.fn); console.warn('[3D] builder failed:', s.fn, err.message); } obj = Builders.buildPlaceholder(s.opts || {}); }
+          try { obj = d.factory ? d.factory(d.opts || {}) : builderFor(d.fn)(d.opts || {}); }
+          catch (err) { if (!_warned.has(d.fn)) { _warned.add(d.fn); console.warn('[3D] builder failed:', d.fn, err.message); } obj = Builders.buildPlaceholder(d.opts || {}); }
           scene.add(obj);
-          slot = { obj, sig: s.sig, lx: e.x, lz: e.y, phase: (id % 16) * 0.39 };
+          slot = { obj, sig, lx: e.x, lz: e.y, phase: (id % 16) * 0.39 };
           pool.set(id, slot);
         }
         slot.obj.visible = true;
@@ -393,9 +405,11 @@ function disposeObj(obj) {
   });
 }
 
-// position + facing (derived from movement) + per-model idle animation
+// position + facing (derived from movement) + per-model idle animation. Off-screen
+// entities are hidden (visible=false) so they cost no draw calls.
 function place(slot, e, now, baseY, bobAmp) {
   const obj = slot.obj;
+  if (Math.abs(e.x - _viewCX) > HALF + 3.5 || Math.abs(e.y - _viewCZ) > HALF + 6) { obj.visible = false; return; }
   const bob = bobAmp ? Math.sin(now / 240 + slot.phase) * bobAmp : 0;
   obj.position.set(e.x, (baseY || 0) + bob, e.y);
   const dx = e.x - slot.lx, dz = e.y - slot.lz;
@@ -403,16 +417,18 @@ function place(slot, e, now, baseY, bobAmp) {
   if (!degrade && obj.userData.anim) obj.userData.anim(obj, now);
 }
 
+// NOTE: boss scale is owned ENTIRELY by the engine (scale.setScalar below). Builders
+// are NOT passed opts.boss, so the five self-scaling shapes don't double-scale.
 const enemyLayer = makeLayer(
-  e => ({ sig: (e.shape || 'skeleton') + (e.boss ? 'B' : '') + (e.elite ? 'E' : '') + (e.eliteColor || e.color || ''),
-          fn: 'buildEnemy_' + (e.shape || 'skeleton'),
-          opts: { color: e.eliteColor || e.color || '#cfcfcf', boss: !!e.boss } }),
+  e => (e.shape || 'skeleton') + (e.boss ? 'B' : '') + (e.elite ? 'E' : '') + (e.eliteColor || e.color || ''),
+  e => ({ fn: 'buildEnemy_' + (e.shape || 'skeleton'), opts: { color: e.eliteColor || e.color || '#cfcfcf' } }),
   (slot, e, now) => {
     place(slot, e, now, 0, e.shape === 'plant' ? 0 : 0.03);
     slot.obj.scale.setScalar(e.boss ? 1.6 : (e.elite ? 1.18 : (e._isSplit ? 0.7 : 1)));
   }
 );
 const itemLayer = makeLayer(
+  e => { const it = e.item || {}; return (it.baseId || '') + (it.rarity || '') + (it.gold ? 'G' : ''); },
   e => { const it = e.item || {}; const base = DATA.ITEM_BASES && DATA.ITEM_BASES[it.baseId];
          const t = base ? base.type : null;
          let fn = 'buildItem_gear';
@@ -420,26 +436,29 @@ const itemLayer = makeLayer(
          else if (t === 'gem') fn = 'buildItem_gem';
          else if (t === 'consumable') fn = 'buildItem_potion';
          const color = (DATA.rarityColor && it.rarity) ? DATA.rarityColor(it.rarity) : '#ffd166';
-         return { sig: fn + color, fn, opts: { color } }; },
+         return { fn, opts: { color } }; },
   (slot, e, now) => place(slot, e, now, 0.12, 0)
 );
 const portalLayer = makeLayer(
-  e => ({ sig: 'portal' + (e.kind || ''), fn: 'buildProp_portal', opts: { color: e.kind === 'next' ? '#8a6cff' : '#6df1ff' } }),
+  e => 'portal' + (e.kind || ''),
+  e => ({ fn: 'buildProp_portal', opts: { color: e.kind === 'next' ? '#8a6cff' : '#6df1ff' } }),
   (slot, e, now) => place(slot, e, now, 0, 0)
 );
 const shrineLayer = makeLayer(
-  e => ({ sig: 'shrine' + (e.type || '') + (e.used ? 'U' : ''), fn: 'buildProp_shrine', opts: { color: e.used ? '#5a6470' : '#9be8ff' } }),
+  e => 'shrine' + (e.type || '') + (e.used ? 'U' : ''),
+  e => ({ fn: 'buildProp_shrine', opts: { color: e.used ? '#5a6470' : '#9be8ff' } }),
   (slot, e, now) => { place(slot, e, now, 0, 0); if (e.used) slot.obj.scale.setScalar(0.85); }
 );
 const npcLayer = makeLayer(
-  e => ({ sig: 'npc' + (e.role || e.name || ''), fn: 'buildNpc', opts: { color: e.color || '#ffd9a0' } }),
+  e => 'npc' + (e.role || e.name || ''),
+  e => ({ fn: 'buildNpc', opts: { color: e.color || '#ffd9a0' } }),
   (slot, e, now) => place(slot, e, now, 0, 0.025)
 );
 // projectiles — pooled glowing models, oriented to travel direction, mid-air
 const PROJ_FN = { arrow: 'buildProjectile_arrow', bolt: 'buildProjectile_bolt', bone: 'buildProjectile_bone' };
 const projectileLayer = makeLayer(
-  e => { const k = PROJ_FN[e.kind] || 'buildProjectile_soul';
-         return { sig: (e.kind || 'soul') + (e.color || ''), fn: k, opts: { color: e.color || '#fff' } }; },
+  e => (e.kind || 'soul') + (e.color || ''),
+  e => ({ fn: PROJ_FN[e.kind] || 'buildProjectile_soul', opts: { color: e.color || '#fff' } }),
   (slot, e, now) => {
     const obj = slot.obj;
     obj.position.set(e.x, 0.5, e.y);
@@ -448,7 +467,8 @@ const projectileLayer = makeLayer(
   }
 );
 const minionLayer = makeLayer(
-  e => ({ sig: 'minion', fn: 'buildMinion', opts: { color: '#c489ff' } }),
+  e => 'minion',
+  e => ({ fn: 'buildMinion', opts: { color: '#c489ff' } }),
   (slot, e, now) => { place(slot, e, now, 0, 0.04); slot.obj.scale.setScalar(e.ttl != null && e.ttl < 3 ? 0.85 * (0.6 + 0.4 * (e.ttl / 3)) : 0.85); }
 );
 
@@ -465,7 +485,8 @@ function makeTelegraphMesh() {
   return g;
 }
 const telegraphLayer = makeLayer(
-  () => ({ sig: 'tg', factory: makeTelegraphMesh, opts: {} }),
+  () => 'tg',
+  () => ({ factory: makeTelegraphMesh, opts: {} }),
   (slot, e, now) => {
     const obj = slot.obj, ud = obj.userData;
     const prog = Math.min(1, e.age / e.windup);
@@ -497,7 +518,10 @@ function ensureParticles() {
   pPos = new Float32Array(PCAP * 3); pCol = new Float32Array(PCAP * 3);
   geo.setAttribute('position', new THREE.BufferAttribute(pPos, 3).setUsage(THREE.DynamicDrawUsage));
   geo.setAttribute('color', new THREE.BufferAttribute(pCol, 3).setUsage(THREE.DynamicDrawUsage));
-  const mat = new THREE.PointsMaterial({ size: 0.32, map: makeSpriteTexture(), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, vertexColors: true, sizeAttenuation: true, fog: true });
+  // NOTE: Three.js skips size-attenuation for orthographic cameras, so `size` is in
+  // PIXELS here (not world units). 0.3 would be invisible — use a px-scale sprite size.
+  const mat = new THREE.PointsMaterial({ size: 14, map: makeSpriteTexture(), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, depthTest: false, vertexColors: true, sizeAttenuation: false, fog: false });
+  GL._psys = () => particleSys;
   particleSys = new THREE.Points(geo, mat);
   particleSys.frustumCulled = false; particleSys.renderOrder = 3;
   scene.add(particleSys);
@@ -508,10 +532,11 @@ function syncParticles(game) {
   const cap = degrade ? (PCAP >> 1) : PCAP;
   if (list) for (let i = 0; i < list.length && n < cap; i++) {
     const p = list[i]; const t = 1 - p.age / p.life; if (t <= 0) continue;
-    const a = t * t;
+    const af = t * t > 1 ? 1 : t * t;
+    // parse the hex color once per particle; only the alpha scale changes per frame
+    if (p._r === undefined) { _color.set(p.color || '#fff'); p._r = _color.r; p._g = _color.g; p._b = _color.b; }
     pPos[n * 3] = p.x; pPos[n * 3 + 1] = 0.45; pPos[n * 3 + 2] = p.y;
-    _color.set(p.color || '#fff').multiplyScalar(a > 1 ? 1 : a);
-    pCol[n * 3] = _color.r; pCol[n * 3 + 1] = _color.g; pCol[n * 3 + 2] = _color.b;
+    pCol[n * 3] = p._r * af; pCol[n * 3 + 1] = p._g * af; pCol[n * 3 + 2] = p._b * af;
     n++;
   }
   const g = particleSys.geometry;
@@ -533,7 +558,9 @@ function buildTownFeatures(world) {
     br.position.set(b[0] + 0.5, 0, b[1] + 0.5);
     g.add(br);
   }
-  g.userData.tick = (now) => g.traverse(o => o.userData && o.userData.anim && o.userData.anim(o, now));
+  // collect just the animatable props (fountain + braziers) — no per-frame traverse
+  const anims = g.children.filter(o => o.userData && o.userData.anim);
+  g.userData.tick = (now) => { for (const o of anims) o.userData.anim(o, now); };
   return g;
 }
 
@@ -588,14 +615,34 @@ function frame(game, now) {
   if (GL.mask.projectiles) projectileLayer.reconcile(game.projectiles, now);
   if (GL.mask.telegraphs)  telegraphLayer.reconcile(game.telegraphs, now);
   if (GL.mask.particles)   syncParticles(game);
-  if (townGroup && townGroup.userData.tick) townGroup.userData.tick(now);
+  if (!degrade && townGroup && townGroup.userData.tick) townGroup.userData.tick(now);
   renderer.render(scene, cam);
   drawEnemyOverlays(game);
 }
 
 // =============================================================
 function dispose() {
+  for (const L of ALL_LAYERS) L.clear();                 // disposes pooled telegraphs
+  if (townGroup) { scene.remove(townGroup); townGroup = null; }
   disposeWorld();
+  if (particleSys) {
+    scene.remove(particleSys); particleSys.geometry.dispose();
+    if (particleSys.material.map) particleSys.material.map.dispose(); particleSys.material.dispose();
+    particleSys = null;
+  }
+  if (torch) {
+    scene.remove(torch); torch.geometry.dispose();
+    if (torch.material.map) torch.material.map.dispose(); torch.material.dispose();
+    torch = null;
+  }
+  if (playerMesh) {
+    scene.remove(playerMesh);
+    const ud = playerMesh.userData;  // dispose ONLY the rig's unique recolor materials (never the cached weapon/gear mats)
+    if (ud.bodyMat) ud.bodyMat.dispose();
+    if (ud.trimMat) ud.trimMat.dispose();
+    if (ud.eyeMat) ud.eyeMat.dispose();
+    playerMesh = null;
+  }
   if (renderer) renderer.dispose();
   GL.enabled = false;
 }
