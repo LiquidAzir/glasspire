@@ -851,6 +851,25 @@ html, body {
   max-height: 420px;
   overflow-y: auto;
 }
+.inv-consumables {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 8px;
+  margin-bottom: 4px;
+  background: var(--bg-strip);
+  border: 1px solid rgba(109, 241, 255, 0.10);
+  border-radius: var(--radius-md);
+}
+.consum-chip {
+  font-size: 13px;
+  color: var(--text-dim);
+  padding: 4px 9px;
+  background: var(--bg-card);
+  border-radius: 999px;
+  white-space: nowrap;
+}
+.consum-chip b { color: #fff; font-weight: 700; }
 .inv-row {
   display: flex;
   align-items: center;

@@ -6821,8 +6821,22 @@
     setEquip('eq-ring', c.equip.ring);
     setEquip('eq-amulet', c.equip.amulet);
     const list = $('inv-list'); list.innerHTML = '';
+    // Consumables & materials are counters (not bag items) — surface them here so
+    // bought potions etc. are visible. Auto-used as needed; not manually equippable.
+    const consum = document.createElement('div');
+    consum.className = 'inv-consumables';
+    consum.innerHTML =
+      `<div class="consum-chip"><span style="color:var(--crimson)">♥</span> <b>${c.potions || 0}</b> Potion${(c.potions || 0) === 1 ? '' : 's'}</div>` +
+      `<div class="consum-chip"><span style="color:var(--gold)">✉</span> <b>${c.sanctuaryScrolls || 0}</b> Scroll${(c.sanctuaryScrolls || 0) === 1 ? '' : 's'}</div>` +
+      `<div class="consum-chip"><span class="rarity-unique">◊</span> <b>${c.glassTears || 0}</b> Tear${(c.glassTears || 0) === 1 ? '' : 's'}</div>` +
+      `<div class="consum-chip"><span class="rarity-unique">✦</span> <b>${c.tomes || 0}</b> Tome${(c.tomes || 0) === 1 ? '' : 's'}</div>` +
+      `<div class="consum-chip"><span class="rarity-unique">✧</span> <b>${c.craftDust || 0}</b> Dust</div>`;
+    list.appendChild(consum);
     if (c.inventory.length === 0) {
-      list.innerHTML = '<div class="quest-card empty">No items.</div>';
+      const empty = document.createElement('div');
+      empty.className = 'quest-card empty';
+      empty.textContent = 'No gear in your bags.';
+      list.appendChild(empty);
       return;
     }
     c.inventory.forEach((it, idx) => {
@@ -8136,10 +8150,10 @@
     if (!it) return;
     const cost = itemCost(it);
     if (game.char.gold < cost) { showHudToast('Not enough gold.'); return; }
-    // Health Potion: increment counter, stays in vendor (soft cap to avoid hoarding)
+    // Health Potion: increment counter, stays in vendor (capped to avoid hoarding)
     if (it.baseId === 'health-potion') {
-      const cap = 15;
-      if ((game.char.potions || 0) >= cap) { showHudToast(`Potions full (${cap} max).`); return; }
+      const cap = 12;
+      if ((game.char.potions || 0) >= cap) { showHudToast(`Potion belt full (${cap} max).`); return; }
       game.char.gold -= cost;
       game.char.potions = (game.char.potions || 0) + 1;
       showHudToast(`Health Potion bought. Have ${game.char.potions}.`);
