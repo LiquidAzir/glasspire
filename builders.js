@@ -1498,5 +1498,65 @@ export function buildDecor(opts) {
   return g;
 }
 
+// =============================================================
+// PROJECTILES + MINION (Stage 4) — projectiles point +Z (engine rotates to
+// travel direction); opts.color = projectile/owner color.
+// =============================================================
+export function buildProjectile_arrow(opts) {
+  const c = (opts && opts.color) || '#caa15a';
+  const g = new T.Group();
+  const shaft = m(box(0.045, 0.045, 0.5), mat(c, 0.85)); shaft.position.z = -0.05;
+  const head = m(cone(0.07, 0.16, 4), matAdd(c, 0.9)); head.rotation.x = Math.PI / 2; head.position.z = 0.26;
+  const fl1 = m(plane(0.12, 0.08), matAdd('#ffffff', 0.4)); fl1.position.z = -0.26; fl1.rotation.y = Math.PI / 2;
+  g.add(shaft, head, fl1);
+  return g;
+}
+export function buildProjectile_bolt(opts) {
+  const c = (opts && opts.color) || '#9be8ff';
+  const g = new T.Group();
+  const dia = m(geo('boltDia', () => new T.OctahedronGeometry(0.14, 0)), matAdd(c, 0.95));
+  const core = m(geo('boltCore', () => new T.IcosahedronGeometry(0.06, 0)), matAdd('#ffffff', 0.9));
+  g.add(dia, core);
+  g.userData.anim = (grp, now) => { dia.rotation.y = now / 100; dia.rotation.x = now / 140; };
+  return g;
+}
+export function buildProjectile_bone(opts) {
+  const c = (opts && opts.color) || '#e8e2cf';
+  const g = new T.Group();
+  const shaft = m(cyl(0.04, 0.04, 0.28, 5), mat(c, 0.85)); shaft.rotation.z = Math.PI / 2;
+  const k1 = m(geo('boneKnob', () => new T.IcosahedronGeometry(0.07, 0)), mat(c, 0.9)); k1.position.x = -0.15;
+  const k2 = m(geo('boneKnob', () => new T.IcosahedronGeometry(0.07, 0)), mat(c, 0.9)); k2.position.x = 0.15;
+  g.add(shaft, k1, k2);
+  g.userData.anim = (grp, now) => { grp.rotation.z = now / 80; };
+  return g;
+}
+export function buildProjectile_soul(opts) {
+  const c = (opts && opts.color) || '#c489ff';
+  const g = new T.Group();
+  const orb = m(geo('soulOrb', () => new T.IcosahedronGeometry(0.14, 0)), matAdd(c, 0.95));
+  const core = m(geo('soulCore', () => new T.IcosahedronGeometry(0.06, 0)), matAdd('#ffffff', 0.85));
+  const trail = m(cone(0.1, 0.34, 5), matAdd(c, 0.4)); trail.rotation.x = -Math.PI / 2; trail.position.z = -0.2;
+  g.add(orb, core, trail);
+  g.userData.anim = (grp, now) => { orb.scale.setScalar(1 + Math.sin(now / 120) * 0.12); };
+  return g;
+}
+
+// raised-dead minion — a small ethereal spectral skeleton (additive, ghostly)
+export function buildMinion(opts) {
+  const c = (opts && opts.color) || '#c489ff';
+  const g = new T.Group();
+  const body = matAdd(c, 0.5);
+  const eye = matAdd('#ff00ff', 0.9);
+  const ribs = m(box(0.22, 0.26, 0.16), body); ribs.position.y = 0.4;
+  const legL = m(box(0.06, 0.24, 0.06), matAdd(c, 0.35)); legL.position.set(-0.07, 0.12, 0);
+  const legR = m(box(0.06, 0.24, 0.06), matAdd(c, 0.35)); legR.position.set(0.07, 0.12, 0);
+  const skull = m(geo('minSkull', () => new T.IcosahedronGeometry(0.13, 0)), body); skull.position.y = 0.66;
+  const eyeL = m(box(0.04, 0.04, 0.03), eye); eyeL.position.set(-0.05, 0.67, 0.1);
+  const eyeR = m(box(0.04, 0.04, 0.03), eye); eyeR.position.set(0.05, 0.67, 0.1);
+  g.add(ribs, legL, legR, skull, eyeL, eyeR);
+  g.userData.anim = (grp, now) => { eyeL.material.opacity = eyeR.material.opacity = 0.6 + 0.3 * Math.sin(now / 200); };
+  return g;
+}
+
 // expose the cache for the engine (warm-up / disposal if needed)
 export const _cache = { GEO, MATS };

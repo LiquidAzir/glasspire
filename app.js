@@ -4004,6 +4004,15 @@
     return { x: (wx - game.cam.x) * CFG.tile, y: (wy - game.cam.y) * CFG.tile };
   }
 
+  // UI projection for text/labels that hover over world entities. When the 3D
+  // renderer is active, project through its camera (height h in tiles) so labels
+  // track the tilted scene; otherwise fall back to the flat 2D mapping.
+  function w2sUI(wx, wy, h) {
+    const gl = window.__GL;
+    if (gl && gl.enabled && gl.project) { const p = gl.project(wx, wy, h || 0); if (p) return p; }
+    return w2s(wx, wy);
+  }
+
   function drawWorld() {
     const w = game.world;
     const t = CFG.tile;
@@ -6321,7 +6330,7 @@
     if (!game.world) return;
     const now = performance.now();
     const showHint = (wx, wy, label) => {
-      const s = w2s(wx, wy);
+      const s = w2sUI(wx, wy, 1.2);
       const bounce = Math.sin(now / 300) * 2;
       ctx.save();
       ctx.translate(s.x, s.y - 28 + bounce);
@@ -6375,7 +6384,7 @@
     const layer = $('floating-text');
     if (!layer) return;
     for (const t of game.floatingTexts) {
-      const s = w2s(t.wx, t.wy);
+      const s = w2sUI(t.wx, t.wy, 1.35);
       const k = t.age / t.life;
       const yOff = -38 * k;
       const scale = t.kind === 'crit' ? 1 + (1 - k) * 0.4 : 1;
@@ -6769,9 +6778,9 @@
         const pct = Math.round((game.char.autoPotionPct || 0.35) * 100);
         apBtn.textContent = game.char.autoPotion ? `Auto-Potion: ON (${pct}%)` : 'Auto-Potion: OFF';
       }
-      // Update 3D renderer toggle label
+      // Update 3D renderer toggle label (3D is the default)
       const rBtn = $('menu-render-btn');
-      if (rBtn) rBtn.textContent = (localStorage.getItem('hl_render') === 'gl') ? 'Graphics: 3D (beta)' : 'Graphics: 2D';
+      if (rBtn) rBtn.textContent = (localStorage.getItem('hl_render') !== '2d') ? 'Graphics: 3D' : 'Graphics: 2D';
     }
     if (id === 'sync') {
       // Reset all fields on entry so the user starts with a clean slate
@@ -7814,12 +7823,11 @@
         return;
       case 'menu-render-toggle':
         {
-          // Flip the experimental 3D renderer; persists per-device and reloads.
-          const is3D = localStorage.getItem('hl_render') === 'gl';
-          if (is3D) localStorage.removeItem('hl_render');
-          else localStorage.setItem('hl_render', 'gl');
+          // 3D is the default; toggle persists per-device ('2d' = opt out) and reloads.
+          const is3D = localStorage.getItem('hl_render') !== '2d';
+          localStorage.setItem('hl_render', is3D ? '2d' : 'gl');
           saveGame();
-          showHudToast(is3D ? 'Switching to 2D…' : 'Switching to 3D (beta)…');
+          showHudToast(is3D ? 'Switching to 2D…' : 'Switching to 3D…');
           setTimeout(() => location.reload(), 350);
         }
         return;

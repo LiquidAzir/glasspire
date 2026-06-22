@@ -8,8 +8,12 @@
 import * as THREE from 'three';
 import * as Builders from './builders.js';
 
-const RENDER3D = new URLSearchParams(location.search).has('gl')
-  || (typeof localStorage !== 'undefined' && localStorage.getItem('hl_render') === 'gl');
+// 3D is the default renderer. Opt out with the in-game toggle (localStorage
+// hl_render='2d') or ?gl=0; ?gl / ?gl=1 forces it on regardless.
+const _params = new URLSearchParams(location.search);
+const RENDER3D = _params.get('gl') === '0' ? false
+  : _params.has('gl') ? true
+  : (typeof localStorage === 'undefined' || localStorage.getItem('hl_render') !== '2d');
 
 // ---- constants (reproduce w2s: (w-cam)*28 over a 600px viewport) ----
 const TILE = 28;
@@ -55,6 +59,9 @@ GL._dbg = () => ({
 });
 
 GL._builders = Builders;   // exposed for the construction self-test
+// world→screen projector for app.js UI text (floating damage, hints) so it tracks
+// the tilted 3D scene instead of the flat w2s mapping. Returns {x,y} px or null.
+GL.project = (wx, wy, h) => { if (!cam) return null; const p = projectToScreen(wx, h || 0, wy); return p.vis ? p : null; };
 
 function setMask(patch) { Object.assign(GL.mask, patch); }
 
@@ -100,11 +107,12 @@ function init() {
   const ov = document.getElementById('game-overlay-2d');
   if (ov) { ov.style.display = 'block'; overlayCtx = ov.getContext('2d'); }
 
-  // World, player, enemies, items, portals, shrines, NPCs render in 3D; combat FX
-  // (projectiles, particles, telegraphs, minions) + town features stay 2D-composited.
-  setMask({ world: true, player: true, enemies: true, items: true, portals: true, shrines: true, npcs: true });
+  // Everything renders in 3D except ambient atmosphere motes (no entity to align to —
+  // they stay 2D-composited). Town fountain/braziers are placed by buildTownFeatures.
+  setMask({ world: true, town: true, player: true, enemies: true, items: true, portals: true, shrines: true,
+            npcs: true, projectiles: true, minions: true, telegraphs: true, particles: true });
   GL.enabled = true;
-  console.log('[3D] renderer mounted (Stage 2: world + entities)');
+  console.log('[3D] renderer mounted (Stage 4: full scene)');
 }
 
 // =============================================================
@@ -127,10 +135,13 @@ function onZoneChange(world) {
   if (!renderer) return;
   for (const L of ALL_LAYERS) L.clear();           // drop the previous zone's entities
   if (overlayCtx) overlayCtx.clearRect(0, 0, 600, 600);
+  if (townGroup) { scene.remove(townGroup); townGroup = null; }   // cached resources — remove, don't dispose
   disposeWorld();
   if (!world || !world.grid) return;
   worldGroup = buildWorld(world);
   scene.add(worldGroup);
+  townGroup = buildTownFeatures(world);
+  if (townGroup) scene.add(townGroup);
   // fog density: dungeons a touch tighter, town airier (lower = brighter, more visible)
   scene.fog.density = world.kind === 'town' ? 0.026 : 0.042;
 }
@@ -354,9 +365,9 @@ function makeLayer(spec, sync) {
         const s = spec(e);
         let slot = pool.get(id);
         if (!slot || slot.sig !== s.sig) {
-          if (slot) scene.remove(slot.obj);
+          if (slot) { scene.remove(slot.obj); disposeObj(slot.obj); }
           let obj;
-          try { obj = builderFor(s.fn)(s.opts || {}); }
+          try { obj = s.factory ? s.factory(s.opts || {}) : builderFor(s.fn)(s.opts || {}); }
           catch (err) { if (!_warned.has(s.fn)) { _warned.add(s.fn); console.warn('[3D] builder failed:', s.fn, err.message); } obj = Builders.buildPlaceholder(s.opts || {}); }
           scene.add(obj);
           slot = { obj, sig: s.sig, lx: e.x, lz: e.y, phase: (id % 16) * 0.39 };
@@ -365,10 +376,21 @@ function makeLayer(spec, sync) {
         slot.obj.visible = true;
         sync(slot, e, now);
       }
-      for (const [id, slot] of pool) if (!liveTmp.has(id)) { scene.remove(slot.obj); pool.delete(id); }
+      for (const [id, slot] of pool) if (!liveTmp.has(id)) { scene.remove(slot.obj); disposeObj(slot.obj); pool.delete(id); }
     },
-    clear() { for (const [, slot] of pool) scene.remove(slot.obj); pool.clear(); },
+    clear() { for (const [, slot] of pool) { scene.remove(slot.obj); disposeObj(slot.obj); } pool.clear(); },
   };
+}
+
+// dispose ONLY objects that own unique (uncached) GPU resources — flagged with
+// userData._dispose (e.g. telegraphs). Builder Groups share the geo()/mat() caches
+// and must never be disposed.
+function disposeObj(obj) {
+  if (!obj || !obj.userData || !obj.userData._dispose) return;
+  obj.traverse(o => {
+    if (o.material) { if (o.material.map) o.material.map.dispose(); o.material.dispose(); }
+    if (o.geometry) o.geometry.dispose();
+  });
 }
 
 // position + facing (derived from movement) + per-model idle animation
@@ -378,7 +400,7 @@ function place(slot, e, now, baseY, bobAmp) {
   obj.position.set(e.x, (baseY || 0) + bob, e.y);
   const dx = e.x - slot.lx, dz = e.y - slot.lz;
   if (Math.abs(dx) + Math.abs(dz) > 0.0008) { obj.rotation.y = Math.atan2(dx, dz); slot.lx = e.x; slot.lz = e.y; }
-  if (obj.userData.anim) obj.userData.anim(obj, now);
+  if (!degrade && obj.userData.anim) obj.userData.anim(obj, now);
 }
 
 const enemyLayer = makeLayer(
@@ -413,7 +435,117 @@ const npcLayer = makeLayer(
   e => ({ sig: 'npc' + (e.role || e.name || ''), fn: 'buildNpc', opts: { color: e.color || '#ffd9a0' } }),
   (slot, e, now) => place(slot, e, now, 0, 0.025)
 );
-const ALL_LAYERS = [enemyLayer, itemLayer, portalLayer, shrineLayer, npcLayer];
+// projectiles — pooled glowing models, oriented to travel direction, mid-air
+const PROJ_FN = { arrow: 'buildProjectile_arrow', bolt: 'buildProjectile_bolt', bone: 'buildProjectile_bone' };
+const projectileLayer = makeLayer(
+  e => { const k = PROJ_FN[e.kind] || 'buildProjectile_soul';
+         return { sig: (e.kind || 'soul') + (e.color || ''), fn: k, opts: { color: e.color || '#fff' } }; },
+  (slot, e, now) => {
+    const obj = slot.obj;
+    obj.position.set(e.x, 0.5, e.y);
+    if (e.dx || e.dy) obj.rotation.y = Math.atan2(e.dx, e.dy);
+    if (!degrade && obj.userData.anim) obj.userData.anim(obj, now);
+  }
+);
+const minionLayer = makeLayer(
+  e => ({ sig: 'minion', fn: 'buildMinion', opts: { color: '#c489ff' } }),
+  (slot, e, now) => { place(slot, e, now, 0, 0.04); slot.obj.scale.setScalar(e.ttl != null && e.ttl < 3 ? 0.85 * (0.6 + 0.4 * (e.ttl / 3)) : 0.85); }
+);
+
+// telegraphs — flat additive ground ring + filling danger disc, sized by radius.
+// The camera tilt turns the flat circle into the foreshortened ellipse for free.
+function makeTelegraphMesh() {
+  const g = new THREE.Group();
+  const ringMat = new THREE.MeshBasicMaterial({ color: 0xff3344, transparent: true, opacity: 0.6, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, fog: false });
+  const fillMat = new THREE.MeshBasicMaterial({ color: 0xff3344, transparent: true, opacity: 0.2, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, fog: false });
+  const ring = new THREE.Mesh(new THREE.RingGeometry(0.86, 1.0, 36), ringMat); ring.rotation.x = -Math.PI / 2; ring.position.y = 0.05;
+  const fill = new THREE.Mesh(new THREE.CircleGeometry(1, 36), fillMat); fill.rotation.x = -Math.PI / 2; fill.position.y = 0.03;
+  g.add(ring, fill);
+  g.userData = { _dispose: true, ring, fill, ringMat, fillMat };
+  return g;
+}
+const telegraphLayer = makeLayer(
+  () => ({ sig: 'tg', factory: makeTelegraphMesh, opts: {} }),
+  (slot, e, now) => {
+    const obj = slot.obj, ud = obj.userData;
+    const prog = Math.min(1, e.age / e.windup);
+    const R = e.radius || 2;
+    obj.position.set(e.x, 0, e.y);
+    obj.scale.set(R, 1, R);
+    ud.fill.scale.setScalar(Math.max(0.001, prog));
+    ud.ringMat.color.set(e.color || '#ff3344'); ud.fillMat.color.set(e.color || '#ff3344');
+    ud.ringMat.opacity = 0.5 + 0.3 * Math.sin(e.age * 18);
+    ud.fillMat.opacity = 0.18 + 0.24 * prog;
+  }
+);
+const ALL_LAYERS = [enemyLayer, itemLayer, portalLayer, shrineLayer, npcLayer, projectileLayer, minionLayer, telegraphLayer];
+
+// ---- particle system: one THREE.Points for ALL particles (single draw call) ----
+let particleSys = null, pPos = null, pCol = null;
+const PCAP = 800;
+function makeSpriteTexture() {
+  const c = document.createElement('canvas'); c.width = c.height = 64;
+  const x = c.getContext('2d');
+  const grd = x.createRadialGradient(32, 32, 0, 32, 32, 32);
+  grd.addColorStop(0, 'rgba(255,255,255,1)'); grd.addColorStop(0.45, 'rgba(255,255,255,0.5)'); grd.addColorStop(1, 'rgba(255,255,255,0)');
+  x.fillStyle = grd; x.fillRect(0, 0, 64, 64);
+  return new THREE.CanvasTexture(c);
+}
+function ensureParticles() {
+  if (particleSys) return;
+  const geo = new THREE.BufferGeometry();
+  pPos = new Float32Array(PCAP * 3); pCol = new Float32Array(PCAP * 3);
+  geo.setAttribute('position', new THREE.BufferAttribute(pPos, 3).setUsage(THREE.DynamicDrawUsage));
+  geo.setAttribute('color', new THREE.BufferAttribute(pCol, 3).setUsage(THREE.DynamicDrawUsage));
+  const mat = new THREE.PointsMaterial({ size: 0.32, map: makeSpriteTexture(), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, vertexColors: true, sizeAttenuation: true, fog: true });
+  particleSys = new THREE.Points(geo, mat);
+  particleSys.frustumCulled = false; particleSys.renderOrder = 3;
+  scene.add(particleSys);
+}
+function syncParticles(game) {
+  ensureParticles();
+  const list = game.particles; let n = 0;
+  const cap = degrade ? (PCAP >> 1) : PCAP;
+  if (list) for (let i = 0; i < list.length && n < cap; i++) {
+    const p = list[i]; const t = 1 - p.age / p.life; if (t <= 0) continue;
+    const a = t * t;
+    pPos[n * 3] = p.x; pPos[n * 3 + 1] = 0.45; pPos[n * 3 + 2] = p.y;
+    _color.set(p.color || '#fff').multiplyScalar(a > 1 ? 1 : a);
+    pCol[n * 3] = _color.r; pCol[n * 3 + 1] = _color.g; pCol[n * 3 + 2] = _color.b;
+    n++;
+  }
+  const g = particleSys.geometry;
+  g.setDrawRange(0, n);
+  g.attributes.position.needsUpdate = true; g.attributes.color.needsUpdate = true;
+  particleSys.visible = n > 0;
+}
+
+// ---- town features: fountain + corner braziers (fixed positions) ----
+let townGroup = null;
+function buildTownFeatures(world) {
+  if (!world || world.kind !== 'town') return null;
+  const g = new THREE.Group();
+  const fountain = Builders.buildProp_fountain({ color: '#6df1ff' });
+  fountain.position.set(10.5, 0, 8.5);
+  g.add(fountain);
+  for (const b of [[3, 3], [17, 3], [3, 13], [17, 13]]) {
+    const br = Builders.buildDecor({ color: '#ff9a3c' });
+    br.position.set(b[0] + 0.5, 0, b[1] + 0.5);
+    g.add(br);
+  }
+  g.userData.tick = (now) => g.traverse(o => o.userData && o.userData.anim && o.userData.anim(o, now));
+  return g;
+}
+
+// ---- perf governor: drop expensive per-model anims + halve particles when busy ----
+let degrade = false;
+function updateGovernor(game) {
+  const load = (game.enemies ? game.enemies.length : 0)
+    + (game.minions ? game.minions.length : 0)
+    + (game.projectiles ? game.projectiles.length : 0)
+    + ((game.particles ? game.particles.length : 0) >> 4);
+  degrade = load > 46;
+}
 
 // enemy HP bars on the crisp overlay canvas, positioned by projecting the model
 // through the camera (so they track the tilted view, not flat w2s).
@@ -443,14 +575,20 @@ function drawEnemyOverlays(game) {
 function frame(game, now) {
   if (!renderer || !game || !game.world) return;
   _frames++;
+  updateGovernor(game);
   updateCamera3D(game);
   if (GL.mask.player) { syncPlayer(game, now); updateTorch(game); }
   else if (playerMesh) playerMesh.visible = false;
-  if (GL.mask.enemies) enemyLayer.reconcile(game.enemies, now);
-  if (GL.mask.items)   itemLayer.reconcile(game.items, now);
-  if (GL.mask.portals) portalLayer.reconcile(game.world.portals, now);
-  if (GL.mask.shrines) shrineLayer.reconcile(game.world.shrines, now);
-  if (GL.mask.npcs)    npcLayer.reconcile(game.world.npcs, now);
+  if (GL.mask.enemies)     enemyLayer.reconcile(game.enemies, now);
+  if (GL.mask.minions)     minionLayer.reconcile(game.minions, now);
+  if (GL.mask.items)       itemLayer.reconcile(game.items, now);
+  if (GL.mask.portals)     portalLayer.reconcile(game.world.portals, now);
+  if (GL.mask.shrines)     shrineLayer.reconcile(game.world.shrines, now);
+  if (GL.mask.npcs)        npcLayer.reconcile(game.world.npcs, now);
+  if (GL.mask.projectiles) projectileLayer.reconcile(game.projectiles, now);
+  if (GL.mask.telegraphs)  telegraphLayer.reconcile(game.telegraphs, now);
+  if (GL.mask.particles)   syncParticles(game);
+  if (townGroup && townGroup.userData.tick) townGroup.userData.tick(now);
   renderer.render(scene, cam);
   drawEnemyOverlays(game);
 }
