@@ -6769,6 +6769,9 @@
         const pct = Math.round((game.char.autoPotionPct || 0.35) * 100);
         apBtn.textContent = game.char.autoPotion ? `Auto-Potion: ON (${pct}%)` : 'Auto-Potion: OFF';
       }
+      // Update 3D renderer toggle label
+      const rBtn = $('menu-render-btn');
+      if (rBtn) rBtn.textContent = (localStorage.getItem('hl_render') === 'gl') ? 'Graphics: 3D (beta)' : 'Graphics: 2D';
     }
     if (id === 'sync') {
       // Reset all fields on entry so the user starts with a clean slate
@@ -7807,6 +7810,17 @@
           const pctLabel = Math.round(c.autoPotionPct * 100);
           if (apBtn) apBtn.textContent = c.autoPotion ? `Auto-Potion: ON (${pctLabel}%)` : 'Auto-Potion: OFF';
           showHudToast(c.autoPotion ? `Auto-potion ON at ${pctLabel}% HP.` : 'Auto-potion OFF.');
+        }
+        return;
+      case 'menu-render-toggle':
+        {
+          // Flip the experimental 3D renderer; persists per-device and reloads.
+          const is3D = localStorage.getItem('hl_render') === 'gl';
+          if (is3D) localStorage.removeItem('hl_render');
+          else localStorage.setItem('hl_render', 'gl');
+          saveGame();
+          showHudToast(is3D ? 'Switching to 2D…' : 'Switching to 3D (beta)…');
+          setTimeout(() => location.reload(), 350);
         }
         return;
       case 'menu-sync':
