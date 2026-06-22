@@ -59,6 +59,9 @@ GL._dbg = () => ({
 });
 
 GL._builders = Builders;   // exposed for the construction self-test
+GL._gear = () => { if (!playerMesh) return 'no player'; const u = playerMesh.userData;
+  const cnt = (mnt) => mnt ? mnt.children.length : -1;
+  return { weapon: cnt(u.weaponMount), back: cnt(u.backMount), head: cnt(u.headMount), chest: cnt(u.chestMount), aura: cnt(u.auraMount), equipKey: u.equipKey }; };
 GL._pdbg = () => particleSys ? {
   inScene: scene.children.indexOf(particleSys) >= 0, visible: particleSys.visible,
   drawRange: particleSys.geometry.drawRange.count, matSize: particleSys.material.size,
@@ -263,37 +266,56 @@ function bestRarityColor(char) {
   }
   return DATA.rarityColor ? DATA.rarityColor(best) : '#9fd8ff';
 }
+function rankOf(it) { return it && it.rarity ? (RANK()[it.rarity] || 0) : 0; }   // 0 common .. 4 mythic
+function bestRank(char) {
+  let b = 0;
+  for (const it of [char.equip.weapon, char.equip.armor, char.equip.ring, char.equip.amulet]) b = Math.max(b, rankOf(it));
+  return b;
+}
+const BACK_LOOK = { cape: 'buildGear_cape', wings: 'buildGear_wings', spectral: 'buildGear_spectral', plate: 'buildGear_plate' };
+const HEAD_LOOK = { crown: 'buildGear_crown', halo: 'buildGear_halo' };
 function clearMount(o) { while (o.children.length) o.remove(o.children[o.children.length - 1]); }
 
 function syncPlayer(game, now) {
   ensurePlayer();
   const pm = playerMesh, ud = pm.userData, p = game.world.player, char = game.char;
 
-  // --- recompute the equip signature; everything visual below changes only on a change ---
+  // --- equipment signature; visuals below rebuild only when equipment changes ---
   const cls = DATA.CLASSES && char ? DATA.CLASSES[char.classId] : null;
   const accent = char ? bestRarityColor(char) : '#9fd8ff';
   const wKind = weaponKindFor(char);
   const wpn = char && char.equip && char.equip.weapon;
-  const wLook = lookDef(wpn);
-  const aLook = lookDef(char && char.equip && char.equip.armor);
+  const arm = char && char.equip && char.equip.armor;
+  const wLook = lookDef(wpn), aLook = lookDef(arm);
   const wColor = (wLook && wLook.color) || (wpn && DATA.rarityColor && DATA.rarityColor(wpn.rarity)) || accent;
-  const key = (char && char.classId) + '|' + accent + '|' + wKind + '|' + wColor + '|' + (aLook ? aLook.id : '_') + '|' + (wLook ? wLook.id : '_');
+  const wFx = wLook && wLook.fx ? wLook.fx : null;            // elemental signature (fire/ice/void/…)
+  const wTier = rankOf(wpn), aTier = rankOf(arm);
+  const wPrism = !!(wpn && wpn.rarity === 'mythic');
+  const aPrism = !!(arm && arm.rarity === 'mythic');
+  const aBody = aLook && aLook.body ? aLook.body : null;
+  const ac = (aLook && aLook.color) || accent;
+  const top = char ? bestRank(char) : 0;                      // 3 = a legendary equipped, 4 = a mythic
+  const key = [char && char.classId, accent, wKind, wColor, wFx, wTier, wPrism, aBody, ac, aTier, aPrism, top].join('|');
   if (key !== ud.equipKey) {
     ud.equipKey = key;
-    // tint (only on change, not every frame)
     ud.bodyMat.color.set((cls && cls.color) || '#8899aa').multiplyScalar(0.85); // gothic: darkened armour
     ud.trimMat.color.set(accent);
+    // weapon — type + tier + element + prismatic
     clearMount(ud.weaponMount);
-    const wb = (Builders['buildWeapon_' + wKind] || Builders.buildWeapon_sword)({ color: wColor });
-    ud.weaponMount.add(wb);
+    ud.weaponMount.add((Builders['buildWeapon_' + wKind] || Builders.buildWeapon_sword)({ color: wColor, fx: wFx, tier: wTier, prismatic: wPrism }));
+    // armor body cosmetic (cape/wings/spectral/plate -> back; crown/halo -> head)
     clearMount(ud.backMount); clearMount(ud.headMount);
-    if (aLook && aLook.body) {
-      const c = aLook.color;
-      if (aLook.body === 'cape' || aLook.body === 'spectral' || aLook.body === 'plate') ud.backMount.add(Builders.buildGear_cape({ color: c }));
-      else if (aLook.body === 'wings') ud.backMount.add(Builders.buildGear_wings({ color: c }));
-      else if (aLook.body === 'crown') ud.headMount.add(Builders.buildGear_crown({ color: c }));
-      else if (aLook.body === 'halo') ud.headMount.add(Builders.buildGear_halo({ color: c }));
+    if (aBody) {
+      const backFn = BACK_LOOK[aBody], headFn = HEAD_LOOK[aBody];
+      if (backFn) ud.backMount.add((Builders[backFn] || Builders.buildGear_cape)({ color: ac, prismatic: aPrism }));
+      else if (headFn && Builders[headFn]) ud.headMount.add(Builders[headFn]({ color: ac, prismatic: aPrism }));
     }
+    // tier armor kit on the chest (rare+)
+    clearMount(ud.chestMount);
+    if (aTier >= 2 && Builders.buildArmorKit) ud.chestMount.add(Builders.buildArmorKit({ tier: aTier, color: ac, prismatic: aPrism }));
+    // legendary / mythic character aura at the feet
+    clearMount(ud.auraMount);
+    if (top >= 3 && Builders.buildAura) ud.auraMount.add(Builders.buildAura({ color: accent, prismatic: top >= 4, tier: top }));
   }
 
   // --- position, facing, bob + walk cycle ---
@@ -310,9 +332,9 @@ function syncPlayer(game, now) {
     ud.legs[0].rotation.x = sw; ud.legs[1].rotation.x = -sw;
     if (ud.arms) { ud.arms[0].rotation.x = -sw * 0.6; ud.arms[1].rotation.x = sw * 0.6; }
   }
-  // per-child special animations (weapon orb, cape sway, halo spin…)
-  ud.weaponMount.children[0] && ud.weaponMount.children[0].userData.anim && ud.weaponMount.children[0].userData.anim(ud.weaponMount.children[0], now);
-  for (const mnt of [ud.backMount, ud.headMount]) for (const ch of mnt.children) ch.userData.anim && ch.userData.anim(ch, now);
+  // per-child special animations (weapon FX, cape sway, halo spin, aura, kit…)
+  if (!degrade) for (const mnt of [ud.weaponMount, ud.backMount, ud.headMount, ud.chestMount, ud.auraMount])
+    for (const ch of mnt.children) if (ch.userData.anim) ch.userData.anim(ch, now);
 
   pm.visible = true;
 }
