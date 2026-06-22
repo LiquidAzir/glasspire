@@ -2994,5 +2994,659 @@ export function buildAura(opts) {
   return g;
 }
 
+
+// =============================================================
+// CLASS-DISTINCT PLAYER RIGS — warrior/mage/ranger/summoner (workflow).
+// Same userData interface as buildPlayer; engine picks by classId.
+// =============================================================
+
+export function buildPlayer_warrior(opts){
+  const g = new T.Group();
+
+  // ---- UNIQUE recolor materials (engine recolors these live; never cache) ----
+  const bodyMat = new T.MeshBasicMaterial({ color:0x46506b, fog:true });                              // -> class color (plate)
+  const trimMat = new T.MeshBasicMaterial({ color:0xffce5e, fog:false, transparent:true, opacity:0.95, blending:T.AdditiveBlending, depthWrite:false }); // -> rarity accent (rune trim)
+  const eyeMat  = new T.MeshBasicMaterial({ color:0xff4422, fog:false, transparent:true, opacity:1,    blending:T.AdditiveBlending, depthWrite:false }); // -> eye glow
+
+  // fixed dark parts (cached OPAQUE fogged) - kept above pure-black so additive display still shows form
+  const dark   = mat('#12161f');   // boots, gorget shadow, visor void
+  const steel  = mat('#222a39');   // secondary plate / strap shade
+  const sabato = mat('#171c27');   // sabatons
+
+  // ================= LEGS (armored greaves + sabatons) =================
+  // upper leg / cuisse
+  const lThigh = m(box(0.22,0.30,0.24), bodyMat);  lThigh.position.set(-0.16,0.30,0);
+  const rThigh = m(box(0.22,0.30,0.24), bodyMat);  rThigh.position.set( 0.16,0.30,0);
+  // greave (lower leg) bolted to thigh so each is ONE walk-rotated mesh
+  const lGreave = m(box(0.19,0.26,0.21), steel);   lGreave.position.set(0,-0.26,0.01);  lThigh.add(lGreave);
+  const rGreave = m(box(0.19,0.26,0.21), steel);   rGreave.position.set(0,-0.26,0.01);  rThigh.add(rGreave);
+  // knee cop (angular point)
+  const lKnee = m(cone(0.12,0.13,4), bodyMat);     lKnee.position.set(0,-0.10,0.12); lKnee.rotation.x=0.5; lThigh.add(lKnee);
+  const rKnee = m(cone(0.12,0.13,4), bodyMat);     rKnee.position.set(0,-0.10,0.12); rKnee.rotation.x=0.5; rThigh.add(rKnee);
+  // sabatons (pointed armored boots)
+  const lFoot = m(box(0.20,0.10,0.30), sabato);    lFoot.position.set(0,-0.36,0.05); lThigh.add(lFoot);
+  const rFoot = m(box(0.20,0.10,0.30), sabato);    rFoot.position.set(0,-0.36,0.05); rThigh.add(rFoot);
+  const lToe  = m(cone(0.09,0.14,4), sabato);      lToe.position.set(0,-0.36,0.21); lToe.rotation.x=Math.PI/2; lThigh.add(lToe);
+  const rToe  = m(cone(0.09,0.14,4), sabato);      rToe.position.set(0,-0.36,0.21); rToe.rotation.x=Math.PI/2; rThigh.add(rToe);
+  g.add(lThigh); g.add(rThigh);
+
+  // ================= FAULD / TASSETS over the hips =================
+  const fauld = m(box(0.58,0.18,0.40), steel);     fauld.position.set(0,0.50,0);   g.add(fauld);
+  const lTasset = m(box(0.22,0.22,0.34), bodyMat); lTasset.position.set(-0.22,0.44,0.02); lTasset.rotation.z=0.18; g.add(lTasset);
+  const rTasset = m(box(0.22,0.22,0.34), bodyMat); rTasset.position.set( 0.22,0.44,0.02); rTasset.rotation.z=-0.18; g.add(rTasset);
+  // belt rune line
+  const belt = m(box(0.60,0.05,0.42), trimMat);    belt.position.set(0,0.59,0);   g.add(belt);
+
+  // ================= CUIRASS (thick chest) =================
+  const cuirass = m(box(0.62,0.48,0.40), bodyMat); cuirass.position.set(0,0.84,0);  g.add(cuirass);
+  // chest plates angle to a center ridge - side bevels
+  const lBevel = m(box(0.16,0.44,0.10), steel);    lBevel.position.set(-0.30,0.84,0.18); lBevel.rotation.y=0.5; g.add(lBevel);
+  const rBevel = m(box(0.16,0.44,0.10), steel);    rBevel.position.set( 0.30,0.84,0.18); rBevel.rotation.y=-0.5; g.add(rBevel);
+  // central emblem ridge (vertical keel) + glowing emblem
+  const ridge = m(box(0.10,0.44,0.10), steel);     ridge.position.set(0,0.84,0.205);  g.add(ridge);
+  const emblem = m(box(0.14,0.20,0.06), trimMat);  emblem.position.set(0,0.89,0.24);  g.add(emblem);
+  const emblemBar = m(box(0.26,0.05,0.05), trimMat); emblemBar.position.set(0,0.83,0.24); g.add(emblemBar);
+  // gorget (neck guard)
+  const gorget = m(box(0.34,0.12,0.32), dark);     gorget.position.set(0,1.10,0);    g.add(gorget);
+
+  // ================= MASSIVE LAYERED PAULDRONS (widest point) =================
+  function pauldron(side){
+    const grp = new T.Group();
+    grp.position.set(side*0.40,1.00,0);
+    const cap = m(box(0.34,0.22,0.40), bodyMat); cap.position.set(side*0.06,0,0); cap.rotation.z=side*0.30; grp.add(cap);
+    const lay1 = m(box(0.36,0.10,0.42), steel);  lay1.position.set(side*0.04,-0.13,0); lay1.rotation.z=side*0.22; grp.add(lay1);
+    const lay2 = m(box(0.32,0.09,0.40), bodyMat); lay2.position.set(side*0.02,-0.24,0); lay2.rotation.z=side*0.14; grp.add(lay2);
+    // upward menacing spike
+    const spike = m(cone(0.11,0.28,4), bodyMat); spike.position.set(side*0.18,0.15,0); spike.rotation.z=side*-0.25; grp.add(spike);
+    // rune edge
+    const rune = m(box(0.36,0.03,0.44), trimMat); rune.position.set(side*0.05,-0.06,0); rune.rotation.z=side*0.30; grp.add(rune);
+    return grp;
+  }
+  g.add(pauldron(-1)); g.add(pauldron(1));
+
+  // ================= GAUNTLETED ARMS =================
+  const lArm = m(box(0.17,0.42,0.18), bodyMat); lArm.position.set(-0.40,0.82,0);
+  const rArm = m(box(0.17,0.42,0.18), bodyMat); rArm.position.set( 0.40,0.82,0);
+  // forearm vambrace + rune
+  const lFore = m(box(0.18,0.20,0.19), steel);  lFore.position.set(0,-0.26,0.02); lArm.add(lFore);
+  const rFore = m(box(0.18,0.20,0.19), steel);  rFore.position.set(0,-0.26,0.02); rArm.add(rFore);
+  const lVR = m(box(0.19,0.04,0.20), trimMat);  lVR.position.set(0,-0.20,0.02); lArm.add(lVR);
+  const rVR = m(box(0.19,0.04,0.20), trimMat);  rVR.position.set(0,-0.20,0.02); rArm.add(rVR);
+  // gauntlet fists
+  const lFist = m(box(0.19,0.16,0.20), dark);   lFist.position.set(0,-0.40,0.03); lArm.add(lFist);
+  const rFist = m(box(0.19,0.16,0.20), dark);   rFist.position.set(0,-0.40,0.03); rArm.add(rFist);
+  g.add(lArm); g.add(rArm);
+
+  // ================= GREAT-HELM (horned, visor slit, glowing eyes) =================
+  const head = new T.Group(); head.position.set(0,1.06,0); g.add(head);
+  const helm = m(box(0.30,0.30,0.30), bodyMat);  helm.position.set(0,0.10,0);  head.add(helm);
+  // tapered crown
+  const crown = m(cone(0.20,0.14,5), bodyMat);   crown.position.set(0,0.27,0); head.add(crown);
+  // faceplate angled forward to a point
+  const face = m(cone(0.21,0.26,4), steel);      face.position.set(0,0.08,0.06); face.rotation.x=Math.PI; head.add(face);
+  // visor void (dark recessed band) + glowing eye slit
+  const visor = m(box(0.26,0.08,0.06), dark);    visor.position.set(0,0.10,0.17); head.add(visor);
+  const slit  = m(box(0.24,0.03,0.04), eyeMat);  slit.position.set(0,0.10,0.185); head.add(slit);
+  const lEye  = m(box(0.06,0.05,0.04), eyeMat);  lEye.position.set(-0.07,0.105,0.19); head.add(lEye);
+  const rEye  = m(box(0.06,0.05,0.04), eyeMat);  rEye.position.set( 0.07,0.105,0.19); head.add(rEye);
+  // central crest fin
+  const crest = m(box(0.05,0.18,0.20), bodyMat); crest.position.set(0,0.30,-0.02); head.add(crest);
+  const crestRune = m(box(0.06,0.16,0.04), trimMat); crestRune.position.set(0,0.30,0.10); head.add(crestRune);
+  // HORNS (curved out + up, two cones each)
+  function horn(side){
+    const grp = new T.Group(); grp.position.set(side*0.15,0.20,0);
+    const base = m(cone(0.07,0.18,4), steel); base.position.set(side*0.06,0.04,0); base.rotation.z=side*-1.0; grp.add(base);
+    const tip  = m(cone(0.05,0.18,4), bodyMat); tip.position.set(side*0.17,0.14,0); tip.rotation.z=side*-0.35; grp.add(tip);
+    return grp;
+  }
+  head.add(horn(-1)); head.add(horn(1));
+
+  // ================= SHORT TABARD + HALF-CAPE (back) =================
+  const tabard = m(box(0.30,0.40,0.04), bodyMat); tabard.position.set(0,0.64,0.215); g.add(tabard);
+  const tabRune = m(box(0.06,0.34,0.03), trimMat); tabRune.position.set(0,0.64,0.235); g.add(tabRune);
+  const cape = m(box(0.46,0.50,0.05), steel);     cape.position.set(0,0.76,-0.22); cape.rotation.x=0.10; g.add(cape);
+  const capeHem = m(box(0.46,0.05,0.06), trimMat); capeHem.position.set(0,0.53,-0.235); g.add(capeHem);
+
+  // ================= MOUNTS =================
+  const weaponMount = new T.Object3D(); weaponMount.position.set(0.42,0.55,0.12); g.add(weaponMount);
+  const backMount   = new T.Object3D(); backMount.position.set(0,0.76,-0.20);     g.add(backMount);
+  const headMount   = new T.Object3D(); headMount.position.set(0,1.55,0);          g.add(headMount);
+  const chestMount  = new T.Object3D(); chestMount.position.set(0,0.72,0.18);      g.add(chestMount);
+  const auraMount   = new T.Object3D(); auraMount.position.set(0,0.02,0);          g.add(auraMount);
+
+  g.userData = {
+    weaponMount, backMount, headMount, chestMount, auraMount,
+    bodyMat, trimMat, eyeMat,
+    legs: [lThigh, rThigh],
+    arms: [lArm, rArm],
+    anim: (grp, now, moving)=>{
+      // heavy breathing sway of cuirass + cape flap
+      const t = now*0.002;
+      const breathe = Math.sin(t)*0.02;
+      cuirass.position.y = 0.84 + breathe;
+      const flap = (moving ? 0.16 : 0.04);
+      cape.rotation.x = 0.10 + Math.sin(t*1.6)*flap;
+      tabard.rotation.x = Math.sin(t*1.6+0.3)*(flap*0.4);
+    }
+  };
+  return g;
+}
+
+export function buildPlayer_mage(opts){
+  // ---- UNIQUE recolor materials (engine recolors these live) ----
+  const bodyMat = new T.MeshBasicMaterial({ color:0x2a2360, fog:true }); // -> robe (class color)
+  const trimMat = new T.MeshBasicMaterial({ color:0x7ad6ff, fog:false, transparent:true, opacity:0.95, blending:T.AdditiveBlending, depthWrite:false }); // -> runes/focus (rarity accent)
+  const eyeMat  = new T.MeshBasicMaterial({ color:0xbfeaff, fog:false, transparent:true, opacity:1, blending:T.AdditiveBlending, depthWrite:false }); // -> eyes
+
+  // A DIM unique body-tinted material for "shadow/fabric" parts. On the ADDITIVE
+  // display, near-black (#0c0f18 via cached mat) renders as TRANSPARENT/invisible,
+  // which would erase the hem & hood depth. Use a darker shade of the recolorable
+  // body color instead so these surfaces still read as dim fabric. UNIQUE so the
+  // engine can recolor it in step with the robe is NOT required (engine only
+  // recolors bodyMat/trimMat/eyeMat), but a faint emitted value keeps it visible.
+  const shadeMat = new T.MeshBasicMaterial({ color:0x14102e, fog:true }); // dim robe-shadow (visible on additive)
+
+  const g = new T.Group();
+
+  // ===================== ROBE (floor-length, no legs) =====================
+  // wide tapered skirt: narrow at hips, flaring to the floor
+  const skirt = m(geo('mage_skirt', ()=>cyl(0.20, 0.42, 0.86, 8)), bodyMat);
+  skirt.position.y = 0.45;
+  g.add(skirt);
+
+  // hem ring (dim robe-shadow shade so the silhouette reads as a fabric edge)
+  const hem = m(geo('mage_hem', ()=>cyl(0.44, 0.46, 0.06, 8)), shadeMat);
+  hem.position.y = 0.05;
+  g.add(hem);
+
+  // glowing rune band around the hem
+  const hemRune = m(geo('mage_hemrune', ()=>cyl(0.43, 0.43, 0.04, 8)), trimMat);
+  hemRune.position.y = 0.16;
+  g.add(hemRune);
+
+  // upper torso / chest of robe (slimmer, fitted)
+  const torso = m(geo('mage_torso', ()=>cyl(0.22, 0.20, 0.40, 8)), bodyMat);
+  torso.position.y = 0.98;
+  g.add(torso);
+
+  // ===================== HIGH COLLAR (angular, flared up) =====================
+  const collar = m(geo('mage_collar', ()=>cyl(0.26, 0.17, 0.22, 6)), bodyMat);
+  collar.position.y = 1.20;
+  g.add(collar);
+  // collar inner shadow (frames the hood opening from below) - dim, not black
+  const collarShade = m(geo('mage_collarsh', ()=>cyl(0.15, 0.13, 0.14, 6)), shadeMat);
+  collarShade.position.y = 1.18;
+  collarShade.position.z = 0.02;
+  g.add(collarShade);
+
+  // ===================== POINTED HOOD =====================
+  // hood back/shell: a cone leaning slightly back, deep and pointed
+  const hood = m(geo('mage_hood', ()=>cone(0.27, 0.46, 6)), bodyMat);
+  hood.position.set(0, 1.46, -0.03);
+  hood.rotation.x = -0.12;
+  g.add(hood);
+
+  // shadow inside the hood opening (face cavity) -> dim void (visible on additive)
+  const hoodVoid = m(geo('mage_void', ()=>cone(0.155, 0.30, 6)), shadeMat);
+  hoodVoid.position.set(0, 1.34, 0.10);
+  hoodVoid.rotation.x = 0.30;
+  g.add(hoodVoid);
+
+  // hood brow/rune trim arc across the front of the hood
+  const hoodTrim = m(geo('mage_hoodtrim', ()=>box(0.30, 0.04, 0.04)), trimMat);
+  hoodTrim.position.set(0, 1.50, 0.16);
+  hoodTrim.rotation.x = -0.20;
+  g.add(hoodTrim);
+
+  // glowing eyes deep inside the hood shadow
+  const eyeL = m(geo('mage_eye', ()=>box(0.045, 0.05, 0.03)), eyeMat);
+  const eyeR = m(geo('mage_eye', ()=>box(0.045, 0.05, 0.03)), eyeMat);
+  eyeL.position.set(-0.06, 1.33, 0.16);
+  eyeR.position.set( 0.06, 1.33, 0.16);
+  g.add(eyeL); g.add(eyeR);
+
+  // ===================== WIDE SLEEVES (arms) =====================
+  // big bell sleeves: narrow at shoulder, flaring wide at the cuff
+  const armL = m(geo('mage_sleeve', ()=>cyl(0.17, 0.10, 0.50, 6)), bodyMat);
+  const armR = m(geo('mage_sleeve', ()=>cyl(0.17, 0.10, 0.50, 6)), bodyMat);
+  armL.position.set(-0.30, 0.86, 0); armL.rotation.z =  0.16;
+  armR.position.set( 0.30, 0.86, 0); armR.rotation.z = -0.16;
+  g.add(armL); g.add(armR);
+  // cuff rune rings at each wrist
+  const cuffL = m(geo('mage_cuff', ()=>cyl(0.175, 0.175, 0.04, 6)), trimMat);
+  const cuffR = m(geo('mage_cuff', ()=>cyl(0.175, 0.175, 0.04, 6)), trimMat);
+  cuffL.position.set(-0.345, 0.62, 0); cuffL.rotation.z =  0.16;
+  cuffR.position.set( 0.345, 0.62, 0); cuffR.rotation.z = -0.16;
+  g.add(cuffL); g.add(cuffR);
+
+  // pointed shoulder mantle (small angular cape over shoulders)
+  const mantle = m(geo('mage_mantle', ()=>cone(0.32, 0.20, 6)), bodyMat);
+  mantle.position.set(0, 1.06, -0.02);
+  mantle.rotation.x = Math.PI; // flip so the cone points down over the shoulders
+  g.add(mantle);
+
+  // ===================== ARCANE TRIM RUNES down the robe =====================
+  // central vertical rune stripe down the front of the robe
+  const runeStripe = m(geo('mage_runestripe', ()=>box(0.05, 0.62, 0.04)), trimMat);
+  runeStripe.position.set(0, 0.66, 0.205);
+  runeStripe.rotation.x = 0.04;
+  g.add(runeStripe);
+  // three rune nodes glowing along the stripe
+  for (let i=0;i<3;i++){
+    const node = m(geo('mage_runenode', ()=>box(0.10, 0.06, 0.04)), trimMat);
+    node.position.set(0, 0.50 + i*0.22, 0.215);
+    g.add(node);
+  }
+
+  // ===================== SASH + FOCUS STONE =====================
+  // diagonal sash across the chest (dim robe-shadow shade; readable on additive)
+  const sash = m(geo('mage_sash', ()=>box(0.46, 0.10, 0.06)), shadeMat);
+  sash.position.set(0, 0.84, 0.18);
+  sash.rotation.z = 0.42;
+  g.add(sash);
+  // glowing focus stone set into the sash (chest front)
+  const focus = m(geo('mage_focus', ()=>box(0.11, 0.13, 0.06)), trimMat);
+  focus.position.set(0.04, 0.78, 0.215);
+  focus.rotation.z = 0.78; // diamond
+  g.add(focus);
+
+  // ===================== FLOATING ARCANE MOTES (orbit in anim) =====================
+  const mote1 = m(geo('mage_mote', ()=>box(0.06, 0.06, 0.06)), trimMat);
+  const mote2 = m(geo('mage_mote', ()=>box(0.05, 0.05, 0.05)), trimMat);
+  mote1.position.set(0.30, 1.00, 0.12);
+  mote2.position.set(-0.28, 0.80, 0.10);
+  g.add(mote1); g.add(mote2);
+
+  // ===================== MOUNTS =====================
+  const weaponMount = new T.Object3D();
+  weaponMount.position.set(0.38, 0.56, 0.12); // right hand (staff points +Y)
+  g.add(weaponMount);
+
+  const backMount = new T.Object3D();
+  backMount.position.set(0, 0.78, -0.18);
+  g.add(backMount);
+
+  const headMount = new T.Object3D();
+  headMount.position.set(0, 1.74, 0); // above hood tip
+  g.add(headMount);
+
+  const chestMount = new T.Object3D();
+  chestMount.position.set(0, 0.76, 0.18);
+  g.add(chestMount);
+
+  const auraMount = new T.Object3D();
+  auraMount.position.set(0, 0.02, 0);
+  g.add(auraMount);
+
+  g.userData = {
+    weaponMount, backMount, headMount, chestMount, auraMount,
+    bodyMat, trimMat, eyeMat,
+    legs: [],                 // robed -> no walk-cycle legs
+    arms: [armL, armR],       // sleeves swing
+    anim: (grp, now, moving) => {
+      const t = now * 0.001;
+      // robe / sleeve sway
+      const sway = Math.sin(t * 1.6) * (moving ? 0.10 : 0.05);
+      skirt.rotation.z = sway * 0.5;
+      hood.rotation.z  = -sway * 0.4;
+      mantle.rotation.z = sway * 0.3;
+      // subtle hem flare breathing
+      const fl = 1 + Math.sin(t * 2.0) * 0.02;
+      hem.scale.set(fl, 1, fl);
+      // arcane motes orbiting the wizard
+      const a1 = t * 1.4;
+      mote1.position.set(Math.cos(a1) * 0.34, 1.00 + Math.sin(t * 2.2) * 0.06, Math.sin(a1) * 0.34 + 0.02);
+      const a2 = -t * 1.1 + 2.1;
+      mote2.position.set(Math.cos(a2) * 0.30, 0.86 + Math.sin(t * 1.7 + 1) * 0.05, Math.sin(a2) * 0.30 + 0.02);
+      const pulse = 0.7 + Math.sin(t * 3.0) * 0.3;
+      mote1.scale.setScalar(pulse);
+      mote2.scale.setScalar(1.3 - pulse * 0.4);
+    }
+  };
+
+  return g;
+}
+
+export function buildPlayer_ranger(opts){
+  // ===== UNIQUE recolor materials (engine recolors these live; never cache) =====
+  const bodyMat = new T.MeshBasicMaterial({ color:0x3a4d3b, fog:true }); // light leathers -> class color
+  const trimMat = new T.MeshBasicMaterial({ color:0x9be86a, fog:false, transparent:true, opacity:0.95, blending:T.AdditiveBlending, depthWrite:false }); // rune/strap accents -> rarity
+  const eyeMat  = new T.MeshBasicMaterial({ color:0x9be86a, fog:false, transparent:true, opacity:1, blending:T.AdditiveBlending, depthWrite:false }); // eye glow
+
+  // fixed dark cached parts
+  const darkLeather = mat('#171c27'); // boots, deep hood shadow, harness leather
+  const midLeather  = mat('#2a2f24'); // straps, bracers under-layer
+  const shaftMat    = mat('#3b2c1c'); // arrow shafts (warm dark)
+
+  const g = new T.Group();
+
+  // ---------- LEGS (slim, agile) ----------
+  // left leg
+  const lLeg = new T.Group();
+  const lThigh = m(box(0.135,0.30,0.16), bodyMat); lThigh.position.y = 0.40; lLeg.add(lThigh);
+  const lShin  = m(box(0.115,0.24,0.145), midLeather); lShin.position.y = 0.16; lLeg.add(lShin);
+  const lBoot  = m(box(0.14,0.10,0.21), darkLeather); lBoot.position.set(0,0.05,0.02); lLeg.add(lBoot);
+  lLeg.position.set(-0.105,0,0);
+  // right leg
+  const rLeg = new T.Group();
+  const rThigh = m(box(0.135,0.30,0.16), bodyMat); rThigh.position.y = 0.40; rLeg.add(rThigh);
+  const rShin  = m(box(0.115,0.24,0.145), midLeather); rShin.position.y = 0.16; rLeg.add(rShin);
+  const rBoot  = m(box(0.14,0.10,0.21), darkLeather); rBoot.position.set(0,0.05,0.02); rLeg.add(rBoot);
+  rLeg.position.set(0.105,0,0);
+  g.add(lLeg); g.add(rLeg);
+
+  // ---------- HIPS / belt ----------
+  const hips = m(box(0.34,0.12,0.21), bodyMat); hips.position.y = 0.60; g.add(hips);
+  const beltGlow = m(box(0.36,0.035,0.225), trimMat); beltGlow.position.y = 0.605; g.add(beltGlow);
+
+  // ---------- TORSO (lean, tapered) ----------
+  const torso = m(box(0.36,0.40,0.24), bodyMat); torso.position.y = 0.85; g.add(torso);
+  // tapered upper chest (narrower) for a lean read
+  const chest = m(box(0.30,0.16,0.215), bodyMat); chest.position.set(0,1.0,0.01); g.add(chest);
+
+  // ---------- CHEST HARNESS / crossing straps ----------
+  const strapA = m(box(0.07,0.50,0.05), darkLeather);
+  strapA.position.set(0,0.86,0.135); strapA.rotation.z = 0.42; g.add(strapA);
+  const strapB = m(box(0.07,0.50,0.05), midLeather);
+  strapB.position.set(0,0.86,0.135); strapB.rotation.z = -0.42; g.add(strapB);
+  // small glowing harness clasp where straps cross
+  const clasp = m(box(0.07,0.07,0.04), trimMat); clasp.position.set(0,0.86,0.16); g.add(clasp);
+
+  // ---------- LAYERED SHORT CLOAK over ONE (left) shoulder ----------
+  const cloak = new T.Group();
+  // upper mantle slung over left shoulder
+  const mantle = m(box(0.30,0.16,0.10), darkLeather);
+  mantle.position.set(-0.10,1.02,-0.06); mantle.rotation.z = 0.18; cloak.add(mantle);
+  // two layered drapes down the back-left, angled
+  const drape1 = m(box(0.26,0.40,0.045), bodyMat);
+  drape1.position.set(-0.12,0.78,-0.155); drape1.rotation.z = 0.10; cloak.add(drape1);
+  const drape2 = m(box(0.20,0.30,0.045), darkLeather);
+  drape2.position.set(-0.18,0.66,-0.135); drape2.rotation.z = 0.16; cloak.add(drape2);
+  // faint glowing edge trim on the cloak hem
+  const cloakEdge = m(box(0.27,0.035,0.05), trimMat);
+  cloakEdge.position.set(-0.12,0.585,-0.155); cloakEdge.rotation.z = 0.10; cloak.add(cloakEdge);
+  g.add(cloak);
+
+  // ---------- ARMS (lean, with bracers) ----------
+  const lArm = new T.Group();
+  const lUpper = m(box(0.105,0.28,0.13), bodyMat); lUpper.position.y = -0.14; lArm.add(lUpper);
+  const lFore  = m(box(0.095,0.20,0.12), midLeather); lFore.position.y = -0.34; lArm.add(lFore);
+  const lBrace = m(box(0.11,0.10,0.13), darkLeather); lBrace.position.y = -0.33; lArm.add(lBrace);
+  const lBraceGlow = m(box(0.115,0.025,0.135), trimMat); lBraceGlow.position.y = -0.30; lArm.add(lBraceGlow);
+  lArm.position.set(-0.255,1.0,0);
+  const rArm = new T.Group();
+  const rUpper = m(box(0.105,0.28,0.13), bodyMat); rUpper.position.y = -0.14; rArm.add(rUpper);
+  const rFore  = m(box(0.095,0.20,0.12), midLeather); rFore.position.y = -0.34; rArm.add(rFore);
+  const rBrace = m(box(0.11,0.10,0.13), darkLeather); rBrace.position.y = -0.33; rArm.add(rBrace);
+  const rBraceGlow = m(box(0.115,0.025,0.135), trimMat); rBraceGlow.position.y = -0.30; rArm.add(rBraceGlow);
+  rArm.position.set(0.255,1.0,0);
+  g.add(lArm); g.add(rArm);
+
+  // ---------- NECK ----------
+  const neck = m(box(0.12,0.08,0.12), midLeather); neck.position.y = 1.085; g.add(neck);
+
+  // ---------- HEAD + LOW HOOD (face in shadow) ----------
+  const head = m(box(0.20,0.20,0.20), darkLeather); head.position.y = 1.20; g.add(head);
+  // hood: a low cone/peak pulled forward over the brow, body-colored outer
+  const hoodOuter = m(cone(0.205,0.30,5), bodyMat); hoodOuter.position.set(0,1.27,-0.01); g.add(hoodOuter);
+  // forward peak/brow that casts the face into shadow (juts toward +Z)
+  const hoodPeak = m(box(0.22,0.14,0.14), bodyMat);
+  hoodPeak.position.set(0,1.255,0.10); hoodPeak.rotation.x = -0.42; g.add(hoodPeak);
+  // dark inner cowl (the shadowed face opening)
+  const cowl = m(box(0.165,0.16,0.07), darkLeather); cowl.position.set(0,1.205,0.105); g.add(cowl);
+  // hood back drape onto shoulders
+  const hoodBack = m(box(0.24,0.18,0.07), bodyMat); hoodBack.position.set(0,1.18,-0.11); g.add(hoodBack);
+  // single subtle hood-rim glow line at the brow edge
+  const hoodGlow = m(box(0.17,0.02,0.03), trimMat); hoodGlow.position.set(0,1.275,0.155); hoodGlow.rotation.x = -0.42; g.add(hoodGlow);
+
+  // ---------- GLOWING EYES (deep in the cowl shadow) ----------
+  const lEye = m(box(0.045,0.045,0.03), eyeMat); lEye.position.set(-0.05,1.205,0.145); g.add(lEye);
+  const rEye = m(box(0.045,0.045,0.03), eyeMat); rEye.position.set(0.05,1.205,0.145); g.add(rEye);
+
+  // ---------- QUIVER across the back (angled) + arrows ----------
+  const quiver = new T.Group();
+  const tube = m(cyl(0.075,0.06,0.42,7), darkLeather); quiver.add(tube);
+  const tubeBand = m(cyl(0.078,0.078,0.03,7), trimMat); tubeBand.position.y = 0.10; quiver.add(tubeBand);
+  // arrow shafts poking out the top
+  const aOff = [[-0.04,0.03],[0.04,-0.02],[0.0,0.05],[-0.02,-0.04]];
+  for (let i=0;i<aOff.length;i++){
+    const shaft = m(cyl(0.012,0.012,0.22,4), shaftMat);
+    shaft.position.set(aOff[i][0],0.30,aOff[i][1]); shaft.rotation.z = (i-1.5)*0.07; quiver.add(shaft);
+    const fletch = m(box(0.04,0.05,0.012), trimMat);
+    fletch.position.set(aOff[i][0],0.40,aOff[i][1]); fletch.rotation.z = (i-1.5)*0.07; quiver.add(fletch);
+  }
+  // mount diagonally across the back (lower-right to upper-left), behind torso
+  quiver.position.set(0.07,0.80,-0.165);
+  quiver.rotation.z = 0.55; quiver.rotation.x = -0.16;
+  g.add(quiver);
+
+  // ---------- MOUNTS ----------
+  const weaponMount = new T.Object3D(); weaponMount.position.set(0.40,0.56,0.12); g.add(weaponMount);
+  const backMount   = new T.Object3D(); backMount.position.set(0,0.78,-0.18); g.add(backMount);
+  const headMount   = new T.Object3D(); headMount.position.set(0,1.48,0); g.add(headMount);
+  const chestMount  = new T.Object3D(); chestMount.position.set(0,0.74,0.17); g.add(chestMount);
+  const auraMount   = new T.Object3D(); auraMount.position.set(0,0.02,0); g.add(auraMount);
+
+  g.userData = {
+    weaponMount, backMount, headMount, chestMount, auraMount,
+    bodyMat, trimMat, eyeMat,
+    legs: [lLeg, rLeg],
+    arms: [lArm, rArm],
+    anim: (grp, now, moving) => {
+      const t = now * 0.001;
+      // light cloak sway: gentle when idle, more when moving
+      const amp = moving ? 0.10 : 0.045;
+      const sway = Math.sin(t * (moving ? 4.2 : 1.6)) * amp;
+      cloak.rotation.z = sway * 0.5;
+      cloak.rotation.x = -0.04 + Math.abs(sway) * 0.5;
+      drape1.rotation.z = 0.10 + sway;
+      drape2.rotation.z = 0.16 + sway * 1.2;
+      // nimble idle bob of the whole rig
+      grp.position.y = moving ? 0 : Math.sin(t * 1.8) * 0.012;
+    }
+  };
+  return g;
+}
+
+export function buildPlayer_summoner(opts){
+  const g = new T.Group();
+
+  // --- UNIQUE recolor materials (engine recolors these live) ---
+  const bodyMat = new T.MeshBasicMaterial({ color:0x2a2533, fog:true }); // dark robe -> class color
+  const trimMat = new T.MeshBasicMaterial({ color:0x8a5cff, fog:false, transparent:true, opacity:0.95, blending:T.AdditiveBlending, depthWrite:false }); // runes/bone glow -> rarity accent
+  const eyeMat  = new T.MeshBasicMaterial({ color:0x66ffd0, fog:false, transparent:true, opacity:1, blending:T.AdditiveBlending, depthWrite:false }); // eyes
+
+  // fixed dark cached parts
+  const dark   = mat('#12101a');   // deepest shadow under robe / mask shadow
+  const ash    = mat('#1c1826');   // shadowed cloth folds
+  const bone   = mat('#d8d2c0');   // skull / ribs (opaque off-white, fogged)
+
+  // ================= ROBE (legs hidden -> ragged hem) =================
+  // Tapered robe column: narrow at shoulders, flaring to a wide ragged hem.
+  // Hidden inner column (dark) so the silhouette reads solid from above.
+  const innerCol = m(geo('summInner', ()=>cyl(0.16,0.30,1.02,6)), dark);
+  innerCol.position.y = 0.52; g.add(innerCol);
+
+  // Main robe body (tintable). Hexagonal, gothic, angular.
+  const robe = m(geo('summRobe', ()=>cyl(0.20,0.40,0.90,6)), bodyMat);
+  robe.position.y = 0.50; robe.rotation.y = Math.PI/6; g.add(robe);
+
+  // Ragged hem: a ring of downward cone shards (tattered tatters), swayed in anim.
+  const hemGroup = new T.Group(); hemGroup.position.y = 0.07; g.add(hemGroup);
+  const tatterGeo = geo('summTatter', ()=>cone(0.085,0.34,3));
+  const HEM_N = 9;
+  for(let i=0;i<HEM_N;i++){
+    const a = (i/HEM_N)*Math.PI*2;
+    const r = 0.355;
+    const t = m(tatterGeo, bodyMat);
+    t.position.set(Math.cos(a)*r, 0.04, Math.sin(a)*r);
+    t.rotation.x = Math.PI; // point down
+    t.rotation.y = a;
+    // slight outward lean + varied length feel via z-tilt
+    t.rotation.z = Math.sin(a*1.7)*0.18;
+    t.userData.baseRot = t.rotation.z;
+    t.userData.phase = i*0.7;
+    hemGroup.add(t);
+  }
+  // a couple of longer front tatters for raggedness
+  const frontTatter = m(geo('summTatterLong', ()=>cone(0.07,0.46,3)), bodyMat);
+  frontTatter.position.set(0.08,0.02,0.30); frontTatter.rotation.x = Math.PI; frontTatter.rotation.z = -0.12; hemGroup.add(frontTatter);
+
+  // Layered over-robe / shawl draped on shoulders (darker cloth layer)
+  const shawl = m(geo('summShawl', ()=>cyl(0.30,0.40,0.34,6)), ash);
+  shawl.position.y = 0.84; shawl.rotation.y = Math.PI/6; g.add(shawl);
+
+  // ================= HIGH JAGGED COLLAR =================
+  // Tall spiky collar framing the head — signature necromancer silhouette.
+  const collarGeo = geo('summCollarSpike', ()=>cone(0.07,0.34,3));
+  const COL_N = 7;
+  for(let i=0;i<COL_N;i++){
+    const a = (-0.95 + (i/(COL_N-1))*1.9) - Math.PI/2; // back/side arc, open at front
+    const r = 0.20;
+    const sp = m(collarGeo, bodyMat);
+    sp.position.set(Math.cos(a)*r, 1.00, Math.sin(a)*r - 0.02);
+    // fan outward & upward toward a point above and behind the head
+    sp.lookAt(Math.cos(a)*r*2.2, 1.42, Math.sin(a)*r*2.2 - 0.05);
+    g.add(sp);
+  }
+  // glowing rune ring at collar base (accent)
+  const collarRune = m(geo('summCollarRune', ()=>cyl(0.215,0.215,0.04,6)), trimMat);
+  collarRune.position.y = 0.95; g.add(collarRune);
+
+  // ================= SKELETAL CHEST / RIB ACCENTS =================
+  // Exposed ribcage over the robe front (glowing accent bones).
+  const ribGeo = geo('summRib', ()=>box(0.30,0.035,0.05));
+  for(let i=0;i<4;i++){
+    const ry = 0.62 + i*0.075;
+    const rib = m(ribGeo, trimMat);
+    rib.position.set(0, ry, 0.19);
+    rib.scale.x = 1 - i*0.13; // taper toward bottom (chest -> belly)
+    g.add(rib);
+  }
+  // sternum bar
+  const sternum = m(geo('summSternum', ()=>box(0.04,0.30,0.05)), trimMat);
+  sternum.position.set(0,0.71,0.195); g.add(sternum);
+
+  // ================= HEAD: BONE SKULL HALF-MASK =================
+  const headGroup = new T.Group(); g.add(headGroup);
+  // Hooded shadow behind skull (dark cowl framing)
+  const cowl = m(geo('summCowl', ()=>cone(0.22,0.40,6)), bodyMat);
+  cowl.position.y = 1.22; cowl.rotation.y = Math.PI/6; headGroup.add(cowl);
+  const cowlShadow = m(geo('summCowlInner', ()=>cyl(0.135,0.155,0.22,6)), dark);
+  cowlShadow.position.set(0,1.16,0.04); headGroup.add(cowlShadow);
+
+  // Skull cranium (bone, opaque)
+  const skull = m(geo('summSkull', ()=>box(0.20,0.21,0.19)), bone);
+  skull.position.set(0,1.14,0.06); headGroup.add(skull);
+  // angular jaw / lower face
+  const jaw = m(geo('summJaw', ()=>box(0.16,0.09,0.16)), bone);
+  jaw.position.set(0,1.02,0.07); headGroup.add(jaw);
+  // brow ridge (dark recess above eyes)
+  const browShadow = m(geo('summBrow', ()=>box(0.20,0.045,0.02)), dark);
+  browShadow.position.set(0,1.155,0.16); headGroup.add(browShadow);
+  // cheek socket shadows (dark)
+  const socketGeo = geo('summSocket', ()=>box(0.06,0.07,0.02));
+  const socL = m(socketGeo, dark); socL.position.set(-0.05,1.12,0.155); headGroup.add(socL);
+  const socR = m(socketGeo, dark); socR.position.set( 0.05,1.12,0.155); headGroup.add(socR);
+  // nasal cavity
+  const nasal = m(geo('summNasal', ()=>box(0.025,0.05,0.02)), dark);
+  nasal.position.set(0,1.06,0.155); headGroup.add(nasal);
+  // teeth bar
+  const teeth = m(geo('summTeeth', ()=>box(0.11,0.03,0.02)), bone);
+  teeth.position.set(0,1.0,0.15); headGroup.add(teeth);
+
+  // ===== eerie glowing eyes (deep in sockets) =====
+  const eyeGeo = geo('summEye', ()=>box(0.045,0.05,0.03));
+  const eyeL = m(eyeGeo, eyeMat); eyeL.position.set(-0.05,1.12,0.165); headGroup.add(eyeL);
+  const eyeR = m(eyeGeo, eyeMat); eyeR.position.set( 0.05,1.12,0.165); headGroup.add(eyeR);
+  // faint eye-glow halo (unique animated material -> stays its own glow)
+  const eyeHalo = new T.Mesh(geo('summEyeHalo', ()=>box(0.18,0.06,0.005)),
+    new T.MeshBasicMaterial({ color:0x66ffd0, fog:false, transparent:true, opacity:0.25, blending:T.AdditiveBlending, depthWrite:false }));
+  eyeHalo.position.set(0,1.12,0.178); headGroup.add(eyeHalo);
+
+  // ================= ARMS (wide tattered sleeves) =================
+  // bell sleeves -> cones flaring downward, with skeletal hands.
+  const sleeveGeo = geo('summSleeve', ()=>cyl(0.13,0.07,0.42,5));
+  const armL = m(sleeveGeo, bodyMat);
+  armL.position.set(-0.30,0.66,0); g.add(armL);
+  const armR = m(sleeveGeo, bodyMat);
+  armR.position.set( 0.30,0.66,0); g.add(armR);
+  // sleeve rune cuffs (accent)
+  const cuffGeo = geo('summCuff', ()=>cyl(0.135,0.135,0.03,5));
+  const cuffL = m(cuffGeo, trimMat); cuffL.position.set(-0.30,0.46,0); g.add(cuffL);
+  const cuffR = m(cuffGeo, trimMat); cuffR.position.set( 0.30,0.46,0); g.add(cuffR);
+  // skeletal hands (bone)
+  const handGeo = geo('summHand', ()=>box(0.07,0.09,0.06));
+  const handL = m(handGeo, bone); handL.position.set(-0.30,0.42,0.02); g.add(handL);
+  const handR = m(handGeo, bone); handR.position.set( 0.30,0.42,0.02); g.add(handR);
+
+  // ================= FLOATING SKULL MOTE (orbits, anim) =================
+  const moteGroup = new T.Group(); g.add(moteGroup);
+  const skullMote = new T.Group();
+  const moteSkull = m(geo('summMoteSkull', ()=>box(0.085,0.09,0.085)), bone);
+  skullMote.add(moteSkull);
+  const moteJaw = m(geo('summMoteJaw', ()=>box(0.07,0.035,0.07)), bone);
+  moteJaw.position.y = -0.06; skullMote.add(moteJaw);
+  const moteEyeGeo = geo('summMoteEye', ()=>box(0.022,0.025,0.02));
+  const meL = m(moteEyeGeo, trimMat); meL.position.set(-0.022,0.005,0.045); skullMote.add(meL);
+  const meR = m(moteEyeGeo, trimMat); meR.position.set( 0.022,0.005,0.045); skullMote.add(meR);
+  skullMote.position.set(0.30,1.18,0); // initial orbit pos
+  moteGroup.add(skullMote);
+
+  // a couple of free-floating bone shards orbiting
+  const shardGeo = geo('summShard', ()=>cone(0.03,0.16,3));
+  const shardA = m(shardGeo, bone); shardA.position.set(-0.30,1.05,0.05); moteGroup.add(shardA);
+  const shardB = m(shardGeo, bone); shardB.position.set(0.18,1.30,-0.06); moteGroup.add(shardB);
+
+  // ================= MOUNTS =================
+  const weaponMount = new T.Object3D(); weaponMount.position.set(0.40,0.56,0.12); g.add(weaponMount);
+  const backMount   = new T.Object3D(); backMount.position.set(0,0.78,-0.18); g.add(backMount);
+  const headMount   = new T.Object3D(); headMount.position.set(0,1.30,0); g.add(headMount);
+  const chestMount  = new T.Object3D(); chestMount.position.set(0,0.72,0.18); g.add(chestMount);
+  const auraMount   = new T.Object3D(); auraMount.position.set(0,0.02,0); g.add(auraMount);
+
+  g.userData = {
+    weaponMount, backMount, headMount, chestMount, auraMount,
+    bodyMat, trimMat, eyeMat,
+    legs: [],                 // robed class -> no leg walk cycle
+    arms: [armL, armR],
+    anim: (grp, now, moving)=>{
+      const t = now*0.001;
+      // robe hem sway (gentle, more when moving)
+      const sway = moving ? 0.22 : 0.09;
+      const kids = hemGroup.children;
+      for(let i=0;i<kids.length;i++){
+        const c = kids[i];
+        const ph = c.userData.phase || 0;
+        const base = c.userData.baseRot || 0;
+        c.rotation.z = base + Math.sin(t*1.6 + ph)*sway;
+        c.rotation.x = Math.PI + Math.sin(t*1.3 + ph)*sway*0.4;
+      }
+      // whole robe subtle breathing tilt
+      robe.rotation.z = Math.sin(t*0.9)*0.02;
+      shawl.rotation.z = Math.sin(t*0.9)*0.02;
+      // sleeve sway
+      armL.rotation.z = Math.sin(t*1.4)*0.06 + 0.04;
+      armR.rotation.z = -Math.sin(t*1.4)*0.06 - 0.04;
+      // floating skull mote orbit around head
+      const oa = t*0.9;
+      skullMote.position.set(Math.cos(oa)*0.32, 1.18 + Math.sin(t*1.7)*0.05, Math.sin(oa)*0.32 - 0.02);
+      skullMote.rotation.y = -oa + Math.PI/2;
+      moteJaw.position.y = -0.055 - (Math.sin(t*4)*0.5+0.5)*0.02; // chattering jaw
+      // bone shards drift
+      shardA.position.y = 1.05 + Math.sin(t*1.5)*0.05;
+      shardA.rotation.z = t*0.8;
+      shardB.position.y = 1.30 + Math.cos(t*1.3)*0.05;
+      shardB.rotation.z = -t*0.9;
+      // eye flicker (necromantic pulse)
+      const pulse = 0.7 + (Math.sin(t*3)*0.5+0.5)*0.3;
+      eyeMat.opacity = pulse;
+      eyeHalo.material.opacity = 0.18 + (Math.sin(t*3)*0.5+0.5)*0.18;
+    }
+  };
+
+  return g;
+}
+
 // expose the cache for the engine (warm-up / disposal if needed)
 export const _cache = { GEO, MATS };

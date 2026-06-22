@@ -237,11 +237,16 @@ const WEAPON_ICON = { '⚔': 'sword', '✦': 'staff', '➹': 'bow', '☠': 'wand
 const CLASS_WEAPON = { warrior: 'sword', mage: 'staff', ranger: 'bow', summoner: 'wand' };
 const RANK = () => DATA.RARITY_RANK || { common: 0, magic: 1, rare: 2, unique: 3, mythic: 4 };
 
-function ensurePlayer() {
-  if (playerMesh) return;
-  playerMesh = Builders.buildPlayer({});
-  playerMesh.userData.equipKey = '';
-  playerMesh.userData.eyeMat.color.set('#d6f4ff');   // constant — set once
+function ensurePlayer(char) {
+  const classId = (char && char.classId) || 'warrior';
+  if (playerMesh && playerMesh.userData.classId === classId) return;
+  if (playerMesh) { scene.remove(playerMesh); playerMesh = null; }   // class changed (new game) -> rebuild
+  const fn = Builders['buildPlayer_' + classId] || Builders.buildPlayer;
+  playerMesh = fn({ classId });
+  const u = playerMesh.userData;
+  u.classId = classId;
+  u.equipKey = '';
+  if (u.eyeMat) u.eyeMat.color.set('#d6f4ff');       // constant — set once
   scene.add(playerMesh);
 }
 
@@ -277,8 +282,9 @@ const HEAD_LOOK = { crown: 'buildGear_crown', halo: 'buildGear_halo' };
 function clearMount(o) { while (o.children.length) o.remove(o.children[o.children.length - 1]); }
 
 function syncPlayer(game, now) {
-  ensurePlayer();
-  const pm = playerMesh, ud = pm.userData, p = game.world.player, char = game.char;
+  const char = game.char;
+  ensurePlayer(char);                                  // builds/swaps the class-specific rig
+  const pm = playerMesh, ud = pm.userData, p = game.world.player;
 
   // --- equipment signature; visuals below rebuild only when equipment changes ---
   const cls = DATA.CLASSES && char ? DATA.CLASSES[char.classId] : null;
@@ -327,11 +333,10 @@ function syncPlayer(game, now) {
   pm.position.set(p.x, bob, p.y);
   const d = p.lastDir || { x: 0, y: 1 };
   if (d.x || d.y) pm.rotation.y = Math.atan2(d.x, d.y);
-  if (ud.legs) {
-    const sw = moving ? Math.sin(now / 110) * 0.5 : 0;
-    ud.legs[0].rotation.x = sw; ud.legs[1].rotation.x = -sw;
-    if (ud.arms) { ud.arms[0].rotation.x = -sw * 0.6; ud.arms[1].rotation.x = sw * 0.6; }
-  }
+  const sw = moving ? Math.sin(now / 110) * 0.5 : 0;
+  if (ud.legs && ud.legs.length >= 2) { ud.legs[0].rotation.x = sw; ud.legs[1].rotation.x = -sw; }   // walk cycle (legged classes)
+  if (ud.arms && ud.arms.length >= 2) { ud.arms[0].rotation.x = -sw * 0.6; ud.arms[1].rotation.x = sw * 0.6; }
+  if (ud.anim) ud.anim(pm, now, moving);               // class-specific idle/move motion (robe sway, mote orbit)
   // per-child special animations (weapon FX, cape sway, halo spin, aura, kit…)
   if (!degrade) for (const mnt of [ud.weaponMount, ud.backMount, ud.headMount, ud.chestMount, ud.auraMount])
     for (const ch of mnt.children) if (ch.userData.anim) ch.userData.anim(ch, now);
