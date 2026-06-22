@@ -6,6 +6,7 @@
 // Additive display: black = transparent, bright = emitted light.
 // =============================================================
 import * as THREE from 'three';
+import * as Builders from './builders.js';
 
 const RENDER3D = new URLSearchParams(location.search).has('gl')
   || (typeof localStorage !== 'undefined' && localStorage.getItem('hl_render') === 'gl');
@@ -61,6 +62,7 @@ function init() {
   const canvas = document.getElementById('game-canvas-gl');
   if (!canvas) throw new Error('no #game-canvas-gl');
   DATA = window.__GL_DATA || {};
+  Builders.setTHREE(THREE);
 
   renderer = new THREE.WebGLRenderer({
     canvas,
@@ -80,7 +82,7 @@ function init() {
   renderer.autoClear = true;
 
   scene = new THREE.Scene();
-  scene.fog = new THREE.FogExp2(0x000000, 0.055);   // black fog = edge fade to transparent (the vignette)
+  scene.fog = new THREE.FogExp2(0x000000, 0.04);   // black fog = edge fade to transparent (the vignette)
 
   // tilted orthographic camera; vertical frustum divided by cos(tilt) to keep ~28px/tile after foreshortening
   const vt = HALF / Math.cos(TILT);
@@ -123,8 +125,8 @@ function onZoneChange(world) {
   if (!world || !world.grid) return;
   worldGroup = buildWorld(world);
   scene.add(worldGroup);
-  // fog density: dungeons tighter/darker, town airier
-  scene.fog.density = world.kind === 'town' ? 0.035 : 0.06;
+  // fog density: dungeons a touch tighter, town airier (lower = brighter, more visible)
+  scene.fog.density = world.kind === 'town' ? 0.026 : 0.042;
 }
 
 function disposeWorld() {
@@ -140,11 +142,12 @@ function disposeWorld() {
 function buildWorld(world) {
   const grid = world.grid, W = world.w, H = world.h;
   const pal = world.palette || { wall: '#6df1ff', floor: '#221a14', accent: '#6df1ff' };
-  // derive colors (emissive on additive; dark floor, lit wall tops, dark wall sides)
-  const floorCol = mul(pal.floor, 1.7);
-  const wallTop = mul(pal.wall, 0.78);
-  const wallSide = mul(pal.wall, 0.28);
-  const decorCol = mul(pal.accent, 1.0);
+  // derive colors (emissive on additive). Gothic look: visible floor, bright torch-lit
+  // wall tops, and wall sides bright enough to read as stone (not a black void).
+  const floorCol = mul(pal.floor, 2.15);
+  const wallTop = mul(pal.wall, 1.05);
+  const wallSide = mul(pal.wall, 0.46);
+  const decorCol = mul(pal.accent, 1.4);
 
   const isFloor = (x, y) => y >= 0 && y < H && x >= 0 && x < W && grid[y][x] === 0;
   const pos = [], col = [];
@@ -198,37 +201,95 @@ function buildWorld(world) {
 }
 
 // =============================================================
-// PLAYER — Stage-1 placeholder (boxy hero), tinted by class color
+// PLAYER — armored rig from builders.js. Tinted to class colour, with the
+// equipped weapon model, rarity-coloured trim, and gear-look cosmetics.
 // =============================================================
+const WEAPON_ICON = { '⚔': 'sword', '✦': 'staff', '➹': 'bow', '☠': 'wand' };
+const CLASS_WEAPON = { warrior: 'sword', mage: 'staff', ranger: 'bow', summoner: 'wand' };
+const RANK = () => DATA.RARITY_RANK || { common: 0, magic: 1, rare: 2, unique: 3, mythic: 4 };
+
 function ensurePlayer() {
   if (playerMesh) return;
-  const g = new THREE.Group();
-  const bodyMat = new THREE.MeshBasicMaterial({ color: 0x6df1ff, fog: true });
-  const body = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.7, 0.42), bodyMat);
-  body.position.y = 0.45;
-  const head = new THREE.Mesh(new THREE.SphereGeometry(0.2, 10, 8), bodyMat);
-  head.position.y = 0.92;
-  // bright facing nub so direction reads from above
-  const faceMat = new THREE.MeshBasicMaterial({ color: 0xffffff, fog: false });
-  const face = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.12, 0.1), faceMat);
-  face.position.set(0, 0.92, 0.22);
-  g.add(body, head, face);
-  g.userData.bodyMat = bodyMat;
-  playerMesh = g;
-  scene.add(g);
+  playerMesh = Builders.buildPlayer({});
+  playerMesh.userData.equipKey = '';
+  scene.add(playerMesh);
 }
+
+function weaponKindFor(char) {
+  const w = char && char.equip && char.equip.weapon;
+  if (w && DATA.ITEM_BASES) {
+    const base = DATA.ITEM_BASES[w.baseId];
+    if (base && WEAPON_ICON[base.icon]) return WEAPON_ICON[base.icon];
+  }
+  return CLASS_WEAPON[char && char.classId] || 'sword';
+}
+function lookDef(item) {
+  if (!DATA.gearLook) return null;
+  const id = DATA.gearLook(item);
+  const def = id && DATA.GEAR_LOOKS && DATA.GEAR_LOOKS[id];
+  return def ? { id, ...def } : null;
+}
+function bestRarityColor(char) {
+  const rank = RANK(); let best = 'common';
+  for (const it of [char.equip.weapon, char.equip.armor, char.equip.ring, char.equip.amulet]) {
+    if (it && it.rarity && (rank[it.rarity] || 0) > (rank[best] || 0)) best = it.rarity;
+  }
+  return DATA.rarityColor ? DATA.rarityColor(best) : '#9fd8ff';
+}
+function clearMount(o) { while (o.children.length) o.remove(o.children[o.children.length - 1]); }
 
 function syncPlayer(game, now) {
   ensurePlayer();
-  const p = game.world.player;
-  const cls = (DATA.CLASSES && game.char) ? DATA.CLASSES[game.char.classId] : null;
-  if (cls && cls.color) playerMesh.userData.bodyMat.color.set(cls.color);
-  const bob = Math.sin(now / 220) * 0.04;
-  playerMesh.position.set(p.x, bob, p.y);
-  // face the last-moved direction
+  const pm = playerMesh, ud = pm.userData, p = game.world.player, char = game.char;
+
+  // --- tint (cheap, every frame) ---
+  const cls = DATA.CLASSES && char ? DATA.CLASSES[char.classId] : null;
+  ud.bodyMat.color.set((cls && cls.color) || '#8899aa').multiplyScalar(0.85); // gothic: darkened armour
+  const accent = char ? bestRarityColor(char) : '#9fd8ff';
+  ud.trimMat.color.set(accent);
+  ud.eyeMat.color.set('#d6f4ff');
+
+  // --- swap weapon + gear cosmetics only when equipment changes ---
+  const wKind = weaponKindFor(char);
+  const wpn = char && char.equip && char.equip.weapon;
+  const wLook = lookDef(wpn);
+  const aLook = lookDef(char && char.equip && char.equip.armor);
+  const wColor = (wLook && wLook.color) || (wpn && DATA.rarityColor && DATA.rarityColor(wpn.rarity)) || accent;
+  const key = wKind + '|' + wColor + '|' + (aLook ? aLook.id : '_') + '|' + (wLook ? wLook.id : '_');
+  if (key !== ud.equipKey) {
+    ud.equipKey = key;
+    clearMount(ud.weaponMount);
+    const wb = (Builders['buildWeapon_' + wKind] || Builders.buildWeapon_sword)({ color: wColor });
+    ud.weaponMount.add(wb);
+    clearMount(ud.backMount); clearMount(ud.headMount);
+    if (aLook && aLook.body) {
+      const c = aLook.color;
+      if (aLook.body === 'cape' || aLook.body === 'spectral' || aLook.body === 'plate') ud.backMount.add(Builders.buildGear_cape({ color: c }));
+      else if (aLook.body === 'wings') ud.backMount.add(Builders.buildGear_wings({ color: c }));
+      else if (aLook.body === 'crown') ud.headMount.add(Builders.buildGear_crown({ color: c }));
+      else if (aLook.body === 'halo') ud.headMount.add(Builders.buildGear_halo({ color: c }));
+    }
+  }
+
+  // --- position, facing, bob + walk cycle ---
+  const dx = p.x - (ud.lastX == null ? p.x : ud.lastX);
+  const dy = p.y - (ud.lastY == null ? p.y : ud.lastY);
+  ud.lastX = p.x; ud.lastY = p.y;
+  const moving = Math.hypot(dx, dy) > 0.002;
+  const bob = Math.sin(now / 200) * (moving ? 0.06 : 0.03);
+  pm.position.set(p.x, bob, p.y);
   const d = p.lastDir || { x: 0, y: 1 };
-  if (d.x || d.y) playerMesh.rotation.y = Math.atan2(d.x, d.y);
-  playerMesh.visible = true;
+  if (d.x || d.y) pm.rotation.y = Math.atan2(d.x, d.y);
+  if (ud.legs) {
+    const sw = moving ? Math.sin(now / 110) * 0.5 : 0;
+    ud.legs[0].rotation.x = sw; ud.legs[1].rotation.x = -sw;
+    if (ud.arms) { ud.arms[0].rotation.x = -sw * 0.6; ud.arms[1].rotation.x = sw * 0.6; }
+  }
+  // per-child special animations (weapon orb, cape sway, halo spin…)
+  ud.weaponMount.children[0] && ud.weaponMount.children[0].userData.anim && ud.weaponMount.children[0].userData.anim(ud.weaponMount.children[0], now);
+  for (const mnt of [ud.backMount, ud.headMount]) for (const ch of mnt.children) ch.userData.anim && ch.userData.anim(ch, now);
+
+  pm.visible = true;
 }
 
 // =============================================================
@@ -238,13 +299,14 @@ function makeTorch() {
   const c = document.createElement('canvas'); c.width = c.height = 128;
   const g = c.getContext('2d');
   const grd = g.createRadialGradient(64, 64, 0, 64, 64, 64);
-  grd.addColorStop(0, 'rgba(255,180,100,0.9)');
-  grd.addColorStop(0.5, 'rgba(255,150,70,0.25)');
+  grd.addColorStop(0, 'rgba(255,196,120,0.95)');
+  grd.addColorStop(0.35, 'rgba(255,165,85,0.45)');
+  grd.addColorStop(0.7, 'rgba(255,150,70,0.16)');
   grd.addColorStop(1, 'rgba(255,150,70,0)');
   g.fillStyle = grd; g.fillRect(0, 0, 128, 128);
   const tex = new THREE.CanvasTexture(c);
   const mat = new THREE.MeshBasicMaterial({ map: tex, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, fog: false });
-  const m = new THREE.Mesh(new THREE.PlaneGeometry(12, 12), mat);
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(17, 17), mat);
   m.rotation.x = -Math.PI / 2;     // lie flat on the ground
   m.position.y = 0.04;
   m.renderOrder = 2;
