@@ -18,7 +18,8 @@
     viewTiles: 21,            // 21 * 28 ≈ 588, with 6px margin per side
     playerSpeed: 10,          // tiles/sec — fast but controllable in corridors
     stepImpulse: 0.18,        // sec — minimum movement time per tap (~1.8 tiles per tap)
-    comboWindow: 500,         // ms — taps within this count as a combo sequence
+    comboWindow: 500,         // ms — tight window for the 3-tap dash (quick taps only)
+    comboHold: 1500,          // ms — generous gap allowed between 4-tap combo swipes (slow EMG)
     minComboGap: 30,          // ms — to reject key repeat ghosts
     biomeFloors: 4,           // floors per biome before boss
     autoAttackPad: 0.15,      // tile padding on attack range for forgiveness
@@ -471,6 +472,7 @@
     // ===== CONSUMABLES =====
     'sanctuary-scroll':   { type: 'consumable', name: 'Sanctuary Scroll', icon: '✉', base: {}, ilvl: 1 },
     'glass-tear':         { type: 'consumable', name: 'Glass Tear',       icon: '◊', base: {}, ilvl: 1 },
+    'health-potion':      { type: 'consumable', name: 'Health Potion',    icon: '♥', base: {}, ilvl: 1 },
 
     // ===== GEMS (socket into items for permanent bonus) =====
     'ruby':       { type: 'gem', name: 'Ruby',       icon: '◆', base: {}, ilvl: 1, gemId: 'ruby' },
@@ -655,6 +657,19 @@
   function focusFirst(container) {
     const el = container.querySelector('.focusable:not([disabled]):not(.hidden)');
     if (el) setTimeout(() => el.focus(), 0);
+  }
+  // When a list re-renders after an action (buy/sell/etc.), keep the cursor where it was
+  // instead of snapping back to the top. Capture the focused row's position, then restore it.
+  function listFocusIndex(listEl) {
+    if (!listEl || !document.activeElement) return -1;
+    return Array.from(listEl.querySelectorAll('.focusable')).indexOf(document.activeElement);
+  }
+  function listFocusRestore(listEl, idx) {
+    if (!listEl || idx < 0) return;
+    const items = Array.from(listEl.querySelectorAll('.focusable:not([disabled])'));
+    if (!items.length) return;
+    const el = items[Math.min(idx, items.length - 1)];
+    if (el) { try { el.focus(); } catch (e) {} }
   }
   function moveFocus(dir) {
     const container = screens[game.screen];
@@ -1891,7 +1906,8 @@
         const ch = key.replace('Arrow','').toLowerCase();
         // gap filter to reject key-repeat ghosts
         if (game.comboBuffer.length === 0 || (now - game.lastKeyTime) > CFG.minComboGap) {
-          if ((now - game.lastKeyTime) > CFG.comboWindow) game.comboBuffer.length = 0;
+          // only reset the sequence after a long pause — slow EMG swipes still chain
+          if ((now - game.lastKeyTime) > CFG.comboHold) game.comboBuffer.length = 0;
           game.comboBuffer.push({ ch, t: now });
           game.lastKeyTime = now;
           tryCombo();
@@ -1936,17 +1952,19 @@
   function tryCombo() {
     const b = game.comboBuffer;
     if (b.length < 3) return;
-    // prune stale entries outside combo window
+    // prune entries older than the generous hold window (keep enough history that a
+    // 4-tap sequence spanning up to comboHold*2 is never pruned mid-match)
     const now = b[b.length - 1].t;
-    while (b.length > 0 && (now - b[0].t) > CFG.comboWindow * 2) b.shift();
+    while (b.length > 0 && (now - b[0].t) > CFG.comboHold * 3) b.shift();
 
     let matched = false;
 
-    // 4-tap patterns: require intentional wiggle so normal movement never triggers
+    // 4-tap patterns: intentional wiggle. Uses the generous hold window so the
+    // slower swipe cadence on the EMG wristband still chains into a combo.
     if (b.length >= 4) {
       const last4 = b.slice(-4).map(e => e.ch).join(',');
       const span = b[b.length - 1].t - b[b.length - 4].t;
-      if (span <= CFG.comboWindow * 2) {
+      if (span <= CFG.comboHold * 2) {
         if (last4 === 'up,down,up,down')       { matched = true; openInGameMenu(); }
         else if (last4 === 'left,right,left,right') { matched = true; drinkPotion(); }
       }
@@ -2908,9 +2926,11 @@
         addParticle({ x: e.x, y: e.y, vx: Math.cos(a) * spd, vy: Math.sin(a) * spd,
           color: pick(['#ffc857', '#ffaa00', '#c77dff', '#6df1ff']), life: 0.8 + Math.random() * 0.5, age: 0, size: 3 });
       }
-    } else if (roll(0.15)) {
+    } else if (roll(0.09)) {
+      // Normal-enemy drop — rarer overall, and most common (white) junk is discarded
+      // so the inventory stays clean. Magic-and-better always drop.
       const item = rollItem(Math.max(1, e.ilvl + dropIlvlBonus), null);
-      if (item) {
+      if (item && (item.rarity !== 'common' || roll(0.2))) {
         game.items.push({ x: e.x, y: e.y, item, age: 0 });
       }
     }
@@ -6375,20 +6395,18 @@
       cx = ps.x; cy = ps.y;
     }
     const outerDark = isTown ? 0.32 : 0.6;
-    const grad = ctx.createRadialGradient(cx, cy, W * 0.09, cx, cy, W * 0.6);
-    grad.addColorStop(0,    'rgba(0,0,0,0)');
-    grad.addColorStop(0.55, 'rgba(0,0,0,' + (outerDark * 0.28).toFixed(3) + ')');
-    grad.addColorStop(1,    'rgba(0,0,0,' + outerDark.toFixed(3) + ')');
-    ctx.fillStyle = grad;
-    ctx.fillRect(0, 0, W, W);
-    // a faint warm torch glow around the hero (dungeons only)
-    if (!isTown) {
-      const warm = ctx.createRadialGradient(cx, cy, 0, cx, cy, W * 0.22);
-      warm.addColorStop(0, 'rgba(255,176,88,0.06)');
-      warm.addColorStop(1, 'rgba(255,176,88,0)');
-      ctx.fillStyle = warm;
-      ctx.fillRect(0, 0, W, W);
+    // Cache the gradient — the player is screen-centred most frames (camera follows),
+    // so this is rebuilt only when the light actually moves (map edges) or the zone changes.
+    const kcx = Math.round(cx), kcy = Math.round(cy);
+    if (!drawVignette._g || drawVignette._kx !== kcx || drawVignette._ky !== kcy || drawVignette._kd !== outerDark) {
+      const g2 = ctx.createRadialGradient(kcx, kcy, W * 0.09, kcx, kcy, W * 0.6);
+      g2.addColorStop(0,    'rgba(0,0,0,0)');
+      g2.addColorStop(0.55, 'rgba(0,0,0,' + (outerDark * 0.28).toFixed(3) + ')');
+      g2.addColorStop(1,    'rgba(0,0,0,' + outerDark.toFixed(3) + ')');
+      drawVignette._g = g2; drawVignette._kx = kcx; drawVignette._ky = kcy; drawVignette._kd = outerDark;
     }
+    ctx.fillStyle = drawVignette._g;
+    ctx.fillRect(0, 0, W, W);
     // red damage flash overlay
     if (game.damageFlash > 0) {
       ctx.fillStyle = `rgba(255,40,60,${game.damageFlash * 1.2})`;
@@ -7106,7 +7124,9 @@
   function renderVendor() {
     const c = game.char;
     $('vendor-gold').textContent = c.gold;
-    const list = $('vendor-list'); list.innerHTML = '';
+    const list = $('vendor-list');
+    const _keepFocus = listFocusIndex(list);
+    list.innerHTML = '';
     document.querySelectorAll('.vendor-tab').forEach(t => t.classList.remove('active'));
 
     if (game.vendorMode === 'buy') {
@@ -7194,6 +7214,7 @@
       });
       if (list.innerHTML === '') list.innerHTML = '<div class="quest-card empty">Nothing to sell.</div>';
     }
+    listFocusRestore(list, _keepFocus);
   }
 
   function rerollCost(it) {
@@ -7240,7 +7261,8 @@
   }
 
   function itemCost(it) {
-    // Sanctuary Scroll has a fixed price
+    // Consumables have fixed prices
+    if (it.baseId === 'health-potion') return 25;
     if (it.baseId === 'sanctuary-scroll') return 75;
     // Gems have a fixed price by type
     const base = ITEM_BASES[it.baseId];
@@ -7254,6 +7276,12 @@
   function refreshVendorOffer() {
     game.vendorOffer = [];
     const lv = Math.max(1, game.char.level);
+    // Always offer Health Potions — top up before a dive
+    game.vendorOffer.push({
+      id: 'hp_' + Math.random().toString(36).slice(2, 9),
+      baseId: 'health-potion', rarity: 'magic', affixes: [], ilvl: 1, sockets: 0, gems: [],
+      name: 'Health Potion', _consumable: true,
+    });
     // Always offer Sanctuary Scrolls — essential utility item
     game.vendorOffer.push({
       id: 'sc_' + Math.random().toString(36).slice(2, 9),
@@ -7275,7 +7303,9 @@
   }
 
   function renderStash() {
-    const list = $('stash-list'); list.innerHTML = '';
+    const list = $('stash-list');
+    const _keepFocus = listFocusIndex(list);
+    list.innerHTML = '';
     document.querySelectorAll('#stash .vendor-tab').forEach(t => t.classList.remove('active'));
     const craftHeader = $('craft-header');
     if (craftHeader) craftHeader.classList.add('hidden');
@@ -7310,6 +7340,7 @@
       });
       if (list.innerHTML === '') list.innerHTML = '<div class="quest-card empty">Stash is empty.</div>';
     }
+    listFocusRestore(list, _keepFocus);
   }
 
   // ===== CRAFTING BENCH (at the Keeper) =====
@@ -7330,7 +7361,9 @@
   }
 
   function renderCraft() {
-    const list = $('stash-list'); list.innerHTML = '';
+    const list = $('stash-list');
+    const _keepFocus = listFocusIndex(list);
+    list.innerHTML = '';
     document.querySelector('[data-action="stash-tab-craft"]').classList.add('active');
     const c = game.char;
     const dust = c.craftDust || 0;
@@ -7378,6 +7411,7 @@
       list.appendChild(card);
     });
     if (!any) list.innerHTML = '<div class="quest-card empty">No gear to craft. Pick up some equipment first.</div>';
+    listFocusRestore(list, _keepFocus);
   }
 
   function craftSalvage(idx) {
@@ -8102,6 +8136,18 @@
     if (!it) return;
     const cost = itemCost(it);
     if (game.char.gold < cost) { showHudToast('Not enough gold.'); return; }
+    // Health Potion: increment counter, stays in vendor (soft cap to avoid hoarding)
+    if (it.baseId === 'health-potion') {
+      const cap = 15;
+      if ((game.char.potions || 0) >= cap) { showHudToast(`Potions full (${cap} max).`); return; }
+      game.char.gold -= cost;
+      game.char.potions = (game.char.potions || 0) + 1;
+      showHudToast(`Health Potion bought. Have ${game.char.potions}.`);
+      saveGame();
+      renderVendor();
+      updateHud();
+      return;
+    }
     // Sanctuary Scroll: increment counter, stays in vendor (always available)
     if (it.baseId === 'sanctuary-scroll') {
       game.char.gold -= cost;
@@ -8122,7 +8168,7 @@
     const it = game.char.inventory[idx];
     if (!it) return;
     if (isEquipped(it)) { showHudToast('Unequip first.'); return; }
-    const price = Math.max(1, Math.floor(itemCost(it) * 0.4));
+    const price = Math.max(2, Math.floor(itemCost(it) * 0.5));
     game.char.gold += price;
     game.char.inventory.splice(idx, 1);
     saveGame();
