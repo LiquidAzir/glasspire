@@ -7,6 +7,10 @@
   <link rel="icon" type="image/png" href="favicon.png">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="stylesheet" href="styles.css">
+  <!-- 3D renderer (opt-in via ?gl=1). Three.js is self-hosted in vendor/. -->
+  <script type="importmap">
+  { "imports": { "three": "./vendor/three-0.169.0.module.js" } }
+  </script>
 </head>
 <body>
   <div id="app">
@@ -174,7 +178,11 @@
     <!-- GAME (canvas) — town and dungeons render here                 -->
     <!-- ============================================================ -->
     <div id="game" class="screen hidden">
+      <!-- 3D layer (bottom) — only mounted when ?gl=1. Transparent; black = see-through. -->
+      <canvas id="game-canvas-gl" width="600" height="600"></canvas>
       <canvas id="game-canvas" width="600" height="600"></canvas>
+      <!-- crisp 2D overlay for floating combat text / labels (above 3D, below HUD) -->
+      <canvas id="game-overlay-2d" width="600" height="600"></canvas>
 
       <!-- HUD overlay -->
       <div id="hud" class="hud">
@@ -526,5 +534,6 @@
 
   </div>
   <script src="app.js"></script>
+  <script type="module" src="render3d.js"></script>
 </body>
 </html>

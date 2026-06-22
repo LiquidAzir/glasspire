@@ -536,6 +536,23 @@ html, body {
   image-rendering: pixelated;
   image-rendering: crisp-edges;
 }
+/* 3D layer sits at the bottom of the stack; GPU-filtered (no pixelated). */
+#game-canvas-gl {
+  position: absolute;
+  inset: 0;
+  width: 600px;
+  height: 600px;
+  display: none;          /* shown only when the 3D renderer mounts */
+}
+/* crisp 2D overlay for floating combat text, above the canvases, below the HUD */
+#game-overlay-2d {
+  position: absolute;
+  inset: 0;
+  width: 600px;
+  height: 600px;
+  display: none;          /* shown only when the 3D renderer mounts */
+  pointer-events: none;
+}
 .hud {
   position: absolute;
   inset: 0;

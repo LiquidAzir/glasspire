@@ -1659,6 +1659,7 @@
   }
   function enterTown() {
     game.world = generateTown();
+    if (window.__GL) window.__GL.onZoneChange(game.world);
     game.enemies = [];
     game.projectiles = [];
     game.items = [];
@@ -1684,6 +1685,7 @@
     const biome = BIOMES.find(b => b.id === biomeId);
     if (!biome) return;
     game.world = generateDungeon(biome, floor);
+    if (window.__GL) window.__GL.onZoneChange(game.world);
     game.enemies = game.world.enemies; game.world.enemies = null;
     game.projectiles = [];
     game.items = game.world.loot || []; game.world.loot = null;  // vault loot on the ground
@@ -1734,6 +1736,7 @@
       if (!e.elite && roll(0.18)) makeElite(e);
     });
     game.world = world;
+    if (window.__GL) window.__GL.onZoneChange(game.world);
     game.enemies = game.world.enemies; game.world.enemies = null;
     game.projectiles = [];
     game.items = game.world.loot || []; game.world.loot = null;  // vault loot on the ground
@@ -3950,34 +3953,46 @@
 
   function render() {
     if (!ctx || !game.world) return;
+    // Shared screen-shake so the 2D layer and the 3D camera move together during the migration.
+    const shake = game.screenShake;
+    game._shakeX = shake > 0 ? (rand() - 0.5) * shake * 16 : 0;
+    game._shakeY = shake > 0 ? (rand() - 0.5) * shake * 16 : 0;
+    const gl = window.__GL;
+    if (gl && gl.enabled) {
+      render2D();                          // only the subsystems NOT owned by 3D (per gl.mask)
+      gl.frame(game, performance.now());   // the 3D-owned subsystems
+      return;
+    }
+    render2D();
+  }
+
+  // The original Canvas2D pipeline. When the 3D renderer is active it draws only the
+  // subsystems whose mask bit is false, so a half-ported scene composites correctly.
+  function render2D() {
     const W = CFG.canvas, H = CFG.canvas;
     ctx.clearRect(0, 0, W, H);
+    const gl = window.__GL;
+    const M = (gl && gl.enabled) ? gl.mask : null;
+    const draw2D = k => !M || !M[k];      // draw the 2D version unless 3D owns it
 
-    // screen shake
-    const shake = game.screenShake;
-    let sx = 0, sy = 0;
-    if (shake > 0) {
-      sx = (rand() - 0.5) * shake * 16;
-      sy = (rand() - 0.5) * shake * 16;
-    }
     ctx.save();
-    ctx.translate(sx, sy);
+    ctx.translate(game._shakeX || 0, game._shakeY || 0);
 
-    drawWorld();
-    drawTownFeatures();
-    drawAmbient();
-    drawItems();
-    drawPortals();
-    drawShrines();
-    drawTelegraphs();
-    drawNpcs();
-    drawProjectiles();
-    drawMinions();
-    drawEnemies();
-    drawPlayer();
-    drawParticles();
+    if (draw2D('world'))       drawWorld();
+    if (draw2D('town'))        drawTownFeatures();
+    if (draw2D('ambient'))     drawAmbient();
+    if (draw2D('items'))       drawItems();
+    if (draw2D('portals'))     drawPortals();
+    if (draw2D('shrines'))     drawShrines();
+    if (draw2D('telegraphs'))  drawTelegraphs();
+    if (draw2D('npcs'))        drawNpcs();
+    if (draw2D('projectiles')) drawProjectiles();
+    if (draw2D('minions'))     drawMinions();
+    if (draw2D('enemies'))     drawEnemies();
+    if (draw2D('player'))      drawPlayer();
+    if (draw2D('particles'))   drawParticles();
     drawInteractionHints();
-    drawVignette();
+    if (draw2D('world'))       drawVignette();   // 3D world supplies its own fog/torch vignette
 
     ctx.restore();
 
@@ -8703,6 +8718,10 @@
     // expose for debugging (old alias kept for back-compat)
     window.__hollowlight = window.__glasspire = { game, enterBiome, enterTown, CLASSES, BIOMES };
   }
+
+  // Data shim for the optional WebGL 3D renderer (render3d.js). Set at top-level so it
+  // exists before the deferred module self-inits. The 3D layer reads only this — no logic crosses over.
+  window.__GL_DATA = { rarityColor, mythicShimmer, gearLook, GEAR_LOOKS, ITEM_BASES, CLASSES, ENEMIES, SHRINES, BIOMES, RARITY_RANK, CFG };
 
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', init);
