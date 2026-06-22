@@ -407,11 +407,12 @@ function disposeObj(obj) {
 
 // position + facing (derived from movement) + per-model idle animation. Off-screen
 // entities are hidden (visible=false) so they cost no draw calls.
-function place(slot, e, now, baseY, bobAmp) {
+function place(slot, e, now, baseY, bobAmp, ox, oz) {
   const obj = slot.obj;
-  if (Math.abs(e.x - _viewCX) > HALF + 3.5 || Math.abs(e.y - _viewCZ) > HALF + 6) { obj.visible = false; return; }
+  const px = e.x + (ox || 0), pz = e.y + (oz || 0);   // ox/oz = tile-center offset (NPCs store corner coords)
+  if (Math.abs(px - _viewCX) > HALF + 3.5 || Math.abs(pz - _viewCZ) > HALF + 6) { obj.visible = false; return; }
   const bob = bobAmp ? Math.sin(now / 240 + slot.phase) * bobAmp : 0;
-  obj.position.set(e.x, (baseY || 0) + bob, e.y);
+  obj.position.set(px, (baseY || 0) + bob, pz);
   const dx = e.x - slot.lx, dz = e.y - slot.lz;
   if (Math.abs(dx) + Math.abs(dz) > 0.0008) { obj.rotation.y = Math.atan2(dx, dz); slot.lx = e.x; slot.lz = e.y; }
   if (!degrade && obj.userData.anim) obj.userData.anim(obj, now);
@@ -452,7 +453,7 @@ const shrineLayer = makeLayer(
 const npcLayer = makeLayer(
   e => 'npc' + (e.role || e.name || ''),
   e => ({ fn: 'buildNpc', opts: { color: e.color || '#ffd9a0' } }),
-  (slot, e, now) => place(slot, e, now, 0, 0.025)
+  (slot, e, now) => place(slot, e, now, 0, 0.025, 0.5, 0.5)   // NPC coords are tile corners -> center
 );
 // projectiles — pooled glowing models, oriented to travel direction, mid-air
 const PROJ_FN = { arrow: 'buildProjectile_arrow', bolt: 'buildProjectile_bolt', bone: 'buildProjectile_bone' };
@@ -574,25 +575,39 @@ function updateGovernor(game) {
   degrade = load > 46;
 }
 
-// enemy HP bars on the crisp overlay canvas, positioned by projecting the model
-// through the camera (so they track the tilted view, not flat w2s).
-function drawEnemyOverlays(game) {
+// Overlays on the crisp overlay canvas, positioned by projecting through the camera
+// (so they track the tilted view): enemy HP bars + portal labels (the latter lost from
+// the 2D drawPortals when portals moved to 3D).
+function drawOverlays(game) {
   const octx = overlayCtx; if (!octx) return;
   octx.clearRect(0, 0, 600, 600);
-  if (!GL.mask.enemies || !game.enemies) return;
-  for (const e of game.enemies) {
-    if (e.hp == null || e.hpMax == null) continue;
-    const sc = e.boss ? 1.6 : (e.elite ? 1.18 : 1);
-    const p = projectToScreen(e.x, 1.55 * sc, e.y);
+  // --- enemy HP bars ---
+  if (GL.mask.enemies && game.enemies) for (const e of game.enemies) {
+    if (e.hp == null || !(e.hpMax > 0)) continue;                 // guard hpMax 0/undefined -> no NaN bar
+    const sc = e.boss ? 1.6 : (e.elite ? 1.18 : (e._isSplit ? 0.7 : 1));
+    const p = projectToScreen(e.x, 1.3 * sc + 0.45, e.y);         // size-aware: sits just above the model head
     if (!p.vis || p.x < -40 || p.x > 640 || p.y < -40 || p.y > 640) continue;
     const pct = Math.max(0, Math.min(1, e.hp / e.hpMax));
-    if (pct >= 1 && !e.boss && !e.elite) continue;     // hide full-HP trash bars (less clutter)
+    if (pct >= 1 && !e.boss && !e.elite) continue;               // hide full-HP trash bars (less clutter)
     const w = e.boss ? 46 : (e.elite ? 30 : 22), h = e.boss ? 5 : 3;
     const x = p.x - w / 2, y = p.y;
     octx.fillStyle = 'rgba(0,0,0,0.6)'; octx.fillRect(x - 1, y - 1, w + 2, h + 2);
     octx.fillStyle = e.boss ? '#ff4d6d' : (e.elite ? (e.eliteColor || '#ffd166') : '#ff6b85');
     octx.fillRect(x, y, w * pct, h);
     if (e.frozen) { octx.fillStyle = 'rgba(140,210,255,0.55)'; octx.fillRect(x, y, w * pct, h); }
+  }
+  // --- portal labels ---
+  if (GL.mask.portals && game.world && game.world.portals) {
+    octx.font = 'bold 11px sans-serif'; octx.textAlign = 'center'; octx.textBaseline = 'middle';
+    for (const pt of game.world.portals) {
+      if (!pt.label) continue;
+      const p = projectToScreen(pt.x, 1.7, pt.y);
+      if (!p.vis || p.x < -80 || p.x > 680 || p.y < -20 || p.y > 620) continue;
+      const tw = octx.measureText(pt.label).width;
+      octx.fillStyle = 'rgba(0,0,0,0.55)'; octx.fillRect(p.x - tw / 2 - 4, p.y - 8, tw + 8, 16);
+      octx.fillStyle = pt.kind === 'next' ? '#b79dff' : '#9fe8ff';
+      octx.fillText(pt.label, p.x, p.y);
+    }
   }
 }
 
@@ -617,7 +632,7 @@ function frame(game, now) {
   if (GL.mask.particles)   syncParticles(game);
   if (!degrade && townGroup && townGroup.userData.tick) townGroup.userData.tick(now);
   renderer.render(scene, cam);
-  drawEnemyOverlays(game);
+  drawOverlays(game);
 }
 
 // =============================================================
