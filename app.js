@@ -1104,14 +1104,24 @@
     return { key: a.key, label: a.label, val };
   }
 
-  function rollItem(ilvl, rarityOverride) {
-    // Exclude consumables and gems — those are vendor-only or special drops
+  function rollItem(ilvl, rarityOverride, opts) {
+    opts = opts || {};
+    // Exclude consumables and gems — those are vendor-only or special drops.
+    // Named legendaries are drop-only (opts.noLegendary keeps them out of vendor stock).
     const eligible = Object.keys(ITEM_BASES).filter(k =>
       ITEM_BASES[k].ilvl <= ilvl + 1 &&
       ITEM_BASES[k].type !== 'consumable' &&
-      ITEM_BASES[k].type !== 'gem');
+      ITEM_BASES[k].type !== 'gem' &&
+      !(opts.noLegendary && ITEM_BASES[k].legendary));
     if (eligible.length === 0) return null;
-    const baseId = pick(eligible);
+    // Named legendaries are rare in normal drops (~6%) but common from premium
+    // boss/vault slots (~50%); everything else pulls from the normal pool.
+    const legBases = eligible.filter(k => ITEM_BASES[k].legendary);
+    const normBases = eligible.filter(k => !ITEM_BASES[k].legendary);
+    const legChance = opts.preferLegendary ? 0.5 : 0.06;
+    let baseId;
+    if (legBases.length && normBases.length && roll(legChance)) baseId = pick(legBases);
+    else baseId = pick(normBases.length ? normBases : eligible);
     const base = ITEM_BASES[baseId];
     // Named legendary bases always roll at legendary tier (small chance to ascend to mythic),
     // so they keep their identity instead of becoming a random rare/common.
@@ -1448,7 +1458,7 @@
       const ilvl = Math.max(1, enemyLevel + 1 + (curDifficulty().ilvlBonus || 0));
       for (let i = 0; i < lootCount; i++) {
         const vr = rand() < 0.04 ? 'mythic' : (rand() < 0.25 ? 'unique' : 'rare');
-        const item = rollItem(ilvl, vr);
+        const item = rollItem(ilvl, vr, { preferLegendary: vr === 'unique' || vr === 'mythic' });
         if (item) { const sp = floorSpotIn(vaultRoom); loot.push({ x: sp.x, y: sp.y, item, age: 0 }); }
       }
     }
@@ -2878,7 +2888,7 @@
       const rarities = ['rare', 'rare', roll(0.12) ? 'mythic' : 'unique'];
       for (let di = 0; di < bossDropCount; di++) {
         const r = rarities[di] || 'rare';
-        const item = rollItem(Math.max(1, e.ilvl + 1 + dropIlvlBonus), r);
+        const item = rollItem(Math.max(1, e.ilvl + 1 + dropIlvlBonus), r, { preferLegendary: r === 'unique' || r === 'mythic' });
         if (item) {
           const ox = (di - 1) * 0.6; // spread items left/center/right
           game.items.push({ x: e.x + ox, y: e.y + 0.3, item, age: 0 });
@@ -4667,6 +4677,46 @@
         }
       }
     }
+
+    // ---- WALL EXTRUSION — perimeter walls get visible height + a shaded south face ----
+    // (drawn last so the front faces sit over the floor tile directly below each wall)
+    const FACE = ({
+      crypts:    ['#141a28', '#080b14'],
+      town:      ['#2a2012', '#130d07'],
+      overgrowth:['#13210f', '#080e06'],
+      frostpeak: ['#1b2735', '#0b1019'],
+      infernal:  ['#27110c', '#0f0604'],
+      voidspire: ['#170f24', '#08050f'],
+    })[biome] || ['#141a28', '#080b14'];
+    const WH = 11;                       // apparent wall height in px
+    const wallAt = (nx, ny) => ny >= 0 && ny < w.h && nx >= 0 && nx < w.w && w.grid[ny][nx] === 1;
+    for (let y = startY; y < endY; y++) {
+      for (let x = startX; x < endX; x++) {
+        if (w.grid[y][x] !== 1) continue;
+        const nearFloor = isFloorAt(x, y - 1) || isFloorAt(x, y + 1) || isFloorAt(x - 1, y) || isFloorAt(x + 1, y);
+        if (!nearFloor) continue;
+        const s = w2s(x, y);
+        // top-edge highlight — the wall's roof catches the overhead light
+        ctx.fillStyle = 'rgba(200,220,255,0.05)';
+        ctx.fillRect(s.x, s.y, t, 2);
+        // south-facing front face, only where open floor lies below
+        if (isFloorAt(x, y + 1)) {
+          ctx.fillStyle = FACE[0];
+          ctx.fillRect(s.x, s.y + t, t, Math.ceil(WH * 0.55));
+          ctx.fillStyle = FACE[1];
+          ctx.fillRect(s.x, s.y + t + Math.ceil(WH * 0.55), t, Math.floor(WH * 0.45));
+          // lit lip where the roof meets the face
+          ctx.fillStyle = 'rgba(190,215,255,0.18)';
+          ctx.fillRect(s.x, s.y + t, t, 1.5);
+          // contact shadow grounding the wall on the floor
+          ctx.fillStyle = 'rgba(0,0,0,0.30)';
+          ctx.fillRect(s.x, s.y + t + WH, t, 3);
+          // close the side of the face at run-ends (where no wall continues east/west)
+          if (!wallAt(x - 1, y)) { ctx.fillStyle = 'rgba(0,0,0,0.22)'; ctx.fillRect(s.x, s.y + t, 1.5, WH); }
+          if (!wallAt(x + 1, y)) { ctx.fillStyle = 'rgba(0,0,0,0.22)'; ctx.fillRect(s.x + t - 1.5, s.y + t, 1.5, WH); }
+        }
+      }
+    }
   }
 
   function drawPortals() {
@@ -5074,7 +5124,7 @@
     const armItem = c.equip.armor;
     const wepRarity = wepItem ? wepItem.rarity : 'common';
     const armRarity = armItem ? armItem.rarity : 'common';
-    const hasUniqueGear = wepRarity === 'unique' || armRarity === 'unique';
+    const hasUniqueGear = (RARITY_RANK[wepRarity] || 0) >= 3 || (RARITY_RANK[armRarity] || 0) >= 3;
     const hasRareGear = wepRarity === 'rare' || armRarity === 'rare';
 
     // player light radius (subtle radial glow) — cached gradient
@@ -5107,11 +5157,15 @@
       ctx.globalAlpha = 1;
     }
 
-    // soft ground shadow
+    // soft layered ground shadow — grounds the hero for a 3D feel
     ctx.fillStyle = '#000';
+    ctx.globalAlpha = 0.20;
+    ctx.beginPath();
+    ctx.ellipse(0, 10.5, 14, 5, 0, 0, PI2);
+    ctx.fill();
     ctx.globalAlpha = 0.35;
     ctx.beginPath();
-    ctx.ellipse(0, 10, 12, 4, 0, 0, PI2);
+    ctx.ellipse(0, 10, 10, 3.4, 0, 0, PI2);
     ctx.fill();
     ctx.globalAlpha = 1;
 
@@ -5151,6 +5205,8 @@
     const armRarity = armItem ? armItem.rarity : 'common';
     const wepColor = rarityColor(wepRarity);
     const armColor = armRarity !== 'common' ? rarityColor(armRarity) : color;
+    const armTier = RARITY_RANK[armRarity] || 0;   // common 0 … unique 3 … mythic 4
+    const wepTier = RARITY_RANK[wepRarity] || 0;
 
     // legs (animated when walking) — armor tinted
     ctx.fillStyle = armRarity !== 'common' ? armColor : color;
@@ -5162,8 +5218,8 @@
     // torso — shows armor rarity
     ctx.fillStyle = color;
     ctx.fillRect(-5, -4 + bob, 10, 9);
-    // armor overlay (based on equipped armor rarity)
-    if (armRarity === 'unique') {
+    // armor overlay (based on equipped armor tier — unique & mythic share the premium look)
+    if (armTier >= 3) {
       ctx.fillStyle = armColor;
       ctx.globalAlpha = 0.4;
       ctx.fillRect(-5, -4 + bob, 10, 9);
@@ -5176,7 +5232,7 @@
       ctx.moveTo(-4, 2 + bob); ctx.lineTo(4, 2 + bob);
       ctx.stroke();
       ctx.globalAlpha = 1;
-    } else if (armRarity === 'rare') {
+    } else if (armTier === 2) {
       ctx.fillStyle = armColor;
       ctx.globalAlpha = 0.3;
       ctx.fillRect(-5, -4 + bob, 10, 9);
@@ -5190,11 +5246,12 @@
 
     // shoulders / pauldrons — bigger/glowing with better armor
     ctx.fillStyle = armRarity !== 'common' ? armColor : color;
-    const pSize = armRarity === 'unique' ? 5 : (armRarity === 'rare' ? 4.5 : 4);
+    const pSize = armTier >= 3 ? 5 : (armTier === 2 ? 4.5 : 4);
     ctx.fillRect(-8, -4 + bob, pSize, pSize);
     ctx.fillRect(4, -4 + bob, pSize, pSize);
-    // pauldron spike for unique
-    if (armRarity === 'unique') {
+    // pauldron spikes for unique/mythic (skipped when a 'plate' look already adds them)
+    const armLookDef = armItem ? GEAR_LOOKS[gearLook(armItem)] : null;
+    if (armTier >= 3 && !(armLookDef && armLookDef.body === 'plate')) {
       ctx.fillStyle = '#ffffff';
       ctx.globalAlpha = 0.6;
       ctx.beginPath();
@@ -5216,6 +5273,14 @@
     ctx.arc(-1, -10 + bob, 2, 0, PI2);
     ctx.fill();
     ctx.globalAlpha = 1;
+
+    // volume shading — overhead light fades the body from lit (top) to shadow (bottom)
+    const vg = ctx.createLinearGradient(0, -14 + bob, 0, 7 + bob);
+    vg.addColorStop(0, 'rgba(255,255,255,0.16)');
+    vg.addColorStop(0.5, 'rgba(255,255,255,0)');
+    vg.addColorStop(1, 'rgba(0,0,0,0.30)');
+    ctx.fillStyle = vg;
+    ctx.fillRect(-8, -14 + bob, 16, 21);
 
     // Weapon rendering — based on actual equipped weapon type
     const armX = dirX >= 0 ? 7 : -7;
@@ -5258,7 +5323,7 @@
       ctx.save();
       ctx.translate(armX, 0 + bob);
       // shaft
-      ctx.strokeStyle = wepRarity === 'unique' ? '#c0a0ff' : '#a0a0c0';
+      ctx.strokeStyle = wepTier >= 3 ? '#c0a0ff' : '#a0a0c0';
       ctx.lineWidth = 2.2;
       ctx.beginPath();
       ctx.moveTo(0, 6);
@@ -5270,7 +5335,7 @@
       ctx.lineWidth = 1;
       // orb
       ctx.beginPath();
-      ctx.arc(0, -14, wepRarity === 'unique' ? 4 : 3.5, 0, PI2);
+      ctx.arc(0, -14, wepTier >= 3 ? 4 : 3.5, 0, PI2);
       ctx.fill();
       // inner sparkle
       ctx.fillStyle = '#ffffff';
@@ -5280,7 +5345,7 @@
       ctx.fill();
       ctx.globalAlpha = 1;
       // prongs around orb for rare+
-      if (wepRarity === 'rare' || wepRarity === 'unique') {
+      if (wepTier >= 2) {
         ctx.strokeStyle = wepColor;
         ctx.lineWidth = 1;
         ctx.beginPath();
@@ -5360,7 +5425,7 @@
       ctx.fillRect(-2, -10, 4, 2);
       ctx.globalAlpha = 1;
       // soul glow for rare+
-      if (wepRarity === 'rare' || wepRarity === 'unique') {
+      if (wepTier >= 2) {
         ctx.fillStyle = wepColor;
         ctx.globalAlpha = 0.3 + 0.2 * Math.sin(now / 250);
         ctx.beginPath(); ctx.arc(0, -12, 5, 0, PI2); ctx.fill();
@@ -5410,11 +5475,15 @@
       const scale = isBoss ? 1.5 : (e._isSplit ? 0.7 : 1);
       const bob = Math.sin(now / 280 + e.x * 5) * 1.2;
 
-      // shadow
+      // soft layered ground shadow — grounds the figure for a 3D feel
       ctx.fillStyle = '#000';
-      ctx.globalAlpha = 0.35;
+      ctx.globalAlpha = 0.20;
       ctx.beginPath();
-      ctx.ellipse(0, 9 * scale, 10 * scale, 4 * scale, 0, 0, PI2);
+      ctx.ellipse(0, 9.5 * scale, 12 * scale, 5 * scale, 0, 0, PI2);
+      ctx.fill();
+      ctx.globalAlpha = 0.34;
+      ctx.beginPath();
+      ctx.ellipse(0, 9 * scale, 8 * scale, 3.2 * scale, 0, 0, PI2);
       ctx.fill();
       ctx.globalAlpha = 1;
 
@@ -6298,14 +6367,28 @@
   let _vignetteGrad = null;
   function drawVignette() {
     const W = CFG.canvas;
-    // darkness vignette — cached gradient
-    if (!_vignetteGrad) {
-      _vignetteGrad = ctx.createRadialGradient(W / 2, W / 2, W * 0.28, W / 2, W / 2, W * 0.55);
-      _vignetteGrad.addColorStop(0, 'rgba(0,0,0,0)');
-      _vignetteGrad.addColorStop(1, 'rgba(0,0,0,0.35)');
+    const isTown = game.world && game.world.kind === 'town';
+    // Player-centred torch light — bright near the hero, fading to darkness at the edges
+    let cx = W / 2, cy = W / 2;
+    if (game.world && game.world.player) {
+      const ps = w2s(game.world.player.x, game.world.player.y);
+      cx = ps.x; cy = ps.y;
     }
-    ctx.fillStyle = _vignetteGrad;
+    const outerDark = isTown ? 0.32 : 0.6;
+    const grad = ctx.createRadialGradient(cx, cy, W * 0.09, cx, cy, W * 0.6);
+    grad.addColorStop(0,    'rgba(0,0,0,0)');
+    grad.addColorStop(0.55, 'rgba(0,0,0,' + (outerDark * 0.28).toFixed(3) + ')');
+    grad.addColorStop(1,    'rgba(0,0,0,' + outerDark.toFixed(3) + ')');
+    ctx.fillStyle = grad;
     ctx.fillRect(0, 0, W, W);
+    // a faint warm torch glow around the hero (dungeons only)
+    if (!isTown) {
+      const warm = ctx.createRadialGradient(cx, cy, 0, cx, cy, W * 0.22);
+      warm.addColorStop(0, 'rgba(255,176,88,0.06)');
+      warm.addColorStop(1, 'rgba(255,176,88,0)');
+      ctx.fillStyle = warm;
+      ctx.fillRect(0, 0, W, W);
+    }
     // red damage flash overlay
     if (game.damageFlash > 0) {
       ctx.fillStyle = `rgba(255,40,60,${game.damageFlash * 1.2})`;
@@ -7187,7 +7270,8 @@
     const gemId = pick(Object.keys(GEMS));
     const gemItem = makeGemItem(gemId);
     if (gemItem) game.vendorOffer.push(gemItem);
-    for (let i = 0; i < 4; i++) game.vendorOffer.push(rollItem(lv + irand(0, 2)));
+    // Vendor sells drop-able gear but never named legendaries (those stay drop-only)
+    for (let i = 0; i < 4; i++) game.vendorOffer.push(rollItem(lv + irand(0, 2), null, { noLegendary: true }));
   }
 
   function renderStash() {

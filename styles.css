@@ -14,8 +14,8 @@
   --bg-overlay:    rgba(8, 8, 16, 0.78);
 
   --text:          #ffffff;
-  --text-dim:      #b5b5c8;
-  --text-muted:    #7c7c92;
+  --text-dim:      #c2c2d4;
+  --text-muted:    #9a9ab0;
 
   --gold:          #ffc857;
   --crimson:       #ff4d6d;
@@ -158,6 +158,7 @@ html, body {
   border-radius: var(--radius-md);
   border: 2px solid transparent;
   cursor: pointer;
+  scroll-margin: 14px 0;
 }
 .nav-item:focus { background: var(--bg-card-hi); border-color: var(--focus-ring); box-shadow: 0 0 18px var(--focus-glow); transform: translateX(3px); }
 .nav-item.danger { color: var(--crimson); }
@@ -284,9 +285,9 @@ html, body {
   50%      { transform: scale(1.08); opacity: 1; }
 }
 .title-name {
-  font-size: 38px;
+  font-size: 35px;
   font-weight: 800;
-  letter-spacing: 3px;
+  letter-spacing: 2px;
   margin-bottom: 8px;
   white-space: nowrap;
   background: linear-gradient(180deg, #ffffff 0%, var(--crystal) 60%, var(--violet) 100%);
@@ -493,6 +494,7 @@ html, body {
 .about-card {
   background: var(--bg-card);
   border-radius: var(--radius-md);
+  border: 2px solid transparent;
   padding: 12px 14px;
   font-size: 13px;
   color: var(--text-dim);
@@ -516,8 +518,9 @@ html, body {
 }
 .about-section-title.focusable:focus,
 .about-card.focusable:focus {
-  outline: 1px solid rgba(109, 241, 255, 0.4);
-  outline-offset: 2px;
+  outline: none;
+  border-color: var(--focus-ring);
+  box-shadow: 0 0 18px var(--focus-glow);
 }
 
 /* =========================================================
@@ -561,7 +564,7 @@ html, body {
   background: rgba(8,8,16,0.85);
   padding: 3px 8px;
   border-radius: 10px;
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.5px;
   border: 1px solid currentColor;
@@ -892,7 +895,7 @@ html, body {
   color: var(--text-dim);
 }
 .inv-equipped {
-  font-size: 10px;
+  font-size: 11px;
   color: var(--emerald);
   font-weight: 700;
   letter-spacing: 1px;
@@ -1037,8 +1040,9 @@ html, body {
   opacity: 0.5;
 }
 .skill-card:focus {
-  outline: 2px solid var(--gold);
-  outline-offset: 2px;
+  outline: none;
+  border-color: var(--focus-ring);
+  box-shadow: 0 0 18px var(--focus-glow);
 }
 .skill-card + .skill-card {
   margin-top: 10px;
@@ -1099,7 +1103,7 @@ html, body {
   cursor: pointer;
 }
 .diff-chip:focus { outline: none; border-color: var(--focus-ring); box-shadow: 0 0 14px var(--focus-glow); }
-.diff-chip.diff-on { box-shadow: 0 0 12px rgba(255,255,255,0.15); }
+.diff-chip.diff-on { border-color: var(--gold); background: rgba(255, 200, 87, 0.12); box-shadow: 0 0 12px rgba(255, 200, 87, 0.35); color: #fff; }
 .diff-chip.locked { opacity: 0.4; cursor: default; font-size: 12px; }
 
 /* Permanent upgrades (gold sink) */
@@ -1251,6 +1255,9 @@ html, body {
 }
 .vendor-tab.active {
   border-color: var(--crystal);
+  background: var(--bg-card-hi);
+  box-shadow: inset 0 -2px 0 var(--crystal), 0 0 10px var(--focus-glow);
+  color: #fff;
 }
 
 /* =========================================================
@@ -1283,7 +1290,7 @@ html, body {
   box-shadow: inset 0 2px 4px rgba(0,0,0,0.3);
 }
 .waypoint-meta { flex: 1; min-width: 0; }
-.waypoint-name { font-size: 23px; font-weight: 800; letter-spacing: 0.3px; color: #fff; }
+.waypoint-name { font-size: 23px; font-weight: 800; letter-spacing: 0.3px; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .waypoint-sub  { font-size: 13px; color: var(--text-dim); margin-top: 3px; }
 
 /* =========================================================
