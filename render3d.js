@@ -23,7 +23,8 @@ const WALLH = 0.9;                // wall height in world units (1 unit = 1 tile
 let renderer = null, scene = null, cam = null;
 let worldGroup = null;            // merged floor+walls+decor mesh (one draw call), rebuilt per zone
 let torch = null;                 // player torch blob
-let playerMesh = null;            // Stage-1 placeholder rig
+let playerMesh = null;            // armored player rig
+let overlayCtx = null;            // crisp 2D overlay canvas (HP bars projected over the 3D models)
 let DATA = {};                    // window.__GL_DATA
 const _color = new THREE.Color();
 
@@ -52,6 +53,8 @@ GL._dbg = () => ({
   playerVisible: playerMesh ? playerMesh.visible : null,
   fogDensity: scene && scene.fog ? scene.fog.density : null,
 });
+
+GL._builders = Builders;   // exposed for the construction self-test
 
 function setMask(patch) { Object.assign(GL.mask, patch); }
 
@@ -95,12 +98,13 @@ function init() {
   // reveal the GL + overlay canvases (they live inside #game, still hidden until in-game)
   canvas.style.display = 'block';
   const ov = document.getElementById('game-overlay-2d');
-  if (ov) ov.style.display = 'block';
+  if (ov) { ov.style.display = 'block'; overlayCtx = ov.getContext('2d'); }
 
-  // Stage 1: world + player are 3D; everything else composites in 2D on top.
-  setMask({ world: true, player: true });
+  // World, player, enemies, items, portals, shrines, NPCs render in 3D; combat FX
+  // (projectiles, particles, telegraphs, minions) + town features stay 2D-composited.
+  setMask({ world: true, player: true, enemies: true, items: true, portals: true, shrines: true, npcs: true });
   GL.enabled = true;
-  console.log('[3D] renderer mounted (Stage 1: world + player)');
+  console.log('[3D] renderer mounted (Stage 2: world + entities)');
 }
 
 // =============================================================
@@ -121,6 +125,8 @@ function updateCamera3D(game) {
 // =============================================================
 function onZoneChange(world) {
   if (!renderer) return;
+  for (const L of ALL_LAYERS) L.clear();           // drop the previous zone's entities
+  if (overlayCtx) overlayCtx.clearRect(0, 0, 600, 600);
   disposeWorld();
   if (!world || !world.grid) return;
   worldGroup = buildWorld(world);
@@ -322,6 +328,116 @@ function updateTorch(game) {
 }
 
 // =============================================================
+// ENTITY LAYERS (Stage 2) — pooled 3D objects synced to game arrays.
+// Each layer maps a game entity list to builder Groups, reuses objects across
+// frames (keyed by entity identity via a WeakMap) and drops them when gone.
+// =============================================================
+const _uidMap = new WeakMap(); let _uidSeq = 0;
+function uid(e) { let id = _uidMap.get(e); if (id === undefined) { id = ++_uidSeq; _uidMap.set(e, id); } return id; }
+function builderFor(fn) { return typeof Builders[fn] === 'function' ? Builders[fn] : Builders.buildPlaceholder; }
+const _warned = new Set();
+const _proj = new THREE.Vector3();
+function projectToScreen(x, y, z) {
+  _proj.set(x, y, z).project(cam);
+  return { x: (_proj.x * 0.5 + 0.5) * 600, y: (1 - (_proj.y * 0.5 + 0.5)) * 600, vis: _proj.z < 1 && _proj.z > -1 };
+}
+
+function makeLayer(spec, sync) {
+  const pool = new Map();        // uid -> { obj, sig, lx, lz, phase }
+  const liveTmp = new Set();
+  return {
+    reconcile(list, now) {
+      liveTmp.clear();
+      if (list) for (let i = 0; i < list.length; i++) {
+        const e = list[i]; if (!e) continue;
+        const id = uid(e); liveTmp.add(id);
+        const s = spec(e);
+        let slot = pool.get(id);
+        if (!slot || slot.sig !== s.sig) {
+          if (slot) scene.remove(slot.obj);
+          let obj;
+          try { obj = builderFor(s.fn)(s.opts || {}); }
+          catch (err) { if (!_warned.has(s.fn)) { _warned.add(s.fn); console.warn('[3D] builder failed:', s.fn, err.message); } obj = Builders.buildPlaceholder(s.opts || {}); }
+          scene.add(obj);
+          slot = { obj, sig: s.sig, lx: e.x, lz: e.y, phase: (id % 16) * 0.39 };
+          pool.set(id, slot);
+        }
+        slot.obj.visible = true;
+        sync(slot, e, now);
+      }
+      for (const [id, slot] of pool) if (!liveTmp.has(id)) { scene.remove(slot.obj); pool.delete(id); }
+    },
+    clear() { for (const [, slot] of pool) scene.remove(slot.obj); pool.clear(); },
+  };
+}
+
+// position + facing (derived from movement) + per-model idle animation
+function place(slot, e, now, baseY, bobAmp) {
+  const obj = slot.obj;
+  const bob = bobAmp ? Math.sin(now / 240 + slot.phase) * bobAmp : 0;
+  obj.position.set(e.x, (baseY || 0) + bob, e.y);
+  const dx = e.x - slot.lx, dz = e.y - slot.lz;
+  if (Math.abs(dx) + Math.abs(dz) > 0.0008) { obj.rotation.y = Math.atan2(dx, dz); slot.lx = e.x; slot.lz = e.y; }
+  if (obj.userData.anim) obj.userData.anim(obj, now);
+}
+
+const enemyLayer = makeLayer(
+  e => ({ sig: (e.shape || 'skeleton') + (e.boss ? 'B' : '') + (e.elite ? 'E' : '') + (e.eliteColor || e.color || ''),
+          fn: 'buildEnemy_' + (e.shape || 'skeleton'),
+          opts: { color: e.eliteColor || e.color || '#cfcfcf', boss: !!e.boss } }),
+  (slot, e, now) => {
+    place(slot, e, now, 0, e.shape === 'plant' ? 0 : 0.03);
+    slot.obj.scale.setScalar(e.boss ? 1.6 : (e.elite ? 1.18 : (e._isSplit ? 0.7 : 1)));
+  }
+);
+const itemLayer = makeLayer(
+  e => { const it = e.item || {}; const base = DATA.ITEM_BASES && DATA.ITEM_BASES[it.baseId];
+         const t = base ? base.type : null;
+         let fn = 'buildItem_gear';
+         if (it.gold || t === 'gold') fn = 'buildItem_coin';
+         else if (t === 'gem') fn = 'buildItem_gem';
+         else if (t === 'consumable') fn = 'buildItem_potion';
+         const color = (DATA.rarityColor && it.rarity) ? DATA.rarityColor(it.rarity) : '#ffd166';
+         return { sig: fn + color, fn, opts: { color } }; },
+  (slot, e, now) => place(slot, e, now, 0.12, 0)
+);
+const portalLayer = makeLayer(
+  e => ({ sig: 'portal' + (e.kind || ''), fn: 'buildProp_portal', opts: { color: e.kind === 'next' ? '#8a6cff' : '#6df1ff' } }),
+  (slot, e, now) => place(slot, e, now, 0, 0)
+);
+const shrineLayer = makeLayer(
+  e => ({ sig: 'shrine' + (e.type || '') + (e.used ? 'U' : ''), fn: 'buildProp_shrine', opts: { color: e.used ? '#5a6470' : '#9be8ff' } }),
+  (slot, e, now) => { place(slot, e, now, 0, 0); if (e.used) slot.obj.scale.setScalar(0.85); }
+);
+const npcLayer = makeLayer(
+  e => ({ sig: 'npc' + (e.role || e.name || ''), fn: 'buildNpc', opts: { color: e.color || '#ffd9a0' } }),
+  (slot, e, now) => place(slot, e, now, 0, 0.025)
+);
+const ALL_LAYERS = [enemyLayer, itemLayer, portalLayer, shrineLayer, npcLayer];
+
+// enemy HP bars on the crisp overlay canvas, positioned by projecting the model
+// through the camera (so they track the tilted view, not flat w2s).
+function drawEnemyOverlays(game) {
+  const octx = overlayCtx; if (!octx) return;
+  octx.clearRect(0, 0, 600, 600);
+  if (!GL.mask.enemies || !game.enemies) return;
+  for (const e of game.enemies) {
+    if (e.hp == null || e.hpMax == null) continue;
+    const sc = e.boss ? 1.6 : (e.elite ? 1.18 : 1);
+    const p = projectToScreen(e.x, 1.55 * sc, e.y);
+    if (!p.vis || p.x < -40 || p.x > 640 || p.y < -40 || p.y > 640) continue;
+    const pct = Math.max(0, Math.min(1, e.hp / e.hpMax));
+    if (pct >= 1 && !e.boss && !e.elite) continue;     // hide full-HP trash bars (less clutter)
+    const w = e.boss ? 46 : (e.elite ? 30 : 22), h = e.boss ? 5 : 3;
+    const x = p.x - w / 2, y = p.y;
+    octx.fillStyle = 'rgba(0,0,0,0.6)'; octx.fillRect(x - 1, y - 1, w + 2, h + 2);
+    octx.fillStyle = e.boss ? '#ff4d6d' : (e.elite ? (e.eliteColor || '#ffd166') : '#ff6b85');
+    octx.fillRect(x, y, w * pct, h);
+    if (e.frozen) { octx.fillStyle = 'rgba(140,210,255,0.55)'; octx.fillRect(x, y, w * pct, h); }
+  }
+}
+
+// =============================================================
 // FRAME — called by app.js render() when GL.enabled
 // =============================================================
 function frame(game, now) {
@@ -330,7 +446,13 @@ function frame(game, now) {
   updateCamera3D(game);
   if (GL.mask.player) { syncPlayer(game, now); updateTorch(game); }
   else if (playerMesh) playerMesh.visible = false;
+  if (GL.mask.enemies) enemyLayer.reconcile(game.enemies, now);
+  if (GL.mask.items)   itemLayer.reconcile(game.items, now);
+  if (GL.mask.portals) portalLayer.reconcile(game.world.portals, now);
+  if (GL.mask.shrines) shrineLayer.reconcile(game.world.shrines, now);
+  if (GL.mask.npcs)    npcLayer.reconcile(game.world.npcs, now);
   renderer.render(scene, cam);
+  drawEnemyOverlays(game);
 }
 
 // =============================================================
