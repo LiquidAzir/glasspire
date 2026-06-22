@@ -19,7 +19,7 @@ const RENDER3D = _params.get('gl') === '0' ? false
 const TILE = 28;
 const SPAN = 600 / TILE;          // 21.4286 tiles across the viewport
 const HALF = SPAN / 2;
-const TILT = THREE.MathUtils.degToRad(40);   // camera tilt from straight-down (0 = pure top-down; higher = more angled, shows wall faces + character fronts)
+const TILT = THREE.MathUtils.degToRad(45);   // camera tilt from straight-down (0 = pure top-down; higher = more angled, shows wall faces + character fronts)
 const ORTHO_DIST = 60;            // ortho: distance is arbitrary, doesn't change scale
 const WALLH = 0.9;                // wall height in world units (1 unit = 1 tile)
 
