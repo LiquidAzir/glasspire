@@ -581,21 +581,56 @@ function syncParticles(game) {
   particleSys.visible = n > 0;
 }
 
-// ---- town features: fountain + corner braziers (fixed positions) ----
+// ---- town features: a gothic Sanctuary — buildings ring the plaza (spires rise
+// over the perimeter walls), atmosphere props fill the square. Town grid is 21x17;
+// interior 1..19 x 1..15; camera is to the SOUTH (high z), so tall buildings go
+// NORTH/sides and only low props go on the near (south) edge. ----
 let townGroup = null;
 function buildTownFeatures(world) {
   if (!world || world.kind !== 'town') return null;
   const g = new THREE.Group();
-  const fountain = Builders.buildProp_fountain({ color: '#6df1ff' });
-  fountain.position.set(10.5, 0, 8.5);
-  g.add(fountain);
-  for (const b of [[3, 3], [17, 3], [3, 13], [17, 13]]) {
-    const br = Builders.buildDecor({ color: '#ff9a3c' });
-    br.position.set(b[0] + 0.5, 0, b[1] + 0.5);
-    g.add(br);
+  const N = 0, S = Math.PI, E = -Math.PI / 2, Wd = Math.PI / 2;   // facing toward the plaza
+  function place(fn, x, z, rotY, color) {
+    if (typeof Builders[fn] !== 'function') return;
+    let o; try { o = Builders[fn]({ color }); } catch (e) { return; }
+    o.position.set(x, 0, z);
+    if (rotY) o.rotation.y = rotY;
+    g.add(o);
   }
-  // collect just the animatable props (fountain + braziers) — no per-frame traverse
-  const anims = g.children.filter(o => o.userData && o.userData.anim);
+  // centrepiece fountain
+  place('buildProp_fountain', 10.5, 8.5, 0, '#6df1ff');
+  // NORTH (far): grand cathedral, flanking houses + banners
+  place('buildTown_cathedral', 10.5, -1.3, N, '#ffd27a');
+  place('buildTown_banner', 8.2, 0.3, N, '#7a2030');
+  place('buildTown_banner', 12.8, 0.3, N, '#7a2030');
+  place('buildTown_house', 4.6, -0.8, N, '#ffb858');
+  place('buildTown_house2', 16.4, -0.8, N, '#ffb858');
+  // WEST: shop (by the Trader) + guild hall (by the Captain)
+  place('buildTown_shop', -1.2, 4.0, Wd, '#ffc857');
+  place('buildTown_guildhall', -1.3, 12.0, Wd, '#c489ff');
+  // EAST: vault (by the Keeper) + tavern
+  place('buildTown_vault', 21.2, 4.0, E, '#6df1ff');
+  place('buildTown_tavern', 21.3, 12.0, E, '#ffb858');
+  // SOUTH (near camera — keep it low/sparse): mystery caravan + a side gate
+  place('buildTown_tent', 14.0, 16.7, S, '#ff77ff');
+  place('buildTown_gate', 4.0, 17.0, S, '#ffb858');
+  // plaza lamp posts (warm light)
+  place('buildTown_lamppost', 6.5, 6.0, N, '#ffb858');
+  place('buildTown_lamppost', 14.5, 6.0, N, '#ffb858');
+  place('buildTown_lamppost', 6.5, 11.0, N, '#ffb858');
+  place('buildTown_lamppost', 14.5, 11.0, N, '#ffb858');
+  // scattered atmosphere
+  place('buildTown_well', 7.4, 8.5, N, '#9befff');
+  place('buildTown_deadtree', 3.0, 7.0, N, '#51e6a4');
+  place('buildTown_deadtree', 17.6, 9.4, N, '#51e6a4');
+  place('buildTown_gravestones', 17.2, 14.6, N, '#9bffd0');
+  place('buildTown_crates', 2.6, 4.2, N, '#ffb858');
+  place('buildTown_crates', 18.4, 13.4, N, '#ffb858');
+  // corner braziers (kept from before — extra warm light)
+  for (const b of [[3, 3], [17, 3], [3, 13], [17, 13]]) place('buildDecor', b[0] + 0.5, b[1] + 0.5, 0, '#ff9a3c');
+
+  const anims = [];
+  g.traverse(o => { if (o.userData && o.userData.anim) anims.push(o); });
   g.userData.tick = (now) => { for (const o of anims) o.userData.anim(o, now); };
   return g;
 }

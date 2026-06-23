@@ -4211,5 +4211,1476 @@ export function buildEnemy_goblin(opts) {
   return g;
 }
 
+
+// =============================================================
+// GOTHIC TOWN — Sanctuary buildings + props (workflow). Placed by render3d
+// buildTownFeatures(). Origin at base-center, face +Z.
+// =============================================================
+
+export function buildTown_cathedral(opts){
+  const g = new T.Group();
+  const c = (opts && opts.color) || '#ffb858';
+  // static cached materials
+  const stone = mat('#3a3742', 1);      // main facade stone
+  const stoneDk = mat('#2a2630', 1);    // shadowed stone / recesses
+  const slate = mat('#23202c');         // roof / spire slate
+  const iron = mat('#1a1a22');          // mullions, tracery, cross
+  const door = mat('#06040a');          // dark doorway void behind the warm glow
+  const doorGlow = matAdd('#ffcf7a', 0.85); // warm interior of the doorway
+  // stained-glass jewel tones for the rose window petals (cached statics; the bright center is animated/unique)
+  const jewelR = matAdd('#ff5a6e', 0.85);
+  const jewelB = matAdd('#5a86ff', 0.85);
+  const jewelG = matAdd('#5ad6a0', 0.8);
+  const jewelV = matAdd('#b06cff', 0.82);
+
+  // ---- main hall mass (a tall nave block) ----
+  const nave = m(box(1.8, 3.0, 1.4), stone); nave.position.set(0, 1.5, 0);
+  const naveBack = m(box(1.5, 2.6, 1.0), stoneDk); naveBack.position.set(0, 1.3, -0.9);
+  g.add(nave, naveBack);
+
+  // steep pitched roof over the nave
+  const roof = m(cone(1.25, 1.1, 4), slate); roof.position.set(0, 3.55, -0.2); roof.rotation.y = Math.PI / 4; roof.scale.set(0.85, 1, 1.3);
+  g.add(roof);
+
+  // ---- buttresses down the flanks ----
+  for (let i = 0; i < 2; i++) {
+    const sx = i === 0 ? -1 : 1;
+    const but = m(box(0.22, 1.9, 0.3), stoneDk); but.position.set(sx * 0.98, 0.95, 0.35);
+    const butAngle = m(box(0.18, 0.9, 0.5), stoneDk); butAngle.position.set(sx * 0.9, 1.5, 0.0); butAngle.rotation.x = 0.4;
+    const butCap = m(cone(0.16, 0.34, 4), slate); butCap.position.set(sx * 0.98, 2.05, 0.35);
+    g.add(but, butAngle, butCap);
+  }
+
+  // collect warm window meshes that get a gentle unique-material flicker
+  const flickerMats = [];
+  function warmWin(geom, hex, op){
+    const wm = new T.MeshBasicMaterial({ color: new T.Color(hex), fog: false, transparent: true, opacity: op, blending: T.AdditiveBlending, depthWrite: false });
+    const mesh = m(geom, wm);
+    flickerMats.push({ mat: wm, base: op });
+    return mesh;
+  }
+
+  // ---- two flanking pinnacle towers ----
+  for (let i = 0; i < 2; i++) {
+    const sx = i === 0 ? -1 : 1;
+    const tower = m(box(0.62, 3.4, 0.62), stone); tower.position.set(sx * 1.05, 1.7, 0.2);
+    const towerTrim = m(box(0.7, 0.16, 0.7), stoneDk); towerTrim.position.set(sx * 1.05, 3.4, 0.2);
+    const spirelet = m(cone(0.44, 1.0, 4), slate); spirelet.position.set(sx * 1.05, 4.0, 0.2); spirelet.rotation.y = Math.PI / 4;
+    const finial = m(cone(0.08, 0.26, 4), iron); finial.position.set(sx * 1.05, 4.62, 0.2);
+    // small warm lit lancet windows up each tower (unique flicker mats)
+    const tw1 = warmWin(box(0.14, 0.4, 0.06), '#ffb858', 0.9); tw1.position.set(sx * 1.05, 1.6, 0.52);
+    const tw2 = warmWin(box(0.14, 0.34, 0.06), '#ffb858', 0.9); tw2.position.set(sx * 1.05, 2.5, 0.52);
+    // pointed lancet caps
+    const tw1c = warmWin(cone(0.09, 0.16, 3), '#ffb858', 0.9); tw1c.position.set(sx * 1.05, 1.86, 0.52);
+    const tw2c = warmWin(cone(0.09, 0.14, 3), '#ffb858', 0.9); tw2c.position.set(sx * 1.05, 2.72, 0.52);
+    g.add(tower, towerTrim, spirelet, finial, tw1, tw2, tw1c, tw2c);
+  }
+
+  // ---- central steep spire over the facade gable ----
+  const spireBase = m(box(0.6, 0.5, 0.6), stoneDk); spireBase.position.set(0, 3.25, 0.3); spireBase.rotation.y = Math.PI / 4;
+  const spire = m(cone(0.42, 1.5, 4), slate); spire.position.set(0, 4.2, 0.3); spire.rotation.y = Math.PI / 4;
+  const spireFin = m(box(0.05, 0.34, 0.05), iron); spireFin.position.set(0, 5.05, 0.3);
+  // wrought-iron cross finial atop the spire
+  const crossV = m(box(0.05, 0.4, 0.05), iron); crossV.position.set(0, 5.32, 0.3);
+  const crossH = m(box(0.26, 0.05, 0.05), iron); crossH.position.set(0, 5.36, 0.3);
+  g.add(spireBase, spire, spireFin, crossV, crossH);
+
+  // ---- grand pointed-arch doorway with warm-lit interior ----
+  const archL = m(box(0.16, 1.3, 0.16), stoneDk); archL.position.set(-0.42, 0.65, 0.7);
+  const archR = m(box(0.16, 1.3, 0.16), stoneDk); archR.position.set(0.42, 0.65, 0.7);
+  const archTop = m(cone(0.56, 0.7, 3), stoneDk); archTop.position.set(0, 1.55, 0.7); archTop.scale.set(1, 1, 0.35);
+  // dark recess + warm glowing interior light spilling out
+  const doorVoid = m(box(0.7, 1.2, 0.1), door); doorVoid.position.set(0, 0.62, 0.66);
+  const doorLight = m(box(0.6, 1.05, 0.06), doorGlow); doorLight.position.set(0, 0.6, 0.73);
+  const doorArchLight = m(cone(0.34, 0.5, 3), doorGlow); doorArchLight.position.set(0, 1.35, 0.73); doorArchLight.scale.set(1, 1, 0.3);
+  g.add(archL, archR, archTop, doorVoid, doorLight, doorArchLight);
+
+  // flanking lancet windows on the facade (unique flicker mats)
+  for (let i = 0; i < 2; i++) {
+    const sx = i === 0 ? -1 : 1;
+    const lan = warmWin(box(0.16, 0.7, 0.06), '#ffd98a', 0.85); lan.position.set(sx * 0.66, 1.0, 0.71);
+    const lanCap = warmWin(cone(0.1, 0.2, 3), '#ffd98a', 0.85); lanCap.position.set(sx * 0.66, 1.45, 0.71);
+    g.add(lan, lanCap);
+  }
+
+  // ---- large glowing ROSE WINDOW (stained glass) high on the facade ----
+  const roseY = 2.35, roseZ = 0.72;
+  const rose = new T.Group(); rose.position.set(0, roseY, roseZ);
+  // dark stone ring framing the window
+  const roseRing = m(geo('cathRoseRing', () => new T.TorusGeometry(0.5, 0.07, 4, 16)), iron);
+  rose.add(roseRing);
+  // bright animated center — UNIQUE material (it shimmers per frame)
+  const roseCoreMat = new T.MeshBasicMaterial({ color: new T.Color(c), fog: false, transparent: true, opacity: 0.95, blending: T.AdditiveBlending, depthWrite: false });
+  const roseCore = m(geo('cathRoseCore', () => new T.CircleGeometry(0.18, 12)), roseCoreMat);
+  roseCore.position.z = 0.02; rose.add(roseCore);
+  // jewel-tone petals radiating out — alternating colors, with iron mullions between
+  const jewels = [jewelR, jewelB, jewelG, jewelV, jewelR, jewelB, jewelG, jewelV];
+  for (let i = 0; i < 8; i++) {
+    const a = (i / 8) * Math.PI * 2;
+    const petal = m(geo('cathRosePetal', () => new T.PlaneGeometry(0.18, 0.34)), jewels[i]);
+    petal.position.set(Math.cos(a) * 0.3, Math.sin(a) * 0.3, 0.01);
+    petal.rotation.z = a + Math.PI / 2;
+    rose.add(petal);
+    // iron mullion spoke
+    const spoke = m(box(0.03, 0.46, 0.03), iron);
+    spoke.position.set(Math.cos(a) * 0.26, Math.sin(a) * 0.26, 0.0);
+    spoke.rotation.z = a + Math.PI / 2;
+    rose.add(spoke);
+  }
+  // pointed stone hood over the rose window
+  const roseHood = m(cone(0.6, 0.5, 3), stoneDk); roseHood.position.set(0, 2.95, roseZ - 0.02); roseHood.scale.set(1, 1, 0.3);
+  g.add(rose, roseHood);
+
+  // ---- facade gable trim + banners for character ----
+  const gable = m(cone(0.95, 0.7, 3), stone); gable.position.set(0, 3.15, 0.4); gable.scale.set(1, 1, 0.25);
+  g.add(gable);
+  // two hanging banners flanking the door (theme-accent glow), animated sway
+  const bannerMeshes = [];
+  for (let i = 0; i < 2; i++) {
+    const sx = i === 0 ? -1 : 1;
+    const bmat = new T.MeshBasicMaterial({ color: new T.Color(c), fog: false, transparent: true, opacity: 0.7, blending: T.AdditiveBlending, depthWrite: false });
+    const banner = m(geo('cathBanner', () => new T.PlaneGeometry(0.22, 0.85)), bmat);
+    banner.position.set(sx * 0.95, 1.4, 0.74);
+    g.add(banner); bannerMeshes.push(banner);
+  }
+
+  g.userData.anim = (gr, now) => {
+    // gentle rose-window shimmer: pulse brightness + slow rotation
+    const p = 0.7 + Math.sin(now / 520) * 0.25;
+    roseCoreMat.opacity = 0.7 + p * 0.25;
+    roseCore.scale.setScalar(0.9 + Math.sin(now / 380) * 0.12);
+    rose.rotation.z = Math.sin(now / 2600) * 0.08;
+    // warm windows flicker softly like candlelight
+    for (let i = 0; i < flickerMats.length; i++) {
+      const f = flickerMats[i];
+      f.mat.opacity = f.base * (0.82 + Math.sin(now / 240 + i * 1.7) * 0.12);
+    }
+    // banners sway
+    for (let i = 0; i < bannerMeshes.length; i++) {
+      bannerMeshes[i].material.opacity = 0.55 + Math.sin(now / 700 + i) * 0.15;
+      bannerMeshes[i].rotation.y = Math.sin(now / 900 + i * 1.3) * 0.12;
+    }
+  };
+  return g;
+}
+
+export function buildTown_gate(opts){
+  const g = new T.Group();
+  const c = (opts && opts.color) || '#ffb858';
+  // static cached materials (opaque fogged / additive glow)
+  const stone = mat('#3a3742', 1);    // pillar stone
+  const stoneDk = mat('#2a2630', 1);  // shadowed stone
+  const iron = mat('#1a1a22');        // portcullis + lantern frames
+  const slate = mat('#23202c');       // finial caps
+  const lanternFrame = mat('#14141c');
+  const portGlow = matAdd('#ffcf7a', 0.4); // faint warm glow behind the portcullis (interior beyond the gate)
+
+  const HALF = 1.15; // half the span between pillar centers
+
+  // ---- two heavy stone pillars ----
+  for (let i = 0; i < 2; i++) {
+    const sx = i === 0 ? -1 : 1;
+    const base = m(box(0.62, 0.2, 0.62), stoneDk); base.position.set(sx * HALF, 0.1, 0);
+    const pillar = m(box(0.5, 2.0, 0.5), stone); pillar.position.set(sx * HALF, 1.15, 0);
+    const pillarSeam = m(box(0.54, 0.1, 0.54), stoneDk); pillarSeam.position.set(sx * HALF, 1.4, 0);
+    // capital + finial / gargoyle block on top
+    const cap = m(box(0.58, 0.18, 0.58), stoneDk); cap.position.set(sx * HALF, 2.24, 0);
+    const gargoyle = m(box(0.34, 0.26, 0.5), stone); gargoyle.position.set(sx * HALF, 2.46, 0.06);
+    const gargSnout = m(cone(0.12, 0.3, 4), stoneDk); gargSnout.position.set(sx * HALF, 2.46, 0.34); gargSnout.rotation.x = Math.PI / 2;
+    const finial = m(cone(0.16, 0.36, 4), slate); finial.position.set(sx * HALF, 2.78, -0.04); finial.rotation.y = Math.PI / 4;
+    g.add(base, pillar, pillarSeam, cap, gargoyle, gargSnout, finial);
+  }
+
+  // ---- pointed arch spanning the pillars ----
+  // spring blocks rising from each pillar inner shoulder
+  const archL = m(box(0.3, 0.6, 0.4), stoneDk); archL.position.set(-HALF + 0.1, 2.05, 0); archL.rotation.z = -0.5;
+  const archR = m(box(0.3, 0.6, 0.4), stoneDk); archR.position.set(HALF - 0.1, 2.05, 0); archR.rotation.z = 0.5;
+  // pointed keystone apex (triangular prism -> gothic point)
+  const arch = m(cone(HALF + 0.2, 0.9, 3), stone); arch.position.set(0, 2.45, 0); arch.scale.set(1, 1, 0.4);
+  const keystone = m(box(0.22, 0.3, 0.42), stoneDk); keystone.position.set(0, 2.55, 0);
+  // a crossbeam lintel tying the two pillars at the spring line
+  const lintel = m(box(2.0, 0.22, 0.4), stoneDk); lintel.position.set(0, 1.95, 0);
+  g.add(archL, archR, arch, keystone, lintel);
+
+  // ---- portcullis grid hanging in the gateway ----
+  const port = new T.Group(); port.position.set(0, 0.05, 0);
+  // faint warm interior glow plane behind the bars so the opening reads lit, not a black blob
+  const glowPlane = m(geo('gateGlow', () => new T.PlaneGeometry(1.8, 1.85)), portGlow);
+  glowPlane.position.set(0, 1.0, -0.08); port.add(glowPlane);
+  // vertical bars
+  for (let i = -3; i <= 3; i++) {
+    const bar = m(box(0.05, 1.8, 0.05), iron); bar.position.set(i * 0.28, 1.0, 0);
+    port.add(bar);
+  }
+  // horizontal rails
+  for (let j = 0; j < 4; j++) {
+    const rail = m(box(1.9, 0.05, 0.05), iron); rail.position.set(0, 0.3 + j * 0.5, 0);
+    port.add(rail);
+  }
+  // pointed spike tips along the bottom of the portcullis
+  for (let i = -3; i <= 3; i++) {
+    const spike = m(cone(0.04, 0.16, 4), iron); spike.position.set(i * 0.28, 0.08, 0); spike.rotation.x = Math.PI;
+    port.add(spike);
+  }
+  g.add(port);
+
+  // ---- a hanging lantern at each pillar (warm flicker) ----
+  const flames = [];
+  for (let i = 0; i < 2; i++) {
+    const sx = i === 0 ? -1 : 1;
+    // wrought-iron arm reaching inward from the pillar
+    const arm = m(box(0.06, 0.06, 0.5), iron); arm.position.set(sx * (HALF - 0.25), 2.15, 0.28); arm.rotation.x = 0.2;
+    const hook = m(box(0.04, 0.22, 0.04), iron); hook.position.set(sx * (HALF - 0.45), 2.02, 0.42);
+    // lantern cage
+    const cage = m(box(0.2, 0.26, 0.2), lanternFrame); cage.position.set(sx * (HALF - 0.45), 1.82, 0.42);
+    const capTop = m(cone(0.16, 0.16, 4), iron); capTop.position.set(sx * (HALF - 0.45), 2.0, 0.42);
+    // UNIQUE animated flame + glow materials (flicker per frame -> must NOT be cached)
+    const flameMat = new T.MeshBasicMaterial({ color: '#ffd98a', fog: false, transparent: true, opacity: 0.9, blending: T.AdditiveBlending, depthWrite: false });
+    const flame = m(geo('gateFlame', () => new T.ConeGeometry(0.07, 0.18, 5)), flameMat);
+    flame.position.set(sx * (HALF - 0.45), 1.84, 0.42);
+    const glowMat = new T.MeshBasicMaterial({ color: c, fog: false, transparent: true, opacity: 0.45, blending: T.AdditiveBlending, depthWrite: false });
+    const glow = m(geo('gateLanternGlow', () => new T.BoxGeometry(0.26, 0.32, 0.26)), glowMat);
+    glow.position.set(sx * (HALF - 0.45), 1.82, 0.42);
+    g.add(arm, hook, cage, capTop, flame, glow);
+    flames.push({ flame, flameMat, glow, glowMat, ph: i * 2.1 });
+  }
+
+  g.userData.anim = (gr, now) => {
+    for (let i = 0; i < flames.length; i++) {
+      const f = flames[i];
+      // irregular flicker via summed sines
+      const flick = 0.78 + Math.sin(now / 90 + f.ph) * 0.14 + Math.sin(now / 47 + f.ph * 1.7) * 0.08;
+      f.flameMat.opacity = Math.max(0.55, Math.min(1, flick));
+      f.flame.scale.set(1, 0.85 + (flick - 0.78) * 0.9, 1);
+      f.glowMat.opacity = Math.max(0.18, 0.35 + (flick - 0.78) * 0.5);
+      f.glow.scale.setScalar(0.92 + (flick - 0.78) * 0.6);
+    }
+  };
+  return g;
+}
+
+export function buildTown_house(opts){
+  const c = (opts && opts.color) || '#ffb858';
+  const g = new T.Group();
+  // --- materials (cached statics) ---
+  const stone = mat('#3a3742',1);
+  const stoneDark = mat('#2a2630',1);
+  const timber = mat('#2a2018');
+  const slate = mat('#23202c');
+  const iron = mat('#1a1a22');
+  // unique animated glow materials (NEVER cached, animated per-frame)
+  const winColor = new T.Color(c);
+  const win1   = new T.MeshBasicMaterial({ color: winColor.clone(), transparent:true, opacity:0.9,  fog:false, blending:T.AdditiveBlending });
+  const win2   = new T.MeshBasicMaterial({ color: winColor.clone(), transparent:true, opacity:0.85, fog:false, blending:T.AdditiveBlending });
+  const win3   = new T.MeshBasicMaterial({ color: winColor.clone(), transparent:true, opacity:0.8,  fog:false, blending:T.AdditiveBlending });
+  const doorMat= new T.MeshBasicMaterial({ color: winColor.clone(), transparent:true, opacity:0.95, fog:false, blending:T.AdditiveBlending });
+  const gableM = new T.MeshBasicMaterial({ color: winColor.clone(), transparent:true, opacity:0.7,  fog:false, blending:T.AdditiveBlending });
+  const lantM  = new T.MeshBasicMaterial({ color: winColor.clone(), transparent:true, opacity:0.95, fog:false, blending:T.AdditiveBlending });
+
+  const W = 1.0, D = 0.9; // narrow body
+  // ground floor (stone)
+  const g0 = m(box(W, 1.0, D), stone); g0.position.y = 0.5; g.add(g0);
+  // upper floor (timber framed, slightly inset)
+  const g1 = m(box(W*0.96, 1.0, D*0.96), stoneDark); g1.position.y = 1.5; g.add(g1);
+  // timber corner posts on upper floor (4 verticals)
+  const postW = 0.07;
+  [[-1,-1],[1,-1],[-1,1],[1,1]].forEach(s=>{
+    const p = m(box(postW, 1.0, postW), timber);
+    p.position.set(s[0]*(W*0.96/2 - postW/2), 1.5, s[1]*(D*0.96/2 - postW/2));
+    g.add(p);
+  });
+  // timber cross-rails (front face)
+  const railTop = m(box(W*0.96, 0.06, 0.04), timber); railTop.position.set(0,1.96, D*0.96/2); g.add(railTop);
+  const railMid = m(box(W*0.96, 0.06, 0.04), timber); railMid.position.set(0,1.5,  D*0.96/2); g.add(railMid);
+
+  // --- steep pitched slate roof (two sloped planks) ---
+  const roofH = 1.0;
+  const roofL = m(box(0.06, 1.18, D*1.05), slate);
+  roofL.position.set(-W*0.25, 2.0 + roofH*0.5, 0);
+  roofL.rotation.z = 0.62; g.add(roofL);
+  const roofR = m(box(0.06, 1.18, D*1.05), slate);
+  roofR.position.set(W*0.25, 2.0 + roofH*0.5, 0);
+  roofR.rotation.z = -0.62; g.add(roofR);
+  // gable end triangle fills (kept inside roofline so they don't poke out)
+  const gableF = m(box(W*0.78, 0.82, 0.05), stoneDark); gableF.position.set(0,2.36,D*0.44); g.add(gableF);
+  const gableB = m(box(W*0.78, 0.82, 0.05), stoneDark); gableB.position.set(0,2.36,-D*0.44); g.add(gableB);
+  // glowing gable window (breaks the upper dark mass on the front silhouette)
+  const gWin = m(plane(0.2,0.26), gableM); gWin.position.set(0,2.42,D*0.47); g.add(gWin);
+  const gWinF = m(box(0.26,0.32,0.04), iron); gWinF.position.set(0,2.42,D*0.445); g.add(gWinF);
+  // ridge cap
+  const ridge = m(box(0.1,0.1,D*1.06), slate); ridge.position.set(0, 3.0, 0); g.add(ridge);
+
+  // chimney
+  const chim = m(box(0.18,0.7,0.18), stoneDark); chim.position.set(W*0.32, 2.85, -D*0.2); g.add(chim);
+  const chimCap = m(box(0.24,0.06,0.24), iron); chimCap.position.set(W*0.32,3.2,-D*0.2); g.add(chimCap);
+
+  // tiny dormer on front roof
+  const dormer = m(box(0.26,0.26,0.18), stoneDark); dormer.position.set(-0.2, 2.55, D*0.34); g.add(dormer);
+  const dormerWin = m(plane(0.14,0.14), win3); dormerWin.position.set(-0.2,2.55,D*0.44); g.add(dormerWin);
+  const dormerRoof = m(box(0.32,0.05,0.14), slate); dormerRoof.position.set(-0.2,2.72,D*0.34); dormerRoof.rotation.x=0.3; g.add(dormerRoof);
+
+  // --- lit doorway (front, +Z) ---
+  const doorFrame = m(box(0.34,0.62,0.06), iron); doorFrame.position.set(0,0.31,D/2+0.01); g.add(doorFrame);
+  const door = m(plane(0.24,0.5), doorMat); door.position.set(0,0.27,D/2+0.05); g.add(door);
+  // pointed arch hint above door
+  const arch = m(box(0.3,0.08,0.05), iron); arch.position.set(0,0.66,D/2+0.02); g.add(arch);
+
+  // wrought-iron lantern beside the door (warm glow, strengthens silhouette)
+  const lBrkt = m(box(0.04,0.04,0.18), iron); lBrkt.position.set(0.28,0.78,D/2+0.08); g.add(lBrkt);
+  const lCage = m(box(0.1,0.16,0.1), iron);  lCage.position.set(0.28,0.66,D/2+0.16); g.add(lCage);
+  const lGlow = m(box(0.06,0.1,0.06), lantM); lGlow.position.set(0.28,0.66,D/2+0.16); g.add(lGlow);
+
+  // --- warm glowing windows ---
+  // ground floor window (front)
+  const w1 = m(plane(0.22,0.3), win1); w1.position.set(-0.32,0.55,D/2+0.04); g.add(w1);
+  const w1f = m(box(0.26,0.34,0.04), iron); w1f.position.set(-0.32,0.55,D/2+0.01); g.add(w1f);
+  // upper floor windows (front, two)
+  const w2 = m(plane(0.2,0.26), win2); w2.position.set(-0.28,1.6,D*0.96/2+0.04); g.add(w2);
+  const w2f = m(box(0.24,0.3,0.04), iron); w2f.position.set(-0.28,1.6,D*0.96/2+0.01); g.add(w2f);
+  const w3 = m(plane(0.2,0.26), win3); w3.position.set(0.28,1.6,D*0.96/2+0.04); g.add(w3);
+  const w3f = m(box(0.24,0.3,0.04), iron); w3f.position.set(0.28,1.6,D*0.96/2+0.01); g.add(w3f);
+  // side window glow
+  const ws = m(plane(0.2,0.26), win2); ws.position.set(W/2+0.02,1.0,0); ws.rotation.y = Math.PI/2; g.add(ws);
+
+  // --- subtle glow flicker anim (all unique materials) ---
+  g.userData.anim = (grp, now) => {
+    const t = now*0.001;
+    const f1 = 0.78 + 0.16*Math.sin(t*3.1) + 0.05*Math.sin(t*11.0);
+    const f2 = 0.72 + 0.14*Math.sin(t*2.3 + 1.7);
+    const f3 = 0.70 + 0.15*Math.sin(t*4.1 + 0.9);
+    win1.opacity = f1; win2.opacity = f2; win3.opacity = f3;
+    gableM.opacity = 0.6 + 0.12*Math.sin(t*1.9 + 2.2);
+    doorMat.opacity = 0.85 + 0.1*Math.sin(t*2.6 + 0.4);
+    lantM.opacity = 0.82 + 0.18*Math.sin(t*5.7 + 3.3) + 0.06*Math.sin(t*13.0);
+  };
+  return g;
+}
+
+export function buildTown_house2(opts){
+  const c = (opts && opts.color) || '#ffcf7a';
+  const g = new T.Group();
+  const stone = mat('#3a3742',1);
+  const stoneDark = mat('#2a2630',1);
+  const timber = mat('#2a2018');
+  const slate = mat('#23202c');
+  const iron = mat('#1a1a22');
+  const winColor = new T.Color(c);
+  // UNIQUE animated materials (additive glow) — never cached
+  const winA = new T.MeshBasicMaterial({ color: winColor.clone(), transparent:true, opacity:0.88, fog:false, blending:T.AdditiveBlending, depthWrite:false });
+  const winB = new T.MeshBasicMaterial({ color: winColor.clone(), transparent:true, opacity:0.82, fog:false, blending:T.AdditiveBlending, depthWrite:false });
+  const winC = new T.MeshBasicMaterial({ color: winColor.clone(), transparent:true, opacity:0.78, fog:false, blending:T.AdditiveBlending, depthWrite:false });
+  const doorMat = new T.MeshBasicMaterial({ color: winColor.clone(), transparent:true, opacity:0.90, fog:false, blending:T.AdditiveBlending, depthWrite:false });
+
+  // TALLER + NARROWER variant with an OVERHANGING jettied upper floor
+  const W = 0.82, D = 0.78;
+  const fz = D*0.12; // jetty forward shift for upper masses
+  // ground floor (stone, narrower)
+  const g0 = m(box(W, 1.1, D), stone); g0.position.y = 0.55; g.add(g0);
+  // middle floor (darker stone)
+  const g1 = m(box(W*1.04, 1.0, D*1.04), stoneDark); g1.position.y = 1.6; g.add(g1);
+  // jettied TOP floor overhangs forward (+Z) and wider
+  const g2 = m(box(W*1.18, 0.95, D*1.12), stoneDark); g2.position.set(0,2.55, fz); g.add(g2);
+  // jetty support brackets (timber) under overhang
+  const brk1 = m(box(0.06,0.18,0.18), timber); brk1.position.set(-W*0.4,2.1,D*0.5); brk1.rotation.x=0.5; g.add(brk1);
+  const brk2 = m(box(0.06,0.18,0.18), timber); brk2.position.set( W*0.4,2.1,D*0.5); brk2.rotation.x=0.5; g.add(brk2);
+
+  // timber framing posts on top floor corners (front face)
+  const postW=0.06;
+  [-1,1].forEach(s=>{
+    const p=m(box(postW,0.95,postW),timber);
+    p.position.set(s*(W*1.18/2-postW/2), 2.55, D*1.12/2-postW/2 + fz); g.add(p);
+  });
+  const rail = m(box(W*1.18,0.05,0.04), timber); rail.position.set(0,2.55, D*1.12/2 + fz); g.add(rail);
+
+  // STEEP asymmetric side-gable roof
+  const roofL = m(box(0.06,1.45,D*1.2),slate);
+  roofL.position.set(-W*0.28, 3.60, fz); roofL.rotation.z=0.72; g.add(roofL);
+  const roofR = m(box(0.06,1.45,D*1.2),slate);
+  roofR.position.set( W*0.28, 3.60, fz); roofR.rotation.z=-0.72; g.add(roofR);
+  // gable end walls (front +Z reads against the plaza)
+  const gF = m(box(W*1.05,1.1,0.05),stoneDark); gF.position.set(0,3.55, D*1.12/2 + fz); g.add(gF);
+  const gB = m(box(W*1.05,1.1,0.05),stoneDark); gB.position.set(0,3.55,-D*1.12/2 + fz); g.add(gB);
+  const ridge = m(box(0.09,0.09,D*1.22),slate); ridge.position.set(0,4.15,fz); g.add(ridge);
+  // finial spire on ridge front
+  const finial = m(cone(0.06,0.30,6),iron); finial.position.set(0,4.30, D*1.12/2 + fz); g.add(finial);
+
+  // tall thin chimney (rear corner)
+  const chim=m(box(0.15,0.85,0.15),stoneDark); chim.position.set(-W*0.42,3.7,-D*0.15); g.add(chim);
+  const chimCap=m(box(0.2,0.05,0.2),iron); chimCap.position.set(-W*0.42,4.15,-D*0.15); g.add(chimCap);
+
+  // lit narrow arched doorway
+  const doorFrame=m(box(0.3,0.66,0.06),iron); doorFrame.position.set(0,0.33,D/2+0.01); g.add(doorFrame);
+  const door=m(plane(0.2,0.5),doorMat); door.position.set(0,0.28,D/2+0.05); g.add(door);
+  const archTop=m(cone(0.14,0.16,5),iron); archTop.position.set(0,0.66,D/2+0.03); g.add(archTop);
+
+  // ground-floor pointed-arch glowing window (beside door)
+  const w1f=m(box(0.2,0.4,0.04),iron); w1f.position.set(-0.22,0.62,D/2+0.01); g.add(w1f);
+  const w1=m(plane(0.16,0.34),winA); w1.position.set(-0.22,0.62,D/2+0.04); g.add(w1);
+  // middle floor pair
+  const w2f=m(box(0.19,0.36,0.04),iron); w2f.position.set(-0.2,1.65,D*1.04/2+0.01); g.add(w2f);
+  const w2 =m(plane(0.15,0.3),winB);    w2.position.set(-0.2,1.65,D*1.04/2+0.04); g.add(w2);
+  const w3f=m(box(0.19,0.36,0.04),iron); w3f.position.set( 0.2,1.65,D*1.04/2+0.01); g.add(w3f);
+  const w3 =m(plane(0.15,0.3),winC);    w3.position.set( 0.2,1.65,D*1.04/2+0.04); g.add(w3);
+  // jettied top floor: single big mullioned window on the overhang
+  const topZ = D*1.12/2 + fz;
+  const w4f=m(box(0.36,0.36,0.04),iron); w4f.position.set(0,2.6,topZ+0.01); g.add(w4f);
+  const w4 =m(plane(0.3,0.3),winA);      w4.position.set(0,2.6,topZ+0.04); g.add(w4);
+  const mulV=m(box(0.02,0.32,0.05),iron); mulV.position.set(0,2.6,topZ+0.06); g.add(mulV);
+  const mulH=m(box(0.32,0.02,0.05),iron); mulH.position.set(0,2.6,topZ+0.06); g.add(mulH);
+
+  g.userData.anim=(grp,now)=>{
+    const t=now*0.001;
+    winA.opacity   = 0.80 + 0.15*Math.sin(t*2.7+0.3) + 0.04*Math.sin(t*9.3);
+    winB.opacity   = 0.74 + 0.13*Math.sin(t*3.6+1.2);
+    winC.opacity   = 0.72 + 0.14*Math.sin(t*2.0+2.4);
+    doorMat.opacity= 0.82 + 0.10*Math.sin(t*2.9);
+  };
+  return g;
+}
+
+export function buildTown_tavern(opts){
+  const c = (opts && opts.color) || '#ffb04a';
+  const g = new T.Group();
+  const stone = mat('#3a3742',1);
+  const stoneDark = mat('#2a2630',1);
+  const timber = mat('#2a2018');
+  const slate = mat('#23202c');
+  const iron = mat('#1a1a22');
+  const winColor = new T.Color(c);
+  // unique animated mats
+  const glowA = new T.MeshBasicMaterial({ color: winColor.clone(), transparent:true, opacity:0.92, fog:false, blending:T.AdditiveBlending });
+  const glowB = new T.MeshBasicMaterial({ color: winColor.clone(), transparent:true, opacity:0.85, fog:false, blending:T.AdditiveBlending });
+  const doorGlow = new T.MeshBasicMaterial({ color: winColor.clone(), transparent:true, opacity:0.95, fog:false, blending:T.AdditiveBlending });
+  const lantern = new T.MeshBasicMaterial({ color: winColor.clone(), transparent:true, opacity:1.0, fog:false, blending:T.AdditiveBlending });
+  const signEmblem = new T.MeshBasicMaterial({ color: winColor.clone(), transparent:true, opacity:0.9, fog:false, blending:T.AdditiveBlending });
+
+  // WIDER inn body
+  const W = 1.9, D = 1.3;
+  const g0 = m(box(W,1.1,D),stone); g0.position.y=0.55; g.add(g0);
+  const g1 = m(box(W*0.97,0.95,D*0.97),stoneDark); g1.position.y=1.55; g.add(g1);
+  // timber framing across wide front
+  const postW=0.08;
+  for(let i=-2;i<=2;i++){
+    const p=m(box(postW,0.95,postW),timber);
+    p.position.set(i*(W*0.97/2)/2.2,1.55,D*0.97/2-postW/2); g.add(p);
+  }
+  const railT=m(box(W*0.97,0.07,0.05),timber); railT.position.set(0,2.0,D*0.97/2); g.add(railT);
+  const railB=m(box(W*0.97,0.07,0.05),timber); railB.position.set(0,1.1,D*0.97/2); g.add(railB);
+
+  // big steep hipped/pitched roof
+  const roofL=m(box(0.07,1.5,D*1.1),slate); roofL.position.set(-W*0.26,2.05+0.6,0); roofL.rotation.z=0.6; g.add(roofL);
+  const roofR=m(box(0.07,1.5,D*1.1),slate); roofR.position.set(W*0.26,2.05+0.6,0); roofR.rotation.z=-0.6; g.add(roofR);
+  const gF=m(box(W*0.92,1.0,0.06),stoneDark); gF.position.set(0,2.55,D*0.5); g.add(gF);
+  const gB=m(box(W*0.92,1.0,0.06),stoneDark); gB.position.set(0,2.55,-D*0.5); g.add(gB);
+  const ridge=m(box(0.11,0.11,D*1.12),slate); ridge.position.set(0,3.2,0); g.add(ridge);
+  // two dormers on wide roof
+  [-0.5,0.5].forEach(x=>{
+    const dm=m(box(0.3,0.3,0.2),stoneDark); dm.position.set(x*W,2.55,D*0.4); g.add(dm);
+    const dw=m(plane(0.16,0.16),glowB); dw.position.set(x*W,2.55,D*0.5); g.add(dw);
+    const dr=m(box(0.36,0.05,0.16),slate); dr.position.set(x*W,2.74,D*0.4); dr.rotation.x=0.3; g.add(dr);
+  });
+
+  // chimney (smoke origin)
+  const chim=m(box(0.22,0.8,0.22),stoneDark); chim.position.set(-W*0.36,3.05,-D*0.25); g.add(chim);
+  const chimCap=m(box(0.28,0.06,0.28),iron); chimCap.position.set(-W*0.36,3.45,-D*0.25); g.add(chimCap);
+  // faint smoke wisp (3 rising puffs, animated) -- each gets a UNIQUE material so opacities fade independently
+  const smokeGrp=new T.Group(); smokeGrp.position.set(-W*0.36,3.5,-D*0.25); g.add(smokeGrp);
+  const puffs=[];
+  for(let i=0;i<3;i++){
+    const sm=new T.MeshBasicMaterial({ color:new T.Color('#6a6470'), transparent:true, opacity:0.18, fog:false, blending:T.AdditiveBlending });
+    const pf=m(plane(0.18+i*0.05,0.18+i*0.05),sm); pf.position.y=i*0.25; smokeGrp.add(pf); puffs.push(pf);
+  }
+
+  // grand lit double doorway
+  const doorFrame=m(box(0.6,0.78,0.07),iron); doorFrame.position.set(0,0.39,D/2+0.01); g.add(doorFrame);
+  const door=m(plane(0.48,0.62),doorGlow); door.position.set(0,0.34,D/2+0.05); g.add(door);
+  const lintel=m(box(0.66,0.1,0.08),timber); lintel.position.set(0,0.82,D/2+0.02); g.add(lintel);
+
+  // wide warm windows across front (4)
+  [-0.62,-0.2,0.2,0.62].forEach((x,i)=>{
+    const wm = (i%2===0)?glowA:glowB;
+    const wn=m(plane(0.26,0.34),wm); wn.position.set(x,1.6,D*0.97/2+0.04); g.add(wn);
+    const wf=m(box(0.3,0.38,0.04),iron); wf.position.set(x,1.6,D*0.97/2+0.01); g.add(wf);
+    // ground floor windows flanking door
+    if(Math.abs(x)>0.4){
+      const gw=m(plane(0.24,0.3),glowB); gw.position.set(x,0.6,D/2+0.04); g.add(gw);
+      const gf=m(box(0.28,0.34,0.04),iron); gf.position.set(x,0.6,D/2+0.01); g.add(gf);
+    }
+  });
+  // entry lantern beside door
+  const lampBkt=m(box(0.04,0.04,0.2),iron); lampBkt.position.set(0.38,0.95,D/2+0.1); g.add(lampBkt);
+  const lamp=m(box(0.1,0.14,0.1),lantern); lamp.position.set(0.38,0.9,D/2+0.2); g.add(lamp);
+
+  // --- HANGING SIGN on wrought-iron bracket (swings) ---
+  // bracket fixed to front wall, upper right
+  const armBase=m(box(0.05,0.05,0.05),iron); armBase.position.set(W*0.5,2.1,D/2); g.add(armBase);
+  const arm=m(box(0.5,0.05,0.05),iron); arm.position.set(W*0.5+0.22,2.1,D/2+0.02); g.add(arm);
+  const armStay=m(box(0.05,0.3,0.05),iron); armStay.position.set(W*0.5+0.05,1.95,D/2+0.02); armStay.rotation.z=0.5; g.add(armStay);
+  // swinging sign group (pivots at end of arm)
+  const signPivot=new T.Group(); signPivot.position.set(W*0.5+0.44,2.08,D/2+0.04); g.add(signPivot);
+  const hangerL=m(box(0.02,0.16,0.02),iron); hangerL.position.set(-0.12,-0.08,0); signPivot.add(hangerL);
+  const hangerR=m(box(0.02,0.16,0.02),iron); hangerR.position.set(0.12,-0.08,0); signPivot.add(hangerR);
+  const signBoard=m(box(0.34,0.28,0.03),timber); signBoard.position.set(0,-0.32,0); signPivot.add(signBoard);
+  const signFrame=m(box(0.38,0.04,0.04),iron); signFrame.position.set(0,-0.18,0); signPivot.add(signFrame);
+  // glowing tankard/ale emblem on the board
+  const tankBody=m(box(0.12,0.14,0.02),signEmblem); tankBody.position.set(-0.02,-0.32,0.03); signPivot.add(tankBody);
+  const tankHandle=m(box(0.04,0.08,0.02),signEmblem); tankHandle.position.set(0.08,-0.32,0.03); signPivot.add(tankHandle);
+  const tankFroth=m(box(0.14,0.04,0.02),signEmblem); tankFroth.position.set(-0.02,-0.23,0.03); signPivot.add(tankFroth);
+
+  // --- anim: swinging sign + rising smoke + warm flicker ---
+  g.userData.anim=(grp,now)=>{
+    const t=now*0.001;
+    signPivot.rotation.z=0.12*Math.sin(t*1.4);
+    glowA.opacity=0.84+0.12*Math.sin(t*2.4)+0.04*Math.sin(t*8.0);
+    glowB.opacity=0.78+0.1*Math.sin(t*3.1+1.0);
+    doorGlow.opacity=0.88+0.08*Math.sin(t*2.0+0.5);
+    lantern.opacity=0.8+0.2*Math.sin(t*5.0+0.7);
+    // smoke rise + fade loop (each puff has its own material)
+    for(let i=0;i<puffs.length;i++){
+      const ph=(t*0.4 + i*0.34)%1.0;
+      puffs[i].position.y=ph*0.9;
+      puffs[i].position.x=Math.sin(ph*4.0+i)*0.08;
+      puffs[i].material.opacity=0.18*(1.0-ph);
+      const sc=0.6+ph*1.2; puffs[i].scale.set(sc,sc,sc);
+    }
+  };
+  return g;
+}
+
+export function buildTown_shop(opts){
+  const g = new T.Group();
+  const c = (opts && opts.color) || '#ffb858';
+  const stone = mat('#3a3742', 1);
+  const stoneDk = mat('#2a2630', 1);
+  const timber = mat('#2a2018');
+  const slate = mat('#23202c');
+  const iron = mat('#1a1a22');
+  const cloth = mat(c, 0.42);
+  const clothDk = mat(c, 0.26);
+  const woodWare = mat('#3a2a18');
+  const win = matAdd('#ffb858', 0.85);
+  const sign = matAdd(c, 0.7);
+
+  // ---- house body: tall gothic shop, stone ground floor + timbered upper ----
+  const body = m(box(1.5, 1.5, 1.2), stone); body.position.set(0, 0.75, 0);
+  const upper = m(box(1.56, 0.7, 1.26), stoneDk); upper.position.set(0, 1.72, 0);
+  // timber framing strips on the upper storey (front, +Z)
+  const beamH = m(box(1.56, 0.07, 0.04), timber); beamH.position.set(0, 1.72, 0.64);
+  const beamV1 = m(box(0.06, 0.7, 0.04), timber); beamV1.position.set(-0.5, 1.72, 0.64);
+  const beamV2 = m(box(0.06, 0.7, 0.04), timber); beamV2.position.set(0.5, 1.72, 0.64);
+  const beamX = m(box(0.05, 0.85, 0.04), timber); beamX.position.set(0, 1.72, 0.64); beamX.rotation.z = 0.6;
+  // corner posts on the lower stone body
+  const postL = m(box(0.1, 1.5, 0.1), timber); postL.position.set(-0.74, 0.75, 0.58);
+  const postR = m(box(0.1, 1.5, 0.1), timber); postR.position.set(0.74, 0.75, 0.58);
+
+  // ---- steep pitched gothic roof (two angled slabs + a ridge) ----
+  const roofL = m(box(0.95, 0.07, 1.4), slate); roofL.position.set(-0.42, 2.32, 0); roofL.rotation.z = 0.72;
+  const roofR = m(box(0.95, 0.07, 1.4), slate); roofR.position.set(0.42, 2.32, 0); roofR.rotation.z = -0.72;
+  const ridge = m(box(0.08, 0.08, 1.42), timber); ridge.position.set(0, 2.66, 0);
+  // front gable triangle to close the pitch (faces +Z)
+  const gable = m(cone(0.86, 0.62, 3), stoneDk); gable.position.set(0, 2.32, 0.66); gable.rotation.x = Math.PI / 2; gable.scale.set(1, 1, 0.12);
+  // little brick chimney
+  const chimney = m(box(0.18, 0.5, 0.18), stoneDk); chimney.position.set(0.42, 2.5, -0.3);
+  const chimCap = m(box(0.24, 0.06, 0.24), iron); chimCap.position.set(0.42, 2.77, -0.3);
+
+  g.add(body, upper, beamH, beamV1, beamV2, beamX, postL, postR, roofL, roofR, ridge, gable, chimney, chimCap);
+
+  // ---- glowing upper-storey windows (leaded, warm) ----
+  const winFrameL = m(box(0.3, 0.42, 0.04), iron); winFrameL.position.set(-0.36, 1.74, 0.66);
+  const winFrameR = m(box(0.3, 0.42, 0.04), iron); winFrameR.position.set(0.36, 1.74, 0.66);
+  const glassL = m(box(0.22, 0.34, 0.03), win); glassL.position.set(-0.36, 1.74, 0.68);
+  const glassR = m(box(0.22, 0.34, 0.03), win); glassR.position.set(0.36, 1.74, 0.68);
+  g.add(winFrameL, winFrameR, glassL, glassR);
+
+  // ---- door set into the stone at +Z, slightly to one side ----
+  const doorFrame = m(box(0.42, 0.78, 0.08), timber); doorFrame.position.set(0.42, 0.42, 0.6);
+  const door = m(box(0.3, 0.66, 0.04), mat('#1f1812')); door.position.set(0.42, 0.36, 0.64);
+  const doorGlow = m(box(0.18, 0.18, 0.03), matAdd('#ffb858', 0.5)); doorGlow.position.set(0.42, 0.58, 0.66);
+  g.add(doorFrame, door, doorGlow);
+
+  // ---- STALL / AWNING storefront on the +Z front side ----
+  // counter
+  const counter = m(box(0.92, 0.5, 0.46), woodWare); counter.position.set(-0.34, 0.25, 0.92);
+  const counterTop = m(box(0.98, 0.06, 0.52), timber); counterTop.position.set(-0.34, 0.53, 0.92);
+  g.add(counter, counterTop);
+
+  // striped cloth awning sloping out over the counter
+  const awning = new T.Group(); awning.position.set(-0.34, 1.04, 0.86);
+  const a1 = m(box(0.98, 0.04, 0.66), cloth); a1.position.set(0, 0, 0.18); a1.rotation.x = -0.5;
+  const stripe1 = m(box(0.18, 0.05, 0.66), clothDk); stripe1.position.set(-0.3, 0.002, 0.18); stripe1.rotation.x = -0.5;
+  const stripe2 = m(box(0.18, 0.05, 0.66), clothDk); stripe2.position.set(0.16, 0.002, 0.18); stripe2.rotation.x = -0.5;
+  // scalloped valance hem (little down-pointing teeth)
+  const hem = new T.Group(); hem.position.set(0, -0.02, 0.5);
+  for (let i = 0; i < 5; i++) {
+    const tooth = m(cone(0.09, 0.13, 3), cloth);
+    tooth.position.set(-0.4 + i * 0.2, -0.05, 0);
+    tooth.rotation.x = Math.PI; tooth.scale.set(1, 1, 0.3);
+    hem.add(tooth);
+  }
+  awning.add(a1, stripe1, stripe2, hem);
+  // awning support posts down to the ground
+  const supL = m(box(0.06, 1.06, 0.06), timber); supL.position.set(-0.8, 0.53, 1.18);
+  const supR = m(box(0.06, 1.06, 0.06), timber); supR.position.set(0.12, 0.53, 1.18);
+  g.add(awning, supL, supR);
+
+  // ---- wares on the counter: crates, glowing bottles ----
+  const crateA = m(box(0.2, 0.2, 0.2), woodWare); crateA.position.set(-0.66, 0.66, 0.92);
+  const crateB = m(box(0.16, 0.16, 0.16), mat('#2e2012')); crateB.position.set(-0.62, 0.84, 0.86);
+  const bottle1 = m(cyl(0.04, 0.05, 0.16, 5), matAdd('#7ad0a0', 0.55)); bottle1.position.set(-0.2, 0.64, 0.94);
+  const bottle2 = m(cyl(0.04, 0.05, 0.14, 5), matAdd('#c87aff', 0.55)); bottle2.position.set(-0.06, 0.63, 0.9);
+  const bottle3 = m(cyl(0.035, 0.045, 0.12, 5), matAdd('#ff6a6a', 0.55)); bottle3.position.set(-0.34, 0.62, 0.96);
+  g.add(crateA, crateB, bottle1, bottle2, bottle3);
+
+  // glowing hanging lantern at the stall corner (UNIQUE mat -> animated flicker)
+  const lanternMat = new T.MeshBasicMaterial({ color: c, fog: false, transparent: true, opacity: 0.9, blending: T.AdditiveBlending, depthWrite: false });
+  const lantHook = m(box(0.03, 0.16, 0.03), iron); lantHook.position.set(-0.8, 1.1, 1.18);
+  const lantCage = m(box(0.1, 0.14, 0.1), iron); lantCage.position.set(-0.8, 0.96, 1.18);
+  const lantGlow = m(box(0.07, 0.1, 0.07), lanternMat); lantGlow.position.set(-0.8, 0.96, 1.18);
+  const lantCap = m(cone(0.08, 0.07, 4), iron); lantCap.position.set(-0.8, 1.05, 1.18);
+  g.add(lantHook, lantCage, lantGlow, lantCap);
+
+  // ---- hanging shop sign on a wrought-iron bracket ----
+  const bracket = m(box(0.4, 0.05, 0.04), iron); bracket.position.set(0.42, 1.5, 0.82);
+  const bracketArm = m(box(0.05, 0.3, 0.04), iron); bracketArm.position.set(0.62, 1.38, 0.82);
+  // sign pivots from the bracket arm: parent group at the arm, board hangs below
+  const signPivot = new T.Group(); signPivot.position.set(0.62, 1.29, 0.82);
+  const signBoard = m(box(0.36, 0.26, 0.04), timber); signBoard.position.set(0, -0.13, 0);
+  const signGlyph = m(box(0.16, 0.12, 0.03), sign); signGlyph.position.set(0, -0.13, 0.03);
+  signPivot.add(signBoard, signGlyph);
+  g.add(bracket, bracketArm, signPivot);
+
+  g.userData.anim = (gr, now) => {
+    // lantern warm flicker (unique material -> safe to animate)
+    lanternMat.opacity = 0.72 + Math.sin(now / 130) * 0.1 + Math.sin(now / 47) * 0.06;
+    // sign sways gently on its bracket (transform only, no material change)
+    signPivot.rotation.z = Math.sin(now / 900) * 0.08;
+  };
+  return g;
+}
+
+export function buildTown_vault(opts){
+  const g = new T.Group();
+  const c = (opts && opts.color) || '#ffd24a';
+  const ashlar = mat('#3a3742', 1);
+  const ashlarDk = mat('#2a2630', 1);
+  const ashlarLt = mat('#46424f', 1);
+  const iron = mat('#1a1a22', 1);
+  const ironLt = mat('#2a2a34', 1);
+  const win = matAdd('#ffb858', 0.7);
+
+  // ---- squat heavy ashlar body (wider than tall, fortress-like) ----
+  const body = m(box(1.7, 1.5, 1.5), ashlar); body.position.set(0, 0.75, 0);
+  // ashlar block courses suggested by stacked offset slabs of slightly varied tone
+  const course1 = m(box(1.74, 0.04, 1.54), ashlarDk); course1.position.set(0, 0.5, 0);
+  const course2 = m(box(1.74, 0.04, 1.54), ashlarDk); course2.position.set(0, 1.0, 0);
+  // chunky corner quoins
+  const qFL = m(box(0.2, 1.5, 0.2), ashlarLt); qFL.position.set(-0.78, 0.75, 0.66);
+  const qFR = m(box(0.2, 1.5, 0.2), ashlarLt); qFR.position.set(0.78, 0.75, 0.66);
+  const qBL = m(box(0.2, 1.5, 0.2), ashlarLt); qBL.position.set(-0.78, 0.75, -0.66);
+  const qBR = m(box(0.2, 1.5, 0.2), ashlarLt); qBR.position.set(0.78, 0.75, -0.66);
+  g.add(body, course1, course2, qFL, qFR, qBL, qBR);
+
+  // ---- low battlement top (crenellations) ----
+  const parapet = m(box(1.78, 0.16, 1.58), ashlarDk); parapet.position.set(0, 1.58, 0);
+  for (let i = 0; i < 5; i++) {
+    const x = -0.7 + i * 0.35;
+    const mF = m(box(0.22, 0.22, 0.16), ashlarLt); mF.position.set(x, 1.77, 0.7); g.add(mF);
+    const mB = m(box(0.22, 0.22, 0.16), ashlarLt); mB.position.set(x, 1.77, -0.7); g.add(mB);
+  }
+  for (let i = 0; i < 4; i++) {
+    const z = -0.52 + i * 0.35;
+    const mLs = m(box(0.16, 0.22, 0.22), ashlarLt); mLs.position.set(-0.78, 1.77, z); g.add(mLs);
+    const mRs = m(box(0.16, 0.22, 0.22), ashlarLt); mRs.position.set(0.78, 1.77, z); g.add(mRs);
+  }
+  g.add(parapet);
+
+  // ---- reinforced iron-barred door (recessed pointed-arch portal) ----
+  const portal = m(box(0.66, 1.0, 0.18), ashlarDk); portal.position.set(0, 0.5, 0.7);
+  const arch = m(cone(0.4, 0.34, 4), ashlarDk); arch.position.set(0, 1.0, 0.7); arch.rotation.y = Math.PI / 4;
+  const doorPlate = m(box(0.5, 0.86, 0.06), iron); doorPlate.position.set(0, 0.46, 0.79);
+  // warm glow leaking around the vault door so the entrance reads as lit
+  const doorGlow = m(box(0.46, 0.82, 0.02), matAdd('#ffcaa0', 0.32)); doorGlow.position.set(0, 0.46, 0.76);
+  g.add(doorGlow);
+  // vertical iron bars across the door
+  for (let i = 0; i < 4; i++) {
+    const bar = m(box(0.05, 0.82, 0.04), ironLt); bar.position.set(-0.18 + i * 0.12, 0.46, 0.83); g.add(bar);
+  }
+  // horizontal iron straps
+  const strapA = m(box(0.5, 0.06, 0.05), ironLt); strapA.position.set(0, 0.66, 0.83);
+  const strapB = m(box(0.5, 0.06, 0.05), ironLt); strapB.position.set(0, 0.26, 0.83);
+  // big rivet bolts
+  const boltA = m(box(0.06, 0.06, 0.05), iron); boltA.position.set(-0.2, 0.66, 0.86);
+  const boltB = m(box(0.06, 0.06, 0.05), iron); boltB.position.set(0.2, 0.66, 0.86);
+  g.add(portal, arch, doorPlate, strapA, strapB, boltA, boltB);
+
+  // ---- glowing coin / gem emblem above the door ----
+  const emblemBack = m(cyl(0.22, 0.22, 0.05, 8), iron); emblemBack.rotation.x = Math.PI / 2; emblemBack.position.set(0, 1.22, 0.74);
+  const emblemMat = new T.MeshBasicMaterial({ color: c, fog: false, transparent: true, opacity: 0.92, blending: T.AdditiveBlending, depthWrite: false });
+  const emblem = m(cyl(0.15, 0.15, 0.06, 8), emblemMat); emblem.rotation.x = Math.PI / 2; emblem.position.set(0, 1.22, 0.77);
+  // a coin-stack / gem glyph on the emblem face
+  const glyph = m(box(0.06, 0.14, 0.03), matAdd('#fff4cf', 0.85)); glyph.position.set(0, 1.22, 0.81);
+  g.add(emblemBack, emblem, glyph);
+
+  // ---- small barred windows flanking the door ----
+  function barredWindow(x) {
+    const recess = m(box(0.24, 0.34, 0.08), ashlarDk); recess.position.set(x, 0.78, 0.72);
+    const glow = m(box(0.16, 0.26, 0.03), win); glow.position.set(x, 0.78, 0.76);
+    const barA = m(box(0.03, 0.3, 0.03), iron); barA.position.set(x - 0.05, 0.78, 0.79);
+    const barB = m(box(0.03, 0.3, 0.03), iron); barB.position.set(x + 0.05, 0.78, 0.79);
+    const barH = m(box(0.2, 0.03, 0.03), iron); barH.position.set(x, 0.78, 0.79);
+    g.add(recess, glow, barA, barB, barH);
+  }
+  barredWindow(-0.56);
+  barredWindow(0.56);
+
+  // ---- a wrought-iron lantern bracket by the door for grounding light ----
+  const lampMat = new T.MeshBasicMaterial({ color: '#ffb858', fog: false, transparent: true, opacity: 0.85, blending: T.AdditiveBlending, depthWrite: false });
+  const lampArm = m(box(0.04, 0.04, 0.24), iron); lampArm.position.set(-0.42, 1.12, 0.82);
+  const lampCage = m(box(0.1, 0.16, 0.1), iron); lampCage.position.set(-0.42, 1.0, 0.94);
+  const lampGlow = m(box(0.06, 0.11, 0.06), lampMat); lampGlow.position.set(-0.42, 1.0, 0.94);
+  g.add(lampArm, lampCage, lampGlow);
+
+  g.userData.anim = (gr, now) => {
+    // emblem pulses like treasure
+    emblemMat.opacity = 0.78 + Math.sin(now / 360) * 0.16;
+    const p = 1 + Math.sin(now / 360) * 0.06;
+    emblem.scale.set(p, p, 1);
+    // door lamp flicker
+    lampMat.opacity = 0.7 + Math.sin(now / 110) * 0.1 + Math.sin(now / 53) * 0.05;
+  };
+  return g;
+}
+
+export function buildTown_guildhall(opts){
+  const g = new T.Group();
+  const c = (opts && opts.color) || '#c8463c';
+  const stone = mat('#3a3742', 1);
+  const stoneDk = mat('#2a2630', 1);
+  const stoneLt = mat('#46424f', 1);
+  const slate = mat('#23202c', 1);
+  const timber = mat('#2a2018', 1);
+  const iron = mat('#1a1a22', 1);
+  const gold = mat('#7a6a2a', 1);
+  const win = matAdd('#ffb858', 0.85);
+  const doorWarm = matAdd('#ffb858', 0.5);
+  const crestGlow = matAdd(c, 0.6);
+  const crestBarGlow = matAdd(c, 0.85);
+  const glyphGlow = matAdd('#ffe8b0', 0.7);
+
+  // ---- stately hall body ----
+  const body = m(box(1.8, 1.8, 1.4), stone); body.position.set(0, 0.9, 0);
+  const plinth = m(box(1.9, 0.2, 1.5), stoneDk); plinth.position.set(0, 0.1, 0);
+  const cornice = m(box(1.88, 0.12, 1.48), stoneLt); cornice.position.set(0, 1.84, 0);
+  // buttresses on the front corners
+  const butL = m(box(0.22, 1.7, 0.3), stoneDk); butL.position.set(-0.82, 0.85, 0.78);
+  const butR = m(box(0.22, 1.7, 0.3), stoneDk); butR.position.set(0.82, 0.85, 0.78);
+  const butCapL = m(cone(0.18, 0.3, 4), slate); butCapL.position.set(-0.82, 1.85, 0.78); butCapL.rotation.y = Math.PI / 4;
+  const butCapR = m(cone(0.18, 0.3, 4), slate); butCapR.position.set(0.82, 1.85, 0.78); butCapR.rotation.y = Math.PI / 4;
+  g.add(body, plinth, cornice, butL, butR, butCapL, butCapR);
+
+  // ---- steep pitched roof + gable ----
+  const roofL = m(box(1.1, 0.07, 1.6), slate); roofL.position.set(-0.5, 2.42, 0); roofL.rotation.z = 0.72;
+  const roofR = m(box(1.1, 0.07, 1.6), slate); roofR.position.set(0.5, 2.42, 0); roofR.rotation.z = -0.72;
+  const ridge = m(box(0.08, 0.08, 1.62), timber); ridge.position.set(0, 2.82, 0);
+  const gable = m(cone(1.0, 0.7, 3), stoneDk); gable.position.set(0, 2.42, 0.7); gable.rotation.x = Math.PI / 2; gable.scale.set(1, 1, 0.12);
+  // ridge finial
+  const finial = m(cone(0.07, 0.28, 4), gold); finial.position.set(0, 2.96, 0);
+  g.add(roofL, roofR, ridge, gable, finial);
+
+  // ---- small corner tower (slender, with its own spire) ----
+  const tower = m(box(0.5, 2.3, 0.5), stoneDk); tower.position.set(-0.95, 1.15, -0.55);
+  const towerWin = m(box(0.18, 0.4, 0.04), win); towerWin.position.set(-0.95, 1.7, -0.29);
+  const towerWin2 = m(box(0.18, 0.3, 0.04), win); towerWin2.position.set(-1.21, 1.5, -0.55); towerWin2.rotation.y = Math.PI / 2;
+  const towerBatt = m(box(0.6, 0.12, 0.6), stoneLt); towerBatt.position.set(-0.95, 2.36, -0.55);
+  const spire = m(cone(0.36, 0.9, 4), slate); spire.position.set(-0.95, 2.86, -0.55); spire.rotation.y = Math.PI / 4;
+  const spireTip = m(cone(0.05, 0.22, 4), gold); spireTip.position.set(-0.95, 3.4, -0.55);
+  g.add(tower, towerWin, towerWin2, towerBatt, spire, spireTip);
+
+  // ---- tall lit windows along the front (pointed-arch) ----
+  function lancet(x) {
+    const frame = m(box(0.34, 0.78, 0.05), iron); frame.position.set(x, 1.0, 0.72);
+    const glass = m(box(0.24, 0.62, 0.03), win); glass.position.set(x, 0.98, 0.74);
+    const top = m(cone(0.17, 0.26, 4), win); top.position.set(x, 1.42, 0.74); top.rotation.y = Math.PI / 4;
+    const mull = m(box(0.03, 0.62, 0.04), iron); mull.position.set(x, 0.98, 0.76);
+    g.add(frame, glass, top, mull);
+  }
+  lancet(-0.44);
+  lancet(0.44);
+
+  // ---- arched main door with a crest/shield above ----
+  const doorRecess = m(box(0.6, 0.96, 0.14), stoneDk); doorRecess.position.set(0, 0.58, 0.7);
+  const doorArch = m(cone(0.36, 0.34, 4), stoneDk); doorArch.position.set(0, 1.06, 0.7); doorArch.rotation.y = Math.PI / 4;
+  const door = m(box(0.46, 0.82, 0.05), timber); door.position.set(0, 0.52, 0.78);
+  const doorGlow = m(box(0.3, 0.16, 0.03), doorWarm); doorGlow.position.set(0, 0.84, 0.8);
+  const doorBand = m(box(0.46, 0.05, 0.05), iron); doorBand.position.set(0, 0.6, 0.81);
+  g.add(doorRecess, doorArch, door, doorGlow, doorBand);
+
+  // crest / shield over the door
+  const shieldTop = m(box(0.34, 0.26, 0.06), stoneLt); shieldTop.position.set(0, 1.34, 0.76);
+  const shieldPt = m(cone(0.24, 0.26, 3), stoneLt); shieldPt.position.set(0, 1.1, 0.76); shieldPt.rotation.x = Math.PI / 2; shieldPt.rotation.z = Math.PI; shieldPt.scale.set(1, 1, 0.5);
+  const crest = m(box(0.18, 0.18, 0.03), crestGlow); crest.position.set(0, 1.34, 0.8);
+  const crestBar = m(box(0.2, 0.05, 0.03), crestBarGlow); crestBar.position.set(0, 1.34, 0.81);
+  g.add(shieldTop, shieldPt, crest, crestBar);
+
+  // ---- two tall BANNERS flanking the crest (animated sway) ----
+  const banners = [];
+  function banner(x) {
+    const grp = new T.Group(); grp.position.set(x, 1.6, 0.74);
+    const pole = m(box(0.04, 1.1, 0.04), iron); pole.position.set(0, -0.2, 0);
+    grp.add(pole);
+    // unique additive material per banner so we can animate its opacity independently
+    const clothMat = new T.MeshBasicMaterial({ color: new T.Color(c), fog: false, transparent: true, opacity: 0.5, blending: T.AdditiveBlending, depthWrite: false });
+    const cloth = m(box(0.3, 0.8, 0.03), clothMat); cloth.position.set(0, -0.42, 0.03);
+    // pointed banner tail (shares the animated cloth material so it sways/pulses together)
+    const tail = m(cone(0.21, 0.22, 3), clothMat); tail.position.set(0, -0.93, 0.03); tail.rotation.x = Math.PI / 2; tail.rotation.z = Math.PI; tail.scale.set(1, 1, 0.3);
+    // a charge glyph on the banner (static additive glow)
+    const glyph = m(box(0.12, 0.12, 0.02), glyphGlow); glyph.position.set(0, -0.4, 0.05);
+    grp.add(cloth, tail, glyph);
+    grp.userData.cloth = cloth; grp.userData.tail = tail; grp.userData.glyph = glyph; grp.userData.clothMat = clothMat;
+    banners.push(grp);
+    return grp;
+  }
+  const bannerL = banner(-0.72);
+  const bannerR = banner(0.72);
+  g.add(bannerL, bannerR);
+
+  g.userData.anim = (gr, now) => {
+    // banners sway out of phase
+    const sway = (b, ph) => {
+      const s = Math.sin(now / 620 + ph);
+      b.userData.cloth.rotation.y = s * 0.22;
+      b.userData.tail.rotation.y = s * 0.22;
+      b.userData.glyph.rotation.y = s * 0.22;
+      b.userData.cloth.position.z = 0.03 + Math.abs(s) * 0.03;
+      b.userData.clothMat.opacity = 0.46 + Math.sin(now / 500 + ph) * 0.08;
+    };
+    sway(bannerL, 0);
+    sway(bannerR, 1.1);
+  };
+  return g;
+}
+
+export function buildTown_tent(opts){
+  const g = new T.Group();
+  const c = (opts && opts.color) || '#b46cff';
+  const cloth = mat(c, 0.4);
+  const clothDk = mat(c, 0.26);
+  const wood = mat('#3a2a18');
+  const woodDk = mat('#241a10');
+  const iron = mat('#1a1a22');
+  const glowInner = matAdd(c, 0.5);
+
+  // ---- peaked patterned cloth TENT glowing from within ----
+  // hexagonal conical tent body (cone) sitting on the ground
+  const tent = m(cone(0.9, 1.5, 6), cloth); tent.position.set(0, 0.75, 0); tent.rotation.y = Math.PI / 6;
+  // a darker patterned band near the base (zigzag suggested by tone shift)
+  const band = m(cyl(0.78, 0.9, 0.26, 6), clothDk); band.position.set(0, 0.26, 0); band.rotation.y = Math.PI / 6;
+  // alternating vertical seam ribs to read as panels
+  for (let i = 0; i < 6; i++) {
+    const a = (i / 6) * Math.PI * 2 + Math.PI / 6;
+    const rib = m(box(0.04, 1.5, 0.04), clothDk);
+    rib.position.set(Math.cos(a) * 0.45, 0.75, Math.sin(a) * 0.45);
+    rib.rotation.set(Math.cos(a) * 0.5, 0, -Math.sin(a) * 0.5);
+    g.add(rib);
+  }
+  // inner glow shell so the tent looks lit from inside
+  const innerGlow = m(cone(0.6, 1.1, 6), glowInner); innerGlow.position.set(0, 0.65, 0); innerGlow.rotation.y = Math.PI / 6;
+  g.add(tent, band, innerGlow);
+
+  // tent pole finial at the peak
+  const peakBall = m(cone(0.1, 0.22, 5), iron); peakBall.position.set(0, 1.62, 0);
+  const peakGlowMat = new T.MeshBasicMaterial({ color: c, fog: false, transparent: true, opacity: 0.9, blending: T.AdditiveBlending, depthWrite: false });
+  const peakGlow = m(box(0.07, 0.07, 0.07), peakGlowMat); peakGlow.position.set(0, 1.74, 0);
+  // a little pennant on the peak
+  const pennant = m(cone(0.14, 0.16, 3), cloth); pennant.position.set(0.12, 1.66, 0); pennant.rotation.z = -Math.PI / 2; pennant.scale.set(1, 1, 0.25);
+  g.add(peakBall, peakGlow, pennant);
+
+  // ---- glowing entry slit at the front (faces +Z) ----
+  const entry = m(box(0.26, 0.7, 0.04), matAdd('#ffce6a', 0.7)); entry.position.set(0, 0.42, 0.84);
+  const flapL = m(box(0.14, 0.78, 0.05), clothDk); flapL.position.set(-0.22, 0.45, 0.82); flapL.rotation.z = 0.12;
+  const flapR = m(box(0.14, 0.78, 0.05), clothDk); flapR.position.set(0.22, 0.45, 0.82); flapR.rotation.z = -0.12;
+  g.add(entry, flapL, flapR);
+
+  // ---- small hanging lanterns around the tent (animated flicker) ----
+  const lanterns = [];
+  const lanternDefs = [[-0.7, 0.9, 0.5, '#ffb858'], [0.74, 0.85, 0.42, '#7ad0ff'], [0.55, 1.0, -0.55, '#ff7ab0']];
+  for (let i = 0; i < lanternDefs.length; i++) {
+    const d = lanternDefs[i];
+    const hook = m(box(0.02, 0.12, 0.02), iron); hook.position.set(d[0], d[1] + 0.12, d[2]);
+    const cage = m(box(0.09, 0.12, 0.09), iron); cage.position.set(d[0], d[1], d[2]);
+    const lmat = new T.MeshBasicMaterial({ color: d[3], fog: false, transparent: true, opacity: 0.85, blending: T.AdditiveBlending, depthWrite: false });
+    const glow = m(box(0.06, 0.08, 0.06), lmat); glow.position.set(d[0], d[1], d[2]);
+    const cap = m(cone(0.07, 0.06, 4), iron); cap.position.set(d[0], d[1] + 0.08, d[2]);
+    g.add(hook, cage, glow, cap);
+    lanterns.push({ mat: lmat, ph: i * 1.7 });
+  }
+
+  // ---- little wooden wagon beside the tent ----
+  const wagon = new T.Group(); wagon.position.set(-1.15, 0, 0.1);
+  const bed = m(box(0.7, 0.26, 0.5), wood); bed.position.set(0, 0.42, 0);
+  const sideF = m(box(0.74, 0.22, 0.04), woodDk); sideF.position.set(0, 0.5, 0.26);
+  const sideB = m(box(0.74, 0.22, 0.04), woodDk); sideB.position.set(0, 0.5, -0.26);
+  const axle = m(box(0.74, 0.06, 0.06), iron); axle.position.set(0, 0.24, 0);
+  // a big spoked wheel (the visible near-side one)
+  const wheel = m(cyl(0.26, 0.26, 0.06, 8), woodDk); wheel.rotation.z = Math.PI / 2; wheel.position.set(0.2, 0.24, 0.3);
+  const hub = m(cyl(0.07, 0.07, 0.08, 6), wood); hub.rotation.z = Math.PI / 2; hub.position.set(0.2, 0.24, 0.3);
+  for (let i = 0; i < 4; i++) {
+    const a = (i / 4) * Math.PI;
+    const spoke = m(box(0.04, 0.46, 0.03), wood); spoke.position.set(0.2, 0.24, 0.3); spoke.rotation.x = Math.PI / 2; spoke.rotation.y = a;
+    wagon.add(spoke);
+  }
+  const wheelB = m(cyl(0.22, 0.22, 0.05, 8), woodDk); wheelB.rotation.z = Math.PI / 2; wheelB.position.set(-0.25, 0.22, -0.28);
+  wagon.add(bed, sideF, sideB, axle, wheel, hub, wheelB);
+
+  // a few exotic crates / a barrel on and beside the wagon
+  const crateA = m(box(0.22, 0.22, 0.22), wood); crateA.position.set(-0.12, 0.66, 0);
+  const crateB = m(box(0.16, 0.16, 0.16), woodDk); crateB.position.set(0.12, 0.63, 0.06);
+  const crateGlow = m(box(0.18, 0.05, 0.18), matAdd(c, 0.4)); crateGlow.position.set(-0.12, 0.78, 0);
+  const barrel = m(cyl(0.13, 0.15, 0.32, 6), wood); barrel.position.set(0.5, 0.16, 0.3);
+  const barrelTop = m(cyl(0.11, 0.11, 0.04, 6), matAdd('#ffce6a', 0.45)); barrelTop.position.set(0.5, 0.33, 0.3);
+  wagon.add(crateA, crateB, crateGlow, barrel, barrelTop);
+  g.add(wagon);
+
+  // a loose exotic crate near the tent door
+  const sideCrate = m(box(0.2, 0.2, 0.2), wood); sideCrate.position.set(0.74, 0.1, 0.55);
+  const sideCrateGlow = m(box(0.16, 0.04, 0.16), matAdd('#7ad0ff', 0.4)); sideCrateGlow.position.set(0.74, 0.21, 0.55);
+  g.add(sideCrate, sideCrateGlow);
+
+  g.userData.anim = (gr, now) => {
+    // lanterns flicker out of phase
+    for (let i = 0; i < lanterns.length; i++) {
+      const L = lanterns[i];
+      L.mat.opacity = 0.66 + Math.sin(now / 120 + L.ph) * 0.12 + Math.sin(now / 41 + L.ph) * 0.07;
+    }
+    // peak glow breathes softly + pennant sways
+    peakGlowMat.opacity = 0.74 + Math.sin(now / 300) * 0.16;
+    pennant.rotation.x = Math.sin(now / 700) * 0.25;
+  };
+  return g;
+}
+
+export function buildTown_lamppost(opts){
+  const c = (opts && opts.color) || '#ffb858';
+  const g = new T.Group();
+  const iron = mat('#1a1a22');
+  const ironLip = mat('#2a2630',1);
+  const glass = matAdd(c,0.25);
+
+  // Stepped stone footing so the post reads as planted on the ground (base sits at y=0).
+  const baseA = m(box(0.3,0.1,0.3), mat('#2a2630',1)); baseA.position.set(0,0.05,0);
+  const baseB = m(box(0.22,0.08,0.22), ironLip); baseB.position.set(0,0.14,0);
+  // Slim fluted wrought-iron post.
+  const post = m(cyl(0.045,0.06,1.3,8), iron); post.position.set(0,0.83,0);
+  // A couple of forged collars breaking up the shaft.
+  const collarA = m(cyl(0.07,0.07,0.05,8), ironLip); collarA.position.set(0,0.5,0);
+  const collarB = m(cyl(0.07,0.07,0.05,8), ironLip); collarB.position.set(0,1.2,0);
+  g.add(baseA, baseB, post, collarA, collarB);
+
+  // Scroll brackets curling out near the top (angular gothic ironwork).
+  const brL1 = m(box(0.04,0.04,0.18), iron); brL1.position.set(-0.1,1.46,0); brL1.rotation.z = 0.5;
+  const brL2 = m(box(0.04,0.12,0.04), iron); brL2.position.set(-0.17,1.42,0);
+  const brR1 = m(box(0.04,0.04,0.18), iron); brR1.position.set(0.1,1.46,0); brR1.rotation.z = -0.5;
+  const brR2 = m(box(0.04,0.12,0.04), iron); brR2.position.set(0.17,1.42,0);
+  // Front/back scrolls so the head reads from the tilted top-down camera too.
+  const brF1 = m(box(0.18,0.04,0.04), iron); brF1.position.set(0,1.46,0.1); brF1.rotation.x = -0.5;
+  const brB1 = m(box(0.18,0.04,0.04), iron); brB1.position.set(0,1.46,-0.1); brB1.rotation.x = 0.5;
+  g.add(brL1, brL2, brR1, brR2, brF1, brB1);
+
+  // Lantern head: a faceted iron cage cap over a glowing glass housing.
+  const neck = m(cyl(0.04,0.05,0.1,6), iron); neck.position.set(0,1.55,0);
+  const cage = m(cyl(0.13,0.11,0.26,6), iron); cage.position.set(0,1.72,0);
+  const housing = m(cyl(0.105,0.09,0.24,6), glass); housing.position.set(0,1.72,0);
+  const cap = m(cone(0.16,0.16,6), iron); cap.position.set(0,1.92,0);
+  const finial = m(cone(0.04,0.1,6), ironLip); finial.position.set(0,2.04,0);
+  g.add(neck, cage, housing, cap, finial);
+
+  // ANIMATED warm flame + glow halo -- UNIQUE materials (engine mutates these per-frame).
+  const flameMat = new T.MeshBasicMaterial({ color: c, fog:false, transparent:true, opacity:0.95, blending:T.AdditiveBlending, depthWrite:false });
+  const glowMat  = new T.MeshBasicMaterial({ color: c, fog:false, transparent:true, opacity:0.4,  blending:T.AdditiveBlending, depthWrite:false });
+  const FLAME_Y = 1.7;
+  const flame = m(cone(0.06,0.18,6), flameMat); flame.position.set(0,FLAME_Y,0);
+  const ember = m(box(0.1,0.08,0.1), flameMat); ember.position.set(0,1.62,0);
+  const halo  = m(box(0.34,0.4,0.34), glowMat); halo.position.set(0,1.72,0);
+  g.add(halo, ember, flame);
+
+  g.userData.anim = (grp, now) => {
+    // Candle-like flicker: two beat frequencies on height + brightness.
+    const fl = 0.85 + Math.sin(now/120)*0.16 + Math.sin(now/41)*0.07;
+    flame.scale.set(1, fl, 1);
+    flame.position.x = Math.sin(now/180)*0.012;
+    flame.position.y = FLAME_Y + (fl-1)*0.09;
+    flameMat.opacity = 0.8 + Math.sin(now/95)*0.18;
+    ember.scale.setScalar(0.92 + Math.sin(now/70)*0.12);
+    const gp = 0.85 + Math.sin(now/150)*0.15;
+    halo.scale.setScalar(gp);
+    glowMat.opacity = 0.3 + Math.sin(now/150)*0.12;
+  };
+  return g;
+}
+
+export function buildTown_well(opts){
+  const c = (opts && opts.color) || '#6fb8ff';
+  const g = new T.Group();
+  const stone = mat('#3a3742',1);
+  const stoneDark = mat('#2a2630',1);
+  const stoneLip = mat('#4a4450',1);
+  const wood = mat('#2a2018');
+  const iron = mat('#1a1a22');
+
+  // Round ashlar wellhead — a low stone ring (origin at base center, y=0 on ground).
+  const wall = m(cyl(0.5,0.52,0.5,12), stone); wall.position.set(0,0.25,0);
+  const coping = m(cyl(0.55,0.55,0.08,12), stoneLip); coping.position.set(0,0.52,0);
+  const inner = m(cyl(0.4,0.4,0.46,12), stoneDark); inner.position.set(0,0.27,0);
+  g.add(wall, coping, inner);
+
+  // Faint glowing water disc deep in the shaft (UNIQUE mat — it shimmers).
+  const waterMat = new T.MeshBasicMaterial({ color: c, fog:false, transparent:true, opacity:0.5, blending:T.AdditiveBlending, depthWrite:false });
+  const water = m(cyl(0.36,0.36,0.02,12), waterMat); water.position.set(0,0.30,0);
+  g.add(water);
+
+  // Two timber posts holding the roof.
+  const postL = m(box(0.08,0.85,0.08), wood); postL.position.set(-0.46,0.95,0);
+  const postR = m(box(0.08,0.85,0.08), wood); postR.position.set(0.46,0.95,0);
+  // Cross beam carrying the windlass.
+  const beam = m(box(1.0,0.07,0.07), wood); beam.position.set(0,1.34,0);
+  g.add(postL, postR, beam);
+
+  // Windlass roller + crank handle (wrought iron crank).
+  const roller = m(cyl(0.06,0.06,0.78,8), wood); roller.position.set(0,1.34,0); roller.rotation.z = Math.PI/2;
+  const crank = m(box(0.04,0.16,0.04), iron); crank.position.set(0.5,1.28,0);
+  const crankArm = m(box(0.14,0.04,0.04), iron); crankArm.position.set(0.56,1.21,0);
+  g.add(roller, crank, crankArm);
+
+  // Peaked little gable roof (steep gothic pitch) — two slate slabs.
+  const roofL = m(box(0.62,0.06,0.72), mat('#23202c')); roofL.position.set(-0.27,1.62,0); roofL.rotation.z = 0.7;
+  const roofR = m(box(0.62,0.06,0.72), mat('#23202c')); roofR.position.set(0.27,1.62,0); roofR.rotation.z = -0.7;
+  const ridge = m(box(0.06,0.06,0.78), stoneLip); ridge.position.set(0,1.86,0);
+  g.add(roofL, roofR, ridge);
+
+  // Wrought-iron lantern hanging under the gable so the silhouette READS
+  // against the additive black (the well's main light source, top-down visible).
+  const lanternGrp = new T.Group(); lanternGrp.position.set(0,1.18,0.30);
+  const lanternHook = m(cyl(0.008,0.008,0.14,4), iron); lanternHook.position.set(0,0.11,0);
+  const lanternCap = m(cone(0.07,0.06,6), iron); lanternCap.position.set(0,0.05,0);
+  // UNIQUE material — the flame flickers per frame.
+  const flameMat = new T.MeshBasicMaterial({ color:0xffb858, fog:false, transparent:true, opacity:0.95, blending:T.AdditiveBlending, depthWrite:false });
+  const lanternGlow = m(cyl(0.05,0.055,0.11,6), flameMat); lanternGlow.position.set(0,-0.02,0);
+  const lanternBase = m(cyl(0.06,0.05,0.02,6), iron); lanternBase.position.set(0,-0.08,0);
+  lanternGrp.add(lanternHook, lanternCap, lanternGlow, lanternBase);
+  g.add(lanternGrp);
+
+  // Warm trim accents on the coping so the stone ring catches the eye (cached additive, static).
+  const trimF = m(box(0.18,0.04,0.04), matAdd('#ffb858',0.5)); trimF.position.set(0,0.50,0.52);
+  const trimB = m(box(0.18,0.04,0.04), matAdd('#ffb858',0.5)); trimB.position.set(0,0.50,-0.52);
+  g.add(trimF, trimB);
+
+  // Rope dropping from the roller + a wooden bucket hanging over the mouth.
+  const rope = m(cyl(0.012,0.012,0.62,4), mat('#4a4034',0.7)); rope.position.set(-0.30,1.04,0.0);
+  const bucketGrp = new T.Group(); bucketGrp.position.set(-0.30,0.72,0.0);
+  const bucket = m(cyl(0.1,0.08,0.16,8), wood); bucket.position.set(0,0,0);
+  const bucketBand = m(cyl(0.105,0.105,0.03,8), iron); bucketBand.position.set(0,0.05,0);
+  const bail = m(box(0.18,0.02,0.02), iron); bail.position.set(0,0.1,0);
+  bucketGrp.add(bucket, bucketBand, bail);
+  g.add(rope, bucketGrp);
+
+  g.userData.anim = (grp, now) => {
+    // Water shimmer deep in the shaft (UNIQUE material).
+    waterMat.opacity = 0.40 + Math.sin(now/360)*0.14 + Math.sin(now/150)*0.05;
+    const w = 0.94 + Math.sin(now/300)*0.06;
+    water.scale.set(w,1,w);
+    // Lantern flame flicker (UNIQUE material) — the silhouette anchor.
+    flameMat.opacity = 0.85 + Math.sin(now/120)*0.12 + Math.sin(now/47)*0.06;
+    lanternGrp.rotation.z = Math.sin(now/900)*0.06;
+    // Barely-perceptible bucket sway over the shaft.
+    bucketGrp.rotation.z = Math.sin(now/1100)*0.05;
+  };
+  return g;
+}
+
+export function buildTown_banner(opts){
+  const c = (opts && opts.color) || '#b8413a';
+  const g = new T.Group();
+  const iron = mat('#1a1a22');
+  const ironLip = mat('#2a2630',1);
+  const stone = mat('#3a3742',1);
+
+  // Small stone footing so the pole reads as set into the plaza.
+  const foot = m(box(0.26,0.12,0.26), stone); foot.position.set(0,0.06,0);
+  const footCap = m(cyl(0.1,0.13,0.06,6), ironLip); footCap.position.set(0,0.15,0);
+  // Tall wrought-iron pole.
+  const pole = m(cyl(0.035,0.05,2.4,8), iron); pole.position.set(0,1.32,0);
+  const collar = m(cyl(0.06,0.06,0.05,8), ironLip); collar.position.set(0,2.2,0);
+  // Gothic finial: a faceted spear-point with a small cross-stub.
+  const finial = m(cone(0.06,0.2,6), ironLip); finial.position.set(0,2.6,0);
+  const finialTip = m(cone(0.025,0.1,6), iron); finialTip.position.set(0,2.74,0);
+  const crossbar = m(box(0.4,0.035,0.035), iron); crossbar.position.set(0,2.48,0);
+  g.add(foot, footCap, pole, collar, crossbar, finial, finialTip);
+
+  // The banner cloth: a vertical strip of segments hung from the crossbar so we
+  // can ripple it per-frame with rotations only (no allocation). The glow and
+  // trim materials are UNIQUE new MeshBasicMaterials because their opacity is
+  // animated per frame for a lit, breathing flag; the engine never sees a
+  // cached material being mutated.
+  const clothMat = m_clothMaterial(c);
+  const glowMat  = new T.MeshBasicMaterial({ color: c, fog:false, transparent:true, opacity:0.45, blending:T.AdditiveBlending, depthWrite:false });
+  const trimMat  = new T.MeshBasicMaterial({ color: c, fog:false, transparent:true, opacity:0.8, blending:T.AdditiveBlending, depthWrite:false });
+
+  // Hang from a top node just under the crossbar; chain 5 cloth segments so the
+  // ripple travels down the strip. The whole thing faces +Z (front of banner).
+  const cloth = new T.Group(); cloth.position.set(0,2.44,0.03);
+  const segGeo = box(0.46,0.34,0.03);
+  const glowGeo = box(0.5,0.36,0.01);
+  const segs = [];
+  let parent = cloth;
+  for (let i=0;i<5;i++){
+    const node = new T.Object3D();
+    node.position.set(0, i===0 ? -0.17 : -0.34, 0);
+    const panel = m(segGeo, clothMat); panel.position.set(0,-0.17,0);
+    // A back-lit glow panel just behind each cloth segment so the banner emits
+    // against the additive black instead of reading as a dark blob.
+    const glow = m(glowGeo, glowMat); glow.position.set(0,-0.17,-0.025);
+    node.add(panel, glow);
+    parent.add(node);
+    segs.push(node);
+    parent = node;
+  }
+  g.add(cloth);
+
+  // Emblem rides on the FACE of the cloth so it sways with the flag: a bright
+  // vertical center stripe + a chevron mark. Parented to the top cloth node so
+  // it inherits the travelling ripple. Local Y is relative to that node.
+  const face = new T.Object3D(); face.position.set(0,-0.68,0.06); segs[0].add(face);
+  const stripe = m(box(0.08,1.1,0.01), trimMat); stripe.position.set(0,0,0);
+  const emblemA = m(box(0.26,0.05,0.01), trimMat); emblemA.position.set(0,0.22,0.005); emblemA.rotation.z = 0.5;
+  const emblemB = m(box(0.26,0.05,0.01), trimMat); emblemB.position.set(0,0.22,0.005); emblemB.rotation.z = -0.5;
+  face.add(stripe, emblemA, emblemB);
+
+  g.userData.anim = (grp, now) => {
+    // Travelling ripple down the hanging chain  each node lags the one above,
+    // so the banner sways and undulates. Rotation-only: allocation-free.
+    for (let i=0;i<segs.length;i++){
+      const phase = now/520 - i*0.6;
+      segs[i].rotation.z = Math.sin(phase)*0.08;
+      segs[i].rotation.x = Math.sin(phase*1.3 + 0.5)*0.06;
+    }
+    // Banner breathes with light; emblem trim pulses a touch brighter.
+    glowMat.opacity = 0.38 + Math.sin(now/600)*0.12;
+    trimMat.opacity = 0.7 + Math.sin(now/430)*0.18;
+    // Subtle whole-cloth sway from the crossbar.
+    cloth.rotation.z = Math.sin(now/900)*0.03;
+  };
+  return g;
+
+  // Local helper: cloth body is a deep jewel tone, additive so it glows softly
+  // rather than blocking light. UNIQUE material (its color could be themed) but
+  // it is NOT animated, so a plain new material is fine and self-contained.
+  function m_clothMaterial(col){
+    return new T.MeshBasicMaterial({ color: col, fog:false, transparent:true, opacity:0.85, blending:T.AdditiveBlending, depthWrite:false });
+  }
+}
+
+export function buildTown_deadtree(opts){
+  const g = new T.Group();
+  const c = (opts && opts.color) || '#aee0ff';
+
+  // In ADDITIVE display, opaque dark bark emits almost nothing -> invisible black blob.
+  // So the woody mass is drawn with FAINT additive 'moonlit' glow materials so the
+  // gnarled silhouette actually reads as emitted light. A warm hanging lantern + a
+  // glowing wisp anchor the form. Cached additive mats for all static parts.
+  const bark      = matAdd('#5a4a36', 0.5);   // dim cool-warm rim light on main trunk
+  const barkDark  = matAdd('#3a2e20', 0.42);  // darker boughs / roots
+  const knotMat   = matAdd('#6a563c', 0.55);  // knots catch a touch more light
+  const iron      = mat('#1a1a22');           // lantern bracket (opaque, reads as shadow shape)
+  const ironTrim  = matAdd('#7a8aa0', 0.4);   // faint cool sheen so the bracket reads
+
+  // gnarled trunk -- tapered cylinders leaning slightly, with a thicker root flare
+  const root   = m(cyl(0.22, 0.32, 0.18, 6), barkDark); root.position.set(0, 0.09, 0);
+  const trunk  = m(cyl(0.1, 0.2, 1.1, 6), bark);  trunk.position.set(0.02, 0.7, 0);  trunk.rotation.z = -0.05;
+  const trunkUp= m(cyl(0.06, 0.1, 0.5, 5), bark); trunkUp.position.set(0.04, 1.34, -0.02); trunkUp.rotation.z = -0.12;
+  // a couple of barky knots to break the silhouette
+  const knot1 = m(box(0.16, 0.14, 0.14), knotMat); knot1.position.set(-0.05, 0.6, 0.04); knot1.rotation.set(0.3, 0.4, 0.2);
+  const knot2 = m(box(0.12, 0.12, 0.12), knotMat); knot2.position.set(0.1, 1.0, -0.04); knot2.rotation.set(0.2, 0.5, 0.4);
+
+  // angular leafless branches -- tapered prisms splitting off the upper trunk
+  // each: [x,y,z, rotX,rotZ, len, rad]
+  const branchDefs = [
+    [-0.04, 1.5, 0.0,  0.5, -0.95, 0.6, 0.05],
+    [ 0.1,  1.55,-0.02,-0.4,  0.85, 0.66,0.055],
+    [ 0.02, 1.7, 0.02, 1.0, -0.2, 0.5, 0.045],
+    [-0.12, 1.4, 0.06, 0.3, -1.4, 0.42,0.04],
+    [ 0.16, 1.42,-0.06,-0.2,  1.45,0.4, 0.04]
+  ];
+  const tips = [];
+  for (let i = 0; i < branchDefs.length; i++){
+    const d = branchDefs[i];
+    const len = d[5], rad = d[6];
+    const br = m(cyl(rad * 0.4, rad, len, 5), bark);
+    // position the branch so its base joins near the trunk; cone-like taper grows outward
+    br.position.set(d[0], d[1] + len * 0.25, d[2]);
+    br.rotation.set(d[3], 0, d[4]);
+    g.add(br);
+    // a few angular twig forks off the larger branches
+    if (i < 3){
+      const tw = m(cyl(rad * 0.2, rad * 0.45, len * 0.55, 4), barkDark);
+      tw.position.set(d[0] + Math.sin(d[4]) * len * 0.45, d[1] + len * 0.5, d[2] + Math.sin(d[3]) * len * 0.3);
+      tw.rotation.set(d[3] * 0.5 + 0.6, 0, d[4] * 1.4);
+      g.add(tw);
+      // record an outer tip for the wisp / lantern to nestle near
+      tips.push([d[0] + Math.sin(d[4]) * len * 0.7, d[1] + len * 0.55, d[2] + Math.sin(d[3]) * len * 0.5]);
+    }
+  }
+
+  g.add(root, trunk, trunkUp, knot1, knot2);
+
+  // ---- hanging wrought-iron lantern (warm anchor so the prop never reads as black) ----
+  // hung from the lowest-left bough; a unique flickering flame material + cached glow.
+  const lantern = new T.Group();
+  lantern.position.set(-0.46, 1.62, 0.12);
+  // short iron hook/chain up to the bough
+  const chain = m(cyl(0.012, 0.012, 0.26, 4), iron); chain.position.set(0.02, 0.16, 0); chain.rotation.z = 0.15;
+  // iron cage posts (4 thin uprights) + cap
+  const cap = m(cone(0.075, 0.07, 5), ironTrim); cap.position.set(0, 0.075, 0);
+  const base = m(cyl(0.06, 0.07, 0.03, 5), iron); base.position.set(0, -0.075, 0);
+  const post1 = m(box(0.012, 0.13, 0.012), iron); post1.position.set(0.045, 0, 0.045);
+  const post2 = m(box(0.012, 0.13, 0.012), iron); post2.position.set(-0.045, 0, 0.045);
+  const post3 = m(box(0.012, 0.13, 0.012), iron); post3.position.set(0.045, 0, -0.045);
+  const post4 = m(box(0.012, 0.13, 0.012), iron); post4.position.set(-0.045, 0, -0.045);
+  // warm glass glow (cached additive) + unique animated flame core
+  const glass = m(geo('deadtreeLampGlass', () => new T.IcosahedronGeometry(0.055, 0)), matAdd('#ffb858', 0.55));
+  const flameMat = new T.MeshBasicMaterial({ color: new T.Color('#ffcf7a'), fog: false, transparent: true, opacity: 0.95, blending: T.AdditiveBlending, depthWrite: false });
+  const flame = m(geo('deadtreeLampFlame', () => new T.IcosahedronGeometry(0.03, 0)), flameMat);
+  lantern.add(chain, cap, base, post1, post2, post3, post4, glass, flame);
+  g.add(lantern);
+
+  // ---- one tiny glowing wisp caught in the boughs (unique animated materials) ----
+  const wispCol  = new T.MeshBasicMaterial({ color: new T.Color(c), fog: false, transparent: true, opacity: 0.9, blending: T.AdditiveBlending, depthWrite: false });
+  const wispHaze = new T.MeshBasicMaterial({ color: new T.Color(c), fog: false, transparent: true, opacity: 0.3, blending: T.AdditiveBlending, depthWrite: false });
+  const tp = tips[0] || [0.16, 1.7, 0.1];
+  const wisp = new T.Group(); wisp.position.set(tp[0], tp[1], tp[2]);
+  const core = m(geo('deadtreeWisp', () => new T.IcosahedronGeometry(0.07, 0)), wispCol);
+  const haze = m(geo('deadtreeWispHaze', () => new T.IcosahedronGeometry(0.16, 0)), wispHaze);
+  wisp.add(haze, core);
+  g.add(wisp);
+
+  const wx = tp[0], wy = tp[1], wz = tp[2];
+  g.userData.anim = (grp, now) => {
+    // faint wisp bob + drift + breathing glow
+    wisp.position.x = wx + Math.sin(now / 900) * 0.04;
+    wisp.position.y = wy + Math.sin(now / 620) * 0.05;
+    wisp.position.z = wz + Math.cos(now / 1100) * 0.03;
+    const p = 0.7 + Math.sin(now / 340) * 0.25;
+    wispCol.opacity = 0.6 + p * 0.35;
+    haze.scale.setScalar(1 + Math.sin(now / 480) * 0.2);
+    core.rotation.y = now / 700;
+    // lantern flame flicker (unique material)
+    const f = 0.78 + Math.sin(now / 130) * 0.12 + Math.sin(now / 47) * 0.08;
+    flameMat.opacity = f;
+    flame.scale.setScalar(0.85 + Math.sin(now / 95) * 0.18);
+  };
+  return g;
+}
+
+export function buildTown_gravestones(opts){
+  const g = new T.Group();
+  const c = (opts && opts.color) || '#9fd8c8';
+  const stone = mat('#3a3742', 1);
+  const stoneDark = mat('#2a2630', 1);
+  const moss = mat('#26302a', 1);
+  const iron = mat('#1a1a22', 1);
+  // faint cool etch-glow so the stone silhouettes actually read against black
+  const etch = matAdd(c, 0.42);
+  const etchSoft = matAdd(c, 0.22);
+  const lampWarm = matAdd('#ffb858', 0.95);
+
+  // low grassy/earthen mound the cluster sits on
+  const mound = m(cyl(0.62, 0.7, 0.12, 8), moss); mound.position.set(0, 0.06, 0);
+  const mound2 = m(cyl(0.42, 0.52, 0.08, 7), stoneDark); mound2.position.set(0.04, 0.15, -0.04);
+  g.add(mound, mound2);
+
+  // leaning weathered headstones — a mix of slabs and crosses, each with glowing etched trim
+  // slab 1 (rounded-top via a slab + a small cap), tilted
+  const s1 = new T.Group(); s1.position.set(-0.26, 0.12, 0.1); s1.rotation.z = 0.14; s1.rotation.y = -0.3;
+  const s1b = m(box(0.26, 0.5, 0.07), stone); s1b.position.set(0, 0.25, 0);
+  const s1cap = m(cone(0.14, 0.12, 5), stone); s1cap.position.set(0, 0.5, 0); s1cap.rotation.y = Math.PI / 5;
+  // etched cross / inscription line glowing faintly on the face
+  const s1eV = m(box(0.025, 0.18, 0.02), etch); s1eV.position.set(0, 0.34, 0.04);
+  const s1eH = m(box(0.12, 0.025, 0.02), etch); s1eH.position.set(0, 0.4, 0.04);
+  const s1line = m(box(0.16, 0.018, 0.02), etchSoft); s1line.position.set(0, 0.18, 0.04);
+  s1.add(s1b, s1cap, s1eV, s1eH, s1line); g.add(s1);
+
+  // cross headstone, tilted the other way
+  const s2 = new T.Group(); s2.position.set(0.22, 0.16, -0.02); s2.rotation.z = -0.16; s2.rotation.y = 0.4;
+  const s2post = m(box(0.09, 0.6, 0.08), stone); s2post.position.set(0, 0.3, 0);
+  const s2arm = m(box(0.32, 0.09, 0.08), stone); s2arm.position.set(0, 0.42, 0);
+  // glowing seam down the cross so it reads
+  const s2glowV = m(box(0.03, 0.5, 0.02), etchSoft); s2glowV.position.set(0, 0.34, 0.05);
+  const s2glowH = m(box(0.26, 0.03, 0.02), etchSoft); s2glowH.position.set(0, 0.42, 0.05);
+  s2.add(s2post, s2arm, s2glowV, s2glowH); g.add(s2);
+
+  // small slab toppled / low at the back
+  const s3 = new T.Group(); s3.position.set(0.02, 0.13, -0.26); s3.rotation.z = 0.08; s3.rotation.y = 0.1;
+  const s3b = m(box(0.3, 0.36, 0.07), stoneDark); s3b.position.set(0, 0.18, 0);
+  const s3line = m(box(0.18, 0.02, 0.02), etchSoft); s3line.position.set(0, 0.22, 0.04);
+  s3.add(s3b, s3line); g.add(s3);
+
+  // a fourth tiny marker, very weathered, leaning forward
+  const s4 = new T.Group(); s4.position.set(-0.08, 0.13, 0.28); s4.rotation.x = 0.18; s4.rotation.y = -0.2;
+  const s4b = m(box(0.18, 0.3, 0.06), stone); s4b.position.set(0, 0.15, 0);
+  const s4line = m(box(0.1, 0.02, 0.02), etchSoft); s4line.position.set(0, 0.17, 0.035);
+  s4.add(s4b, s4line); g.add(s4);
+
+  // short wrought-iron fence ringing the mound — corner posts + low rails
+  const R = 0.6;
+  const posts = [];
+  const N = 8;
+  for (let i = 0; i < N; i++){
+    const a = (i / N) * Math.PI * 2 + 0.2;
+    const px = Math.cos(a) * R, pz = Math.sin(a) * R;
+    const post = m(box(0.04, 0.3, 0.04), iron); post.position.set(px, 0.13, pz);
+    const finial = m(cone(0.035, 0.08, 4), iron); finial.position.set(px, 0.3, pz);
+    g.add(post, finial);
+    posts.push([px, pz]);
+  }
+  // two horizontal rails connecting consecutive posts
+  for (let i = 0; i < N; i++){
+    const a = posts[i], b = posts[(i + 1) % N];
+    const mx = (a[0] + b[0]) / 2, mz = (a[1] + b[1]) / 2;
+    const dx = b[0] - a[0], dz = b[1] - a[1];
+    const len = Math.sqrt(dx * dx + dz * dz);
+    const ang = Math.atan2(dx, dz);
+    const railTop = m(box(0.025, 0.025, len), iron); railTop.position.set(mx, 0.22, mz); railTop.rotation.y = ang;
+    const railBot = m(box(0.025, 0.025, len), iron); railBot.position.set(mx, 0.1, mz); railBot.rotation.y = ang;
+    g.add(railTop, railBot);
+  }
+
+  // a small wrought-iron grave lantern on a hooked post — warm anchoring light (animated flame is unique mat)
+  const lampFlame = new T.MeshBasicMaterial({ color: new T.Color('#ffb858'), fog: false, transparent: true, opacity: 0.95, blending: T.AdditiveBlending, depthWrite: false });
+  const lantern = new T.Group(); lantern.position.set(0.46, 0.0, 0.34);
+  const lpost = m(box(0.035, 0.46, 0.035), iron); lpost.position.set(0, 0.23, 0);
+  const lhook = m(box(0.16, 0.03, 0.03), iron); lhook.position.set(-0.07, 0.45, 0);
+  const lcage = m(box(0.1, 0.12, 0.1), iron); lcage.position.set(-0.14, 0.38, 0);
+  const lglow = m(box(0.06, 0.08, 0.06), lampFlame); lglow.position.set(-0.14, 0.38, 0);
+  const lcap = m(cone(0.08, 0.06, 4), iron); lcap.position.set(-0.14, 0.47, 0);
+  lantern.add(lpost, lhook, lcage, lglow, lcap); g.add(lantern);
+
+  // faint ghostly glow drifting over the graves (unique materials — animated)
+  const ghostCol = new T.MeshBasicMaterial({ color: new T.Color(c), fog: false, transparent: true, opacity: 0.4, blending: T.AdditiveBlending, depthWrite: false });
+  const ghostHaze = new T.MeshBasicMaterial({ color: new T.Color(c), fog: false, transparent: true, opacity: 0.16, blending: T.AdditiveBlending, depthWrite: false });
+  const ghost = new T.Group(); ghost.position.set(0.02, 0.5, 0.02);
+  const gcore = m(box(0.1, 0.12, 0.1), ghostCol); gcore.position.set(0, 0, 0);
+  const ghaze = m(geo('graveHaze', () => new T.IcosahedronGeometry(0.26, 0)), ghostHaze); ghaze.scale.y = 1.3;
+  ghost.add(ghaze, gcore);
+  g.add(ghost);
+  // a low cold floor glow so the cluster reads as haunted ground
+  const floorGlow = m(plane(1.1, 1.1), new T.MeshBasicMaterial({ color: new T.Color(c), fog: false, transparent: true, opacity: 0.1, blending: T.AdditiveBlending, depthWrite: false }));
+  floorGlow.rotation.x = -Math.PI / 2; floorGlow.position.set(0, 0.13, 0);
+  g.add(floorGlow);
+
+  g.userData.anim = (grp, now) => {
+    ghost.position.x = 0.02 + Math.sin(now / 1300) * 0.16;
+    ghost.position.z = 0.02 + Math.cos(now / 1700) * 0.12;
+    ghost.position.y = 0.5 + Math.sin(now / 900) * 0.06;
+    const p = 0.5 + Math.sin(now / 560) * 0.5;
+    ghostCol.opacity = 0.22 + p * 0.3;
+    ghostHaze.opacity = 0.1 + p * 0.12;
+    ghaze.scale.set(1 + p * 0.12, 1.3 + p * 0.12, 1 + p * 0.12);
+    // lantern flame flicker
+    const f = 0.7 + Math.sin(now / 130) * 0.18 + Math.sin(now / 47) * 0.1;
+    lampFlame.opacity = 0.7 + f * 0.25;
+  };
+  return g;
+}
+
+export function buildTown_crates(opts){
+  const g = new T.Group();
+  const c = (opts && opts.color) || '#ffb858';
+  const wood = mat('#3a2a18', 1);
+  const woodDark = mat('#241a10', 1);
+  const woodLight = mat('#4a3622', 1);
+  const iron = mat('#1a1a22', 1);
+  const sack = mat('#5a4d36', 1);
+  const rope = mat('#6b5a3a', 1);
+  // faint warm brand-stamp / trim glow so the dark wood masses read against black
+  const brand = matAdd('#c8772e', 0.5);
+
+  // helper: a banded crate (box body + iron edge straps + a plank seam + a glowing brand stamp)
+  function crate(w, h, d, woodMat, stamp){
+    const cg = new T.Group();
+    const body = m(box(w, h, d), woodMat);
+    // plank seam lines (slightly proud darker slats on the front/sides)
+    const seamH = m(box(w * 1.01, 0.025, d * 1.01), woodDark);
+    const seamV = m(box(0.025, h * 1.01, d * 1.01), woodDark);
+    // iron corner straps (thin vertical boxes hugging the left/right edges)
+    const bandL = m(box(0.03, h * 1.02, d * 1.02), iron); bandL.position.set(-w / 2 + 0.015, 0, 0);
+    const bandR = m(box(0.03, h * 1.02, d * 1.02), iron); bandR.position.set(w / 2 - 0.015, 0, 0);
+    cg.add(body, seamH, seamV, bandL, bandR);
+    // a small glowing branded mark burned into the +Z face (lit so the crate isn't a black blob)
+    if (stamp){
+      const mark = m(box(w * 0.34, h * 0.34, 0.012), brand);
+      mark.position.set(0, 0, d / 2 + 0.006);
+      const markBar = m(box(w * 0.34, 0.02, 0.014), brand);
+      markBar.position.set(0, 0, d / 2 + 0.007);
+      cg.add(mark, markBar);
+    }
+    return cg;
+  }
+
+  // bottom-left big crate (branded front)
+  const c1 = crate(0.42, 0.42, 0.42, wood, true); c1.position.set(-0.18, 0.21, 0.05); c1.rotation.y = 0.12;
+  // bottom-right crate, slightly turned (branded)
+  const c2 = crate(0.38, 0.36, 0.38, woodLight, true); c2.position.set(0.22, 0.18, -0.06); c2.rotation.y = -0.35;
+  // smaller crate stacked on top of the big one
+  const c3 = crate(0.3, 0.3, 0.3, wood, false); c3.position.set(-0.2, 0.57, 0.02); c3.rotation.y = -0.18;
+  g.add(c1, c2, c3);
+
+  // a couple of barrels — tapered cylinders with iron hoops
+  function barrel(){
+    const bg = new T.Group();
+    const belly = m(cyl(0.16, 0.14, 0.5, 8), wood); belly.position.set(0, 0.25, 0);
+    const bulge = m(cyl(0.18, 0.18, 0.22, 8), wood); bulge.position.set(0, 0.25, 0);
+    const hoopT = m(cyl(0.165, 0.165, 0.04, 8), iron); hoopT.position.set(0, 0.42, 0);
+    const hoopM = m(cyl(0.185, 0.185, 0.04, 8), iron); hoopM.position.set(0, 0.25, 0);
+    const hoopB = m(cyl(0.155, 0.155, 0.04, 8), iron); hoopB.position.set(0, 0.07, 0);
+    const lid = m(cyl(0.13, 0.13, 0.03, 8), woodDark); lid.position.set(0, 0.5, 0);
+    bg.add(belly, bulge, hoopT, hoopM, hoopB, lid);
+    return bg;
+  }
+  const b1 = barrel(); b1.position.set(0.28, 0, 0.26); b1.rotation.y = 0.5;
+  // a tipped barrel lying on its side at the front
+  const b2 = barrel(); b2.position.set(-0.34, 0.16, 0.34); b2.rotation.set(Math.PI / 2, 0, 0.2);
+  g.add(b1, b2);
+
+  // a slumped sack leaning against the crates
+  const sg = new T.Group(); sg.position.set(0.08, 0.0, 0.32); sg.rotation.set(0.12, 0.3, 0.06);
+  const sbody = m(cyl(0.16, 0.13, 0.34, 7), sack); sbody.position.set(0, 0.18, 0);
+  const stop = m(cone(0.12, 0.16, 6), sack); stop.position.set(0, 0.36, 0);
+  const tie = m(cyl(0.075, 0.085, 0.05, 6), rope); tie.position.set(0, 0.33, 0);
+  sg.add(sbody, stop, tie);
+  g.add(sg);
+
+  // small glowing lantern resting on top of the stack (unique animated materials — flicker)
+  const lampGlass = new T.MeshBasicMaterial({ color: c, fog: false, transparent: true, opacity: 0.92, blending: T.AdditiveBlending, depthWrite: false });
+  const lampHaze = new T.MeshBasicMaterial({ color: c, fog: false, transparent: true, opacity: 0.22, blending: T.AdditiveBlending, depthWrite: false });
+  const lant = new T.Group(); lant.position.set(-0.2, 0.73, 0.04);
+  const cage = m(box(0.13, 0.18, 0.13), iron); cage.position.set(0, 0.09, 0);
+  const capTop = m(cone(0.1, 0.08, 4), iron); capTop.position.set(0, 0.22, 0); capTop.rotation.y = Math.PI / 4;
+  const ringTop = m(cyl(0.02, 0.02, 0.05, 4), iron); ringTop.position.set(0, 0.27, 0);
+  const lbase = m(box(0.12, 0.04, 0.12), iron); lbase.position.set(0, 0, 0);
+  const flame = m(box(0.07, 0.1, 0.07), lampGlass); flame.position.set(0, 0.09, 0);
+  const halo = m(geo('crateLampHalo', () => new T.IcosahedronGeometry(0.18, 0)), lampHaze); halo.position.set(0, 0.09, 0);
+  lant.add(halo, lbase, cage, capTop, ringTop, flame);
+  g.add(lant);
+
+  g.userData.anim = (grp, now) => {
+    // warm lantern flicker — opacity + slight scale jitter on the flame
+    const f = 0.78 + Math.sin(now / 120) * 0.16 + Math.sin(now / 53) * 0.06;
+    lampGlass.opacity = Math.max(0.4, f);
+    flame.scale.set(0.9 + Math.sin(now / 90) * 0.12, f, 0.9 + Math.sin(now / 90) * 0.12);
+    lampHaze.opacity = 0.16 + Math.sin(now / 200) * 0.08;
+    halo.scale.setScalar(1 + Math.sin(now / 230) * 0.12);
+  };
+  return g;
+}
+
 // expose the cache for the engine (warm-up / disposal if needed)
 export const _cache = { GEO, MATS };
