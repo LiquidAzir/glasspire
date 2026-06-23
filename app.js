@@ -1644,6 +1644,39 @@
     }
   }
 
+  // ---- Dungeon event: ambush — a sudden horde spawns; surviving it drops a cache ----
+  function tickAmbush(dt) {
+    const w = game.world; if (!w || !w.ambush || !w.ambush.armed) return;
+    w.ambush.delay -= dt;
+    if (w.ambush.delay <= 0) { w.ambush.armed = false; spawnAmbush(); }
+  }
+  function spawnAmbush() {
+    const w = game.world; if (!w || w.kind !== 'dungeon') return;
+    const p = w.player, grid = w.grid;
+    const biome = BIOMES.find(b => b.id === game.activeBiomeId);
+    const pool = (biome && biome.enemies) || ['skeleton'];
+    const lvl = (game.char ? game.char.level : 1) + (game.activeFloor || 1);
+    const want = 6 + irand(2, 5);
+    let spawned = 0;
+    for (let i = 0; i < want * 4 && spawned < want; i++) {
+      const ang = rand() * PI2, rd = 2.5 + rand() * 3;
+      const x = p.x + Math.cos(ang) * rd, y = p.y + Math.sin(ang) * rd;
+      const gx = Math.floor(x), gy = Math.floor(y);
+      if (gx < 1 || gx >= w.w - 1 || gy < 1 || gy >= w.h - 1 || grid[gy][gx] !== 0) continue;
+      const e = makeEnemy(pick(pool), x, y, lvl);
+      e._ambush = true;
+      game.enemies.push(e);
+      burst(x, y, '#ff4d6d', 12);
+      spawned++;
+    }
+    w.ambush.remaining = spawned;
+    if (spawned > 0) {
+      sfx('boss'); game.screenShake = 0.4;
+      showZoneToast('AMBUSH!');
+      floatText('Ambush!', p.x, p.y - 1, 'crit');
+    }
+  }
+
   // Promote an enemy to an elite (champion) with a random affix. Reused by the
   // normal spawn roll and by the Greater Rift (which forces more elites).
   function makeElite(e) {
@@ -1780,6 +1813,8 @@
     game.activeFloor = floor;
     // Rare Treasure Goblin sighting (not on boss floors)
     if (!game.world.isBoss && roll(0.08)) spawnGoblin(floor);
+    // Chance of an ambush event a few seconds in (not floor 1, not boss floors)
+    if (!game.world.isBoss && floor > 1 && roll(0.16)) game.world.ambush = { armed: true, delay: 5 + rand() * 6, remaining: 0 };
     // Tag the zone name with the difficulty tier (non-Normal)
     const diffId = game.save.difficulty || 'normal';
     if (diffId !== 'normal') game.world.name += ` [${DIFFICULTIES[diffId].short}]`;
@@ -2915,6 +2950,24 @@
           const a = rand() * PI2, rd = 0.4 + rand() * 0.7;
           game.items.push({ x: e.x + Math.cos(a) * rd, y: e.y + Math.sin(a) * rd, item, age: 0 });
         }
+      }
+    }
+    // Ambush event: clearing the last ambusher drops a survival cache
+    if (e._ambush && game.world && game.world.ambush) {
+      const amb = game.world.ambush;
+      amb.remaining = Math.max(0, (amb.remaining || 1) - 1);
+      if (amb.remaining === 0) {
+        showHudToast('Ambush survived — cache dropped!');
+        sfx('legendary');
+        const lvl = game.char ? game.char.level : 1;
+        game.char.gold += irand(40, 120);
+        for (let i = 0; i < 3; i++) {
+          const r = roll(0.12) ? 'unique' : (roll(0.5) ? 'rare' : 'magic');
+          const item = rollItem(Math.max(1, (e.ilvl || lvl)), r, { preferLegendary: r === 'unique' });
+          if (item) { const a = rand() * PI2, rd = 0.4 + rand() * 0.6; game.items.push({ x: e.x + Math.cos(a) * rd, y: e.y + Math.sin(a) * rd, item, age: 0 }); }
+        }
+        burst(e.x, e.y, '#ffd24a', 30);
+        game.world.ambush = null;
       }
     }
     // Bestiary: record the kill (first kill "discovers" the entry)
@@ -8922,6 +8975,7 @@
       tickEffects(dt);
       tickAmbient(dt);
       tickRift(dt);
+      tickAmbush(dt);
       tickInteraction();
       updateCamera();
       render();
