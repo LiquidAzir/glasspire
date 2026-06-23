@@ -264,6 +264,13 @@ function lookDef(item) {
   const def = id && DATA.GEAR_LOOKS && DATA.GEAR_LOOKS[id];
   return def ? { id, ...def } : null;
 }
+// transmog: a chosen look id overrides the item's own appearance (color/fx/body);
+// the item's rarity still drives tier ornamentation + aura.
+function resolveLook(item, mogId) {
+  const id = mogId || (DATA.gearLook && DATA.gearLook(item));
+  const def = id && DATA.GEAR_LOOKS && DATA.GEAR_LOOKS[id];
+  return def ? { id, ...def } : null;
+}
 function bestRarityColor(char) {
   const rank = RANK(); let best = 'common';
   for (const it of [char.equip.weapon, char.equip.armor, char.equip.ring, char.equip.amulet]) {
@@ -292,7 +299,8 @@ function syncPlayer(game, now) {
   const wKind = weaponKindFor(char);
   const wpn = char && char.equip && char.equip.weapon;
   const arm = char && char.equip && char.equip.armor;
-  const wLook = lookDef(wpn), aLook = lookDef(arm);
+  const mog = (char && char.transmog) || {};
+  const wLook = resolveLook(wpn, mog.weapon), aLook = resolveLook(arm, mog.armor);
   const wColor = (wLook && wLook.color) || (wpn && DATA.rarityColor && DATA.rarityColor(wpn.rarity)) || accent;
   const wFx = wLook && wLook.fx ? wLook.fx : null;            // elemental signature (fire/ice/void/…)
   const wTier = rankOf(wpn), aTier = rankOf(arm);
@@ -301,7 +309,7 @@ function syncPlayer(game, now) {
   const aBody = aLook && aLook.body ? aLook.body : null;
   const ac = (aLook && aLook.color) || accent;
   const top = char ? bestRank(char) : 0;                      // 3 = a legendary equipped, 4 = a mythic
-  const key = [char && char.classId, accent, wKind, wColor, wFx, wTier, wPrism, aBody, ac, aTier, aPrism, top].join('|');
+  const key = [char && char.classId, accent, wKind, wColor, wFx, wTier, wPrism, aBody, ac, aTier, aPrism, top, mog.weapon, mog.armor].join('|');
   if (key !== ud.equipKey) {
     ud.equipKey = key;
     ud.bodyMat.color.set((cls && cls.color) || '#8899aa').multiplyScalar(0.85); // gothic: darkened armour

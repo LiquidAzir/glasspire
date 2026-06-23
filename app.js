@@ -772,6 +772,7 @@
         autoPotion: true,      // auto-drink a potion when HP drops below threshold
         autoPotionPct: 0.35,   // fraction of max HP that triggers an auto-potion
         hardcore: false,       // one life — permadeath when true (set at class select)
+        transmog: { weapon: null, armor: null },  // appearance overrides (look id or null = item's own)
       },
       stash: [],
       unlockedBiomes: { crypts: true, overgrowth: false, frostpeak: false, infernal: false, voidspire: false },
@@ -783,6 +784,7 @@
       upgrades: { pickup: 0, xpgain: 0, goldfind: 0, potions: 0 },  // permanent gold-sink perks
       quest: null,    // active bounty
       questsCompleted: 0,
+      wardrobe: {},   // { [lookId]: true } — appearance looks the player has discovered
       worldState: null,    // persisted location for resume on reload
       savedDungeon: null,  // dungeon to return to after using Sanctuary Scroll
       mysteryVendor: null, // { day: number, baseId: string, bought: bool }
@@ -3942,6 +3944,7 @@
     if (it && game.char.inventory.length < 24) {
       game.items.splice(idx, 1);
       game.char.inventory.push(it.item);
+      collectLook(it.item);   // unlock its appearance for the Wardrobe
       const rr = it.item && it.item.rarity;
       if (rr === 'unique' || rr === 'mythic') sfx('legendary');
       else sfx('loot', { pitch: rr === 'rare' ? 1.25 : rr === 'magic' ? 1.12 : 1 });
@@ -6623,6 +6626,46 @@
     return null;
   }
 
+  // ---- Wardrobe / Transmog: collect selectable appearances; apply to equipped gear ----
+  function lookIsWeaponAppearance(id) { const d = GEAR_LOOKS[id]; return !!(d && d.slot === 'weapon' && d.fx); }
+  function lookIsArmorAppearance(id) { const d = GEAR_LOOKS[id]; return !!(d && d.slot === 'armor' && d.body); }
+  function collectLook(item) {
+    if (!item || !game.save) return;
+    const id = gearLook(item);
+    if (!id) return;
+    if (lookIsWeaponAppearance(id) || lookIsArmorAppearance(id)) {
+      if (!game.save.wardrobe) game.save.wardrobe = {};
+      game.save.wardrobe[id] = true;
+    }
+  }
+  function scanWardrobe() {
+    if (!game.char) return;
+    const c = game.char;
+    const all = [c.equip.weapon, c.equip.armor, c.equip.ring, c.equip.amulet]
+      .concat(c.inventory || []).concat((game.save && game.save.stash) || []);
+    for (const it of all) collectLook(it);
+  }
+  function renderWardrobe() {
+    const c = game.char; if (!c) return;
+    if (!c.transmog) c.transmog = { weapon: null, armor: null };
+    const wb = (game.save && game.save.wardrobe) || {};
+    const capId = s => s.charAt(0).toUpperCase() + s.slice(1);
+    const mk = (slot, id, label, color, active) =>
+      '<button class="nav-item focusable" data-action="wardrobe-set" data-slot="' + slot + '" data-look="' + id + '" style="display:flex;justify-content:space-between;align-items:center;' + (active ? 'outline:2px solid ' + (color || '#6df1ff') + ';outline-offset:-2px;' : '') + '">' +
+      '<span>' + label + (active ? ' ✓' : '') + '</span>' +
+      (color ? '<span style="width:14px;height:14px;border-radius:3px;background:' + color + ';box-shadow:0 0 6px ' + color + ';"></span>' : '') + '</button>';
+    let wh = mk('weapon', 'default', "Default (item's own)", '', !c.transmog.weapon);
+    let aw = 0;
+    for (const id in GEAR_LOOKS) if (lookIsWeaponAppearance(id) && wb[id]) { wh += mk('weapon', id, capId(id) + ' · ' + GEAR_LOOKS[id].fx, GEAR_LOOKS[id].color, c.transmog.weapon === id); aw++; }
+    if (!aw) wh += '<p style="font-size:11px;opacity:0.5;padding:4px;">Find weapons with elemental looks (e.g. Frostbite Edge) to unlock more.</p>';
+    $('wardrobe-weapon').innerHTML = wh;
+    let ah = mk('armor', 'default', "Default (item's own)", '', !c.transmog.armor);
+    let aa = 0;
+    for (const id in GEAR_LOOKS) if (lookIsArmorAppearance(id) && wb[id]) { ah += mk('armor', id, capId(id), GEAR_LOOKS[id].color, c.transmog.armor === id); aa++; }
+    if (!aa) ah += '<p style="font-size:11px;opacity:0.5;padding:4px;">Find armor with looks (cape, wings, halo…) to unlock more.</p>';
+    $('wardrobe-armor').innerHTML = ah;
+  }
+
   function itemTypeLabel(base) {
     // Check type first for non-equipment categories
     if (base.type === 'gem') return 'Gem';
@@ -6842,6 +6885,7 @@
     if (id === 'title') renderTitle();
     if (id === 'class-select') refreshHardcoreLabel();
     if (id === 'honor') renderHonor();
+    if (id === 'wardrobe') renderWardrobe();
     if (id === 'death') {
       const hc = game._permadeath;
       const gl = $('death-glyph'), ti = $('death-title'), su = $('death-sub'), bt = $('death-return-btn');
@@ -7871,6 +7915,15 @@
       case 'menu-resume': navigateBack(); return;
       case 'menu-inventory': navigateTo('inventory'); return;
       case 'menu-character': navigateTo('character'); return;
+      case 'menu-wardrobe': navigateTo('wardrobe'); return;
+      case 'wardrobe-set': {
+        const slot = el.dataset.slot, look = el.dataset.look;
+        if (game.char && game.char.transmog) {
+          game.char.transmog[slot] = (look === 'default') ? null : look;
+          sfx('equip'); saveGame(); renderWardrobe();
+        }
+        return;
+      }
       case 'menu-skills': navigateTo('skills'); return;
       case 'menu-passives': navigateTo('passives'); return;
       case 'menu-quests': navigateTo('quests'); return;
@@ -8628,6 +8681,9 @@
   function loadIntoSession(save) {
     game.save = save;
     game.char = save.char;
+    if (!game.char.transmog) game.char.transmog = { weapon: null, armor: null };  // migrate older saves
+    if (!game.save.wardrobe) game.save.wardrobe = {};
+    scanWardrobe();   // unlock appearances already owned (equipped/inventory/stash)
     applyDerivedToChar();
   }
 

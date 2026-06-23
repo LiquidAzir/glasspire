@@ -92,6 +92,23 @@
     </div>
 
     <!-- ============================================================ -->
+    <!-- WARDROBE (transmog — appearance only)                         -->
+    <!-- ============================================================ -->
+    <div id="wardrobe" class="screen hidden">
+      <header class="header">
+        <button class="back-btn focusable" data-action="back">&#8592;</button>
+        <h1>Wardrobe</h1>
+      </header>
+      <div class="content" id="wardrobe-content">
+        <p style="font-size:11px; opacity:0.6; text-align:center;">Change how your gear looks. Stats are unchanged.</p>
+        <h2 style="font-size:13px; opacity:0.8; margin:6px 0 2px;">Weapon Appearance</h2>
+        <div id="wardrobe-weapon"></div>
+        <h2 style="font-size:13px; opacity:0.8; margin:12px 0 2px;">Armor Appearance</h2>
+        <div id="wardrobe-armor"></div>
+      </div>
+    </div>
+
+    <!-- ============================================================ -->
     <!-- ABOUT                                                         -->
     <!-- ============================================================ -->
     <div id="about" class="screen hidden">
@@ -255,6 +272,7 @@
       <div class="content">
         <button class="nav-item focusable" data-action="menu-inventory">Inventory &amp; Equipment</button>
         <button class="nav-item focusable" data-action="menu-character">Character</button>
+        <button class="nav-item focusable" data-action="menu-wardrobe">Wardrobe (Transmog)</button>
         <button class="nav-item focusable" data-action="menu-skills">Skill</button>
         <button class="nav-item focusable" data-action="menu-passives" id="menu-passives-btn">Passives</button>
         <button class="nav-item focusable" data-action="menu-quests">Quest Log</button>
