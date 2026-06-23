@@ -26,7 +26,9 @@ export default {
     const key = 'save:' + id;
 
     if (req.method === 'GET') {
-      const v = await env.SAVES.get(key);
+      let v;
+      try { v = await env.SAVES.get(key); }
+      catch (e) { return json({ error: 'kv read failed', detail: String((e && e.message) || e) }, 502); }
       return v ? new Response(v, { headers: { ...cors, 'content-type': 'application/json' } }) : json({ data: null });
     }
     if (req.method === 'PUT') {
@@ -35,14 +37,19 @@ export default {
       let data;
       try { data = JSON.parse(body); } catch (e) { return json({ error: 'bad json' }, 400); }
       const t = (data && typeof data.t === 'number') ? data.t : Date.now();
-      // Best-effort last-write-wins: reject a PUT that is older than what's stored, so a
-      // reordered/retried slow push can't overwrite a newer save. (KV is eventually
-      // consistent, so this closes the common reorder window but isn't a hard guarantee.)
-      const existing = await env.SAVES.get(key);
-      if (existing) {
-        try { const prev = JSON.parse(existing); if (typeof prev.t === 'number' && t < prev.t) return json({ ok: true, t: prev.t, stale: true }); } catch (e) {}
+      // Wrap the KV ops so a failure returns a readable JSON error instead of a 1101.
+      try {
+        // Best-effort last-write-wins: reject a PUT older than what's stored, so a
+        // reordered/retried slow push can't overwrite a newer save. (KV is eventually
+        // consistent, so this closes the common reorder window but isn't a hard guarantee.)
+        const existing = await env.SAVES.get(key);
+        if (existing) {
+          try { const prev = JSON.parse(existing); if (typeof prev.t === 'number' && t < prev.t) return json({ ok: true, t: prev.t, stale: true }); } catch (e) {}
+        }
+        await env.SAVES.put(key, JSON.stringify({ t, data }));
+      } catch (e) {
+        return json({ error: 'kv write failed', detail: String((e && e.message) || e) }, 502);
       }
-      await env.SAVES.put(key, JSON.stringify({ t, data }));
       return json({ ok: true, t });
     }
     return new Response('method not allowed', { status: 405, headers: cors });

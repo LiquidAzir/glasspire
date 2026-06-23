@@ -2,7 +2,8 @@ name = "hollowlight-saves"
 main = "worker.js"
 compatibility_date = "2024-11-01"
 
-# Run `wrangler kv namespace create SAVES` and paste the printed id below.
+# KV namespace "hollowlight_saves" (created 2026-06-23). The binding name is what the
+# Worker reads as env.SAVES; the title/id can be anything.
 [[kv_namespaces]]
 binding = "SAVES"
-id = "PASTE_KV_NAMESPACE_ID_HERE"
+id = "139541673e394a3ab5d566d83321829d"
