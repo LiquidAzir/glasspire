@@ -1514,10 +1514,10 @@ html, body {
 }
 .touch-dpad {
   position: absolute;
-  left: 12px;
-  bottom: 100px;
-  width: 210px;
-  height: 210px;
+  left: 14px;
+  bottom: 120px;
+  width: 240px;
+  height: 240px;
   pointer-events: none;
 }
 .touch-btn {
@@ -1542,24 +1542,39 @@ html, body {
 }
 .touch-dpad .touch-btn {
   position: absolute;
-  width: 68px;
-  height: 68px;
-  font-size: 26px;
+  width: 80px;
+  height: 80px;
+  font-size: 30px;
 }
-.touch-up    { left: 71px; top: 0;    }
-.touch-left  { left: 0;    top: 71px; }
-.touch-right { left: 142px; top: 71px; }
-.touch-down  { left: 71px; top: 142px; }
+.touch-up    { left: 80px; top: 0;    }
+.touch-left  { left: 0;    top: 80px; }
+.touch-right { left: 160px; top: 80px; }
+.touch-down  { left: 80px; top: 160px; }
 .touch-pinch {
   position: absolute;
-  right: 28px;
-  bottom: 130px;
-  width: 108px;
-  height: 108px;
-  font-size: 40px;
+  right: 30px;
+  bottom: 150px;
+  width: 120px;
+  height: 120px;
+  font-size: 44px;
   border-color: rgba(255, 200, 87, 0.55);
   color: var(--gold);
 }
+/* Menu (pause/inventory) button — phone players reach the in-game menu here
+   instead of the ↑↓↑↓ wiggle gesture they can't perform on a touchscreen. */
+.touch-menu {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: 26px;
+  width: 84px;
+  height: 52px;
+  border-radius: 26px;
+  font-size: 26px;
+  pointer-events: auto;
+  border-color: rgba(155, 208, 255, 0.5);
+}
+.touch-menu:active { transform: translateX(-50%) scale(0.92); }
 
 /* ============================================================
    SAVE SYNC SCREEN

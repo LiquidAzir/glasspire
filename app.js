@@ -2124,25 +2124,42 @@
   // so all existing combo / impulse / cooldown logic works unchanged.
   // Glasses keyboard input is completely untouched.
   // ============================================================
+  // A real touchscreen (phone/tablet) reports a coarse pointer; the glasses deliver
+  // input as arrow keys with NO pointer, so they stay false here and the overlay is
+  // never auto-shown on-device (EMG/keyboard input is completely untouched).
+  function isTouchDevice() {
+    try {
+      // A coarse pointer means a real touchscreen (phone/tablet). The glasses report NO
+      // pointer (input arrives as arrow keys) so this is false on-device; a mouse is a
+      // fine pointer, also false. Only fall back to the touch-event probe where pointer
+      // media queries are unavailable.
+      if (window.matchMedia) return window.matchMedia('(pointer: coarse)').matches;
+      return ('ontouchstart' in window) && (navigator.maxTouchPoints || 0) > 0;
+    } catch (e) { return false; }
+  }
+  // The overlay is visible only when enabled AND actually in the game (not over menus).
+  function updateTouchOverlay() {
+    const root = document.getElementById('touch-controls');
+    if (!root) return;
+    root.classList.toggle('hidden', !(game._touchOn && game.screen === 'game'));
+  }
+
   function setupTouchControls() {
     const root = document.getElementById('touch-controls');
     if (!root) return;
-    // Restore the user's preference (persists across sessions; old key for back-compat)
+    // Default ON for touchscreens — a phone player otherwise lands in-game with no
+    // controls and can't open the menu to enable them. OFF for keyboard/mouse + glasses.
+    // An explicit saved preference always wins. (old key kept for back-compat)
     const saved = localStorage.getItem('hollowlight_touch_enabled') || localStorage.getItem('glasspire_touch_enabled');
-    if (saved === '1') showTouchControls(true);
-    // Wire every touch button: press = synthetic keydown, release = synthetic keyup
+    game._touchOn = (saved == null) ? isTouchDevice() : (saved === '1');
+    updateTouchOverlay();
+    // Wire every D-pad / action button: press = synthetic keydown, release = synthetic keyup.
+    // _touch:true marks it touch-originated so onKeyDown skips the wiggle-combo buffer.
     const buttons = root.querySelectorAll('[data-touch-key]');
     buttons.forEach(btn => {
       const key = btn.dataset.touchKey;
-      const press = (ev) => {
-        ev.preventDefault();
-        // build minimal synthetic event compatible with onKeyDown
-        onKeyDown({ key, repeat: false, preventDefault: () => {} });
-      };
-      const release = (ev) => {
-        ev.preventDefault();
-        onKeyUp({ key });
-      };
+      const press = (ev) => { ev.preventDefault(); onKeyDown({ key, repeat: false, _touch: true, preventDefault: () => {} }); };
+      const release = (ev) => { ev.preventDefault(); onKeyUp({ key }); };
       btn.addEventListener('touchstart', press, { passive: false });
       btn.addEventListener('touchend',   release, { passive: false });
       btn.addEventListener('touchcancel', release, { passive: false });
@@ -2154,18 +2171,11 @@
   }
 
   function showTouchControls(on) {
-    const root = document.getElementById('touch-controls');
-    if (!root) return;
-    if (on) root.classList.remove('hidden');
-    else    root.classList.add('hidden');
-    localStorage.setItem('hollowlight_touch_enabled', on ? '1' : '0');
+    game._touchOn = !!on;
+    try { localStorage.setItem('hollowlight_touch_enabled', on ? '1' : '0'); } catch (e) {}
+    updateTouchOverlay();
   }
-  function toggleTouchControls() {
-    const root = document.getElementById('touch-controls');
-    if (!root) return;
-    const isOn = !root.classList.contains('hidden');
-    showTouchControls(!isOn);
-  }
+  function toggleTouchControls() { showTouchControls(!game._touchOn); }
 
   function onKeyDown(e) {
     const key = e.key;
@@ -2201,8 +2211,10 @@
     if (inGame) {
       // Block all input during the menu-return guard period (200ms after returning from menu)
       if (game._menuReturnGuardUntil && performance.now() < game._menuReturnGuardUntil) { e.preventDefault(); return; }
-      // record arrow taps into combo buffer (4-tap patterns won't fire accidentally)
-      if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(key)) {
+      // record arrow taps into combo buffer (4-tap patterns won't fire accidentally).
+      // Touch D-pad presses are excluded — phone players use the ☰ button for the menu,
+      // so normal directional taps must never trigger the ↑↓↑↓ wiggle gesture.
+      if (!e._touch && ['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(key)) {
         const now = performance.now();
         const ch = key.replace('Arrow','').toLowerCase();
         // gap filter to reject key-repeat ghosts
@@ -7226,6 +7238,7 @@
   // SCREEN-SPECIFIC RENDERS
   // ============================================================
   function onScreenEnter(id) {
+    updateTouchOverlay();   // show the touch D-pad only while in the game, not over menus
     if (id === 'title') renderTitle();
     if (id === 'class-select') refreshHardcoreLabel();
     if (id === 'honor') renderHonor();
@@ -7294,11 +7307,7 @@
       }
       // Update touch-controls toggle button label to reflect current state
       const tBtn = $('menu-touch-toggle-btn');
-      if (tBtn) {
-        const tRoot = document.getElementById('touch-controls');
-        const isOn = tRoot && !tRoot.classList.contains('hidden');
-        tBtn.textContent = `Touch Controls: ${isOn ? 'ON' : 'OFF'}`;
-      }
+      if (tBtn) tBtn.textContent = `Touch Controls: ${game._touchOn ? 'ON' : 'OFF'}`;
       // Update auto-potion toggle button label
       const apBtn = $('menu-autopotion-btn');
       if (apBtn && game.char) {
@@ -8387,15 +8396,16 @@
         saveGame();
         navigateTo('title');
         return;
+      case 'open-game-menu':
+        if (game.screen === 'game') openInGameMenu();
+        return;
       case 'menu-touch-toggle':
         toggleTouchControls();
         // Update the menu button label to reflect new state
         {
           const tBtn = $('menu-touch-toggle-btn');
-          const tRoot = document.getElementById('touch-controls');
-          const isOn = tRoot && !tRoot.classList.contains('hidden');
-          if (tBtn) tBtn.textContent = `Touch Controls: ${isOn ? 'ON' : 'OFF'}`;
-          showHudToast(`Touch controls ${isOn ? 'enabled' : 'disabled'}.`);
+          if (tBtn) tBtn.textContent = `Touch Controls: ${game._touchOn ? 'ON' : 'OFF'}`;
+          showHudToast(`Touch controls ${game._touchOn ? 'enabled' : 'disabled'}.`);
         }
         return;
       case 'menu-autopotion-toggle':
