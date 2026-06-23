@@ -1506,19 +1506,38 @@ html, body {
    Hidden by default; only shown when user enables in menu.
    Glasses keyboard input is completely unaffected.
    ============================================================ */
+/* Body-level fixed overlay so the controls sit in the reserved band BELOW the scaled
+   game on phones (and at the bottom of the 600x600 stage on desktop toggle / glasses). */
 .touch-controls {
-  position: absolute;
+  position: fixed;
   inset: 0;
   pointer-events: none; /* parent passes touches; children opt in */
-  z-index: 50;
+  z-index: 1000;
 }
 .touch-dpad {
   position: absolute;
-  left: 14px;
-  bottom: 120px;
-  width: 240px;
-  height: 240px;
+  left: 16px;
+  bottom: 12px;
+  width: 192px;
+  height: 192px;
   pointer-events: none;
+}
+
+/* ---- Phone responsive layout (body.touch-layout, set only on touchscreens) ----
+   Scale the 600x600 stage to fit the screen width, pinned top-centre, leaving the
+   bottom band for the controls. Glasses/desktop never get this class, so their fixed
+   600x600 viewport + layout is completely unchanged. The transform is set by fitApp(). */
+html, body { height: 100%; }
+body.touch-layout {
+  min-height: 100vh;
+  background: #05060a;
+  overflow: hidden;
+}
+body.touch-layout #app {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  transform-origin: top center;
 }
 .touch-btn {
   pointer-events: auto;
@@ -1542,21 +1561,21 @@ html, body {
 }
 .touch-dpad .touch-btn {
   position: absolute;
-  width: 80px;
-  height: 80px;
-  font-size: 30px;
+  width: 64px;
+  height: 64px;
+  font-size: 26px;
 }
-.touch-up    { left: 80px; top: 0;    }
-.touch-left  { left: 0;    top: 80px; }
-.touch-right { left: 160px; top: 80px; }
-.touch-down  { left: 80px; top: 160px; }
+.touch-up    { left: 64px; top: 0;    }
+.touch-left  { left: 0;    top: 64px; }
+.touch-right { left: 128px; top: 64px; }
+.touch-down  { left: 64px; top: 128px; }
 .touch-pinch {
   position: absolute;
-  right: 30px;
-  bottom: 150px;
-  width: 120px;
-  height: 120px;
-  font-size: 44px;
+  right: 24px;
+  bottom: 46px;
+  width: 104px;
+  height: 104px;
+  font-size: 40px;
   border-color: rgba(255, 200, 87, 0.55);
   color: var(--gold);
 }
@@ -1566,11 +1585,11 @@ html, body {
   position: absolute;
   left: 50%;
   transform: translateX(-50%);
-  bottom: 26px;
+  bottom: 78px;
   width: 84px;
-  height: 52px;
-  border-radius: 26px;
-  font-size: 26px;
+  height: 48px;
+  border-radius: 24px;
+  font-size: 24px;
   pointer-events: auto;
   border-color: rgba(155, 208, 255, 0.5);
 }

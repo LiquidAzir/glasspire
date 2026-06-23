@@ -2116,6 +2116,8 @@
       if (el) handleAction(el.dataset.action, el);
     });
     setupTouchControls();
+    // Controller (Bluetooth/USB) — polled each frame in pollGamepad(); just announce it.
+    window.addEventListener('gamepadconnected', () => { try { showHudToast('Controller connected'); } catch (e) {} });
   }
 
   // ============================================================
@@ -2176,6 +2178,62 @@
     updateTouchOverlay();
   }
   function toggleTouchControls() { showTouchControls(!game._touchOn); }
+
+  // On a touchscreen, switch to a responsive layout: a device-width viewport with the
+  // 600x600 game scaled to fit the WIDTH while RESERVING a band at the bottom for the
+  // touch controls, pinned top-centre. Glasses/desktop keep the original fixed 600x600
+  // viewport (isTouchDevice() is false there), so on-device behaviour is unchanged.
+  const TOUCH_BAND = 210;   // CSS px reserved at the bottom of the screen for the controls
+  function fitApp() {
+    if (!document.body.classList.contains('touch-layout')) return;
+    const app = document.getElementById('app');
+    if (!app) return;
+    const w = window.innerWidth || 600, h = window.innerHeight || 600;
+    // fit the 600-wide game to the screen width, but never taller than (height - band)
+    const s = Math.min(w / 600, Math.max(0.4, (h - TOUCH_BAND) / 600));
+    app.style.transform = `translateX(-50%) scale(${s})`;
+  }
+  function applyTouchLayout() {
+    if (!isTouchDevice()) return;
+    document.body.classList.add('touch-layout');
+    const vp = document.querySelector('meta[name="viewport"]');
+    if (vp) vp.setAttribute('content', 'width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no');
+    fitApp();
+    window.addEventListener('resize', fitApp);
+    window.addEventListener('orientationchange', function () { setTimeout(fitApp, 80); });
+  }
+
+  // ---- Gamepad (Bluetooth controller) support ----------------------------------------
+  // Left stick / D-pad -> movement, A -> action/select (Enter), B -> back (Escape),
+  // Start -> in-game menu. Everything funnels through onKeyDown/onKeyUp (edge-triggered)
+  // so all existing movement / cooldown / menu logic applies unchanged. No-op with no pad.
+  const _gpPrev = { up: false, down: false, left: false, right: false, a: false, b: false, start: false };
+  function _gpEdge(name, key, pressed) {
+    if (pressed === _gpPrev[name]) return;
+    _gpPrev[name] = pressed;
+    if (pressed) onKeyDown({ key, repeat: false, _touch: true, preventDefault: () => {} });
+    else onKeyUp({ key });
+  }
+  function pollGamepad() {
+    let pads;
+    try { pads = navigator.getGamepads ? navigator.getGamepads() : null; } catch (e) { return; }
+    if (!pads) return;
+    let gp = null;
+    for (let i = 0; i < pads.length; i++) { if (pads[i]) { gp = pads[i]; break; } }
+    if (!gp) return;
+    const ax = gp.axes || [], bt = gp.buttons || [];
+    const b = (i) => !!(bt[i] && (bt[i].pressed || bt[i].value > 0.5));
+    const dead = 0.4, lx = ax[0] || 0, ly = ax[1] || 0;
+    _gpEdge('up',    'ArrowUp',    ly < -dead || b(12));
+    _gpEdge('down',  'ArrowDown',  ly >  dead || b(13));
+    _gpEdge('left',  'ArrowLeft',  lx < -dead || b(14));
+    _gpEdge('right', 'ArrowRight', lx >  dead || b(15));
+    _gpEdge('a',     'Enter',      b(0));    // A / cross -> action / select
+    _gpEdge('b',     'Escape',     b(1));    // B / circle -> back
+    const start = b(9) || b(8) || b(16);     // Start / Select / home -> menu
+    if (start && !_gpPrev.start && game.screen === 'game') openInGameMenu();
+    _gpPrev.start = start;
+  }
 
   function onKeyDown(e) {
     const key = e.key;
@@ -9356,6 +9414,8 @@
     game.lastTime = now;
     dt = Math.min(0.05, dt);
 
+    pollGamepad();   // Bluetooth/USB controller -> movement / action / menu (no-op if none)
+
     if (game.screen === 'game' && game.world && game.char && game.char.hp > 0) {
       tickPlayer(dt);
       autoAttackTick(dt);
@@ -9387,6 +9447,7 @@
     collectScreens();
     setupInput();
     setupRender();
+    applyTouchLayout();   // phones: device-width viewport + reserve a control band (glasses untouched)
     game.save = loadSave();
     if (game.save && game.save.v === 2) {
       // session ready (continue available)
