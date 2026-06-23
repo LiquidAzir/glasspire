@@ -4176,5 +4176,40 @@ export function buildEnemy_wyrm(opts){
   return g;
 }
 
+// Treasure Goblin — a hunched gold-laden imp with a bulging treasure sack that
+// flees the player. opts.color = treasure-gold accent.
+export function buildEnemy_goblin(opts) {
+  const c = (opts && opts.color) || '#ffd24a';
+  const g = new T.Group();
+  const skin = mat('#5b7a3a'), skinDark = mat('#39501f'), sack = mat('#6b4a2a');
+  const gold = matAdd(c, 0.95), eye = matAdd('#ffe24a', 1);
+  const lL = m(box(0.1, 0.22, 0.1), skinDark); lL.position.set(-0.1, 0.11, 0);
+  const rL = m(box(0.1, 0.22, 0.1), skinDark); rL.position.set(0.1, 0.11, 0);
+  const body = m(box(0.34, 0.3, 0.28), skin); body.position.set(0, 0.36, 0.02); body.rotation.x = 0.25;
+  const bag = m(geo('gobBag', () => new T.IcosahedronGeometry(0.28, 0)), sack); bag.position.set(0, 0.5, -0.22); bag.scale.set(1, 1.15, 1);
+  const tie = m(box(0.12, 0.08, 0.12), skinDark); tie.position.set(0, 0.74, -0.22);
+  const coin1 = m(geo('gobCoin', () => new T.OctahedronGeometry(0.05, 0)), gold); coin1.position.set(-0.06, 0.8, -0.2);
+  const coin2 = m(geo('gobCoin', () => new T.OctahedronGeometry(0.05, 0)), gold); coin2.position.set(0.07, 0.83, -0.24);
+  const coin3 = m(geo('gobCoin', () => new T.OctahedronGeometry(0.05, 0)), gold); coin3.position.set(0, 0.86, -0.18);
+  const lA = m(box(0.07, 0.3, 0.07), skinDark); lA.position.set(-0.2, 0.34, 0.1); lA.rotation.x = 0.5;
+  const rA = m(box(0.07, 0.3, 0.07), skinDark); rA.position.set(0.2, 0.34, 0.1); rA.rotation.x = 0.5;
+  const head = m(box(0.24, 0.2, 0.22), skin); head.position.set(0, 0.6, 0.1);
+  const earL = m(cone(0.06, 0.18, 4), skin); earL.position.set(-0.15, 0.66, 0.06); earL.rotation.z = 1.0;
+  const earR = m(cone(0.06, 0.18, 4), skin); earR.position.set(0.15, 0.66, 0.06); earR.rotation.z = -1.0;
+  const nose = m(cone(0.04, 0.12, 4), skin); nose.position.set(0, 0.58, 0.22); nose.rotation.x = Math.PI / 2;
+  const eyeL = m(box(0.05, 0.05, 0.03), eye); eyeL.position.set(-0.06, 0.64, 0.21);
+  const eyeR = m(box(0.05, 0.05, 0.03), eye); eyeR.position.set(0.06, 0.64, 0.21);
+  const grin = m(box(0.14, 0.03, 0.02), matAdd('#ffffff', 0.8)); grin.position.set(0, 0.55, 0.22);
+  g.add(lL, rL, body, bag, tie, coin1, coin2, coin3, lA, rA, head, earL, earR, nose, eyeL, eyeR, grin);
+  g.userData.anim = (grp, now) => {
+    const j = Math.sin(now / 90) * 0.04;
+    body.position.y = 0.36 + j; head.position.y = 0.6 + j;
+    bag.position.y = 0.5 + Math.sin(now / 120) * 0.03;
+    coin1.position.y = 0.8 + Math.sin(now / 100) * 0.02;
+    coin2.position.y = 0.83 + Math.sin(now / 100 + 1) * 0.02;
+  };
+  return g;
+}
+
 // expose the cache for the engine (warm-up / disposal if needed)
 export const _cache = { GEO, MATS };

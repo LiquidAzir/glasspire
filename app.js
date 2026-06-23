@@ -289,6 +289,9 @@
       trait: 'reflect', shape: 'crystal' },
     voidlord:       { name: 'Void Lord',        glyph: '☆', color: '#b388ff', hp: 1200, dmg: 34, speed: 2.8, range: 5.5, attackKind: 'ranged-soul', xp: 400, goldRange: [180, 360], boss: true,
       trait: 'voidpulse', shape: 'voidlord', projColor: '#b388ff' },
+    // Treasure Goblin — flees instead of fighting; kill it before it escapes for a jackpot.
+    goblin:         { name: 'Treasure Goblin',  glyph: '$', color: '#ffd24a', hp: 60, dmg: 0, speed: 3.4, range: 0, attackKind: 'none', xp: 20, goldRange: [0, 0],
+      trait: 'flee', shape: 'goblin' },
   };
 
   // Bestiary lore — flavor text shown once an enemy has been discovered (killed).
@@ -1587,8 +1590,56 @@
       eliteColor: null,
     };
     // 8% chance for a non-boss to become an elite — significantly tougher with affix
-    if (!e.boss && roll(0.08)) makeElite(e);
+    if (!e.boss && id !== 'goblin' && roll(0.08)) makeElite(e);
     return e;
+  }
+
+  // ---- Treasure Goblin: spawns rarely, flees, and drops a jackpot if killed in time ----
+  function spawnGoblin(levelHint) {
+    if (!game.world || game.world.kind !== 'dungeon') return;
+    const p = game.world.player, W = game.world.w, H = game.world.h, grid = game.world.grid;
+    for (let tries = 0; tries < 50; tries++) {
+      const gx = irand(1, W - 2), gy = irand(1, H - 2);
+      if (grid[gy][gx] !== 0) continue;
+      const x = gx + 0.5, y = gy + 0.5;
+      const dd = Math.hypot(x - p.x, y - p.y);
+      if (dd < 4 || dd > 11) continue;           // not on the player, but reachable
+      const e = makeEnemy('goblin', x, y, levelHint || (game.char ? game.char.level : 1));
+      e.isGoblin = true; e.fleeTimer = 15; e.elite = false;
+      game.enemies.push(e);
+      sfx('goblin');
+      showHudToast('A Treasure Goblin appears — kill it before it escapes!');
+      floatText('Treasure Goblin!', x, y - 0.6, 'loot');
+      return e;
+    }
+  }
+  function moveEnemyFlee(e, fx, fy, sp) {
+    const grid = game.world.grid, W = game.world.w, H = game.world.h;
+    const ok = (nx, ny) => { const gx = Math.floor(nx), gy = Math.floor(ny); return gx >= 0 && gx < W && gy >= 0 && gy < H && grid[gy][gx] === 0; };
+    const nx = e.x + fx * sp, ny = e.y + fy * sp;
+    if (ok(nx, ny)) { e.x = nx; e.y = ny; return; }
+    if (ok(nx, e.y)) { e.x = nx; return; }        // slide along walls
+    if (ok(e.x, ny)) { e.y = ny; return; }
+    // cornered — try turning perpendicular to slip away
+    for (const [ax, ay] of [[fy, -fx], [-fy, fx]]) {
+      const px = e.x + ax * sp, py = e.y + ay * sp;
+      if (ok(px, py)) { e.x = px; e.y = py; return; }
+    }
+  }
+  function tickGoblin(e, dt, dx, dy, d, idx) {
+    e.fleeTimer = (e.fleeTimer == null ? 15 : e.fleeTimer) - dt;
+    if (rand() < 0.5) addParticle({ x: e.x + (rand() - 0.5) * 0.4, y: e.y, vx: (rand() - 0.5) * 2, vy: -1 - rand(), color: '#ffd24a', life: 0.5, age: 0, size: 2 });
+    const len = d || 1;
+    const fx = -dx / len, fy = -dy / len;          // run directly away from the player
+    moveEnemyFlee(e, fx, fy, e.speed * dt);
+    e.lastDir = { x: fx, y: fy };
+    if (e.fleeTimer <= 0) {                          // escaped — no reward
+      sfx('goblinFlee');
+      burst(e.x, e.y, '#8a6cff', 18);
+      floatText('Escaped!', e.x, e.y - 0.6, 'loot');
+      showHudToast('The Treasure Goblin escaped with its loot!');
+      game.enemies.splice(idx, 1);
+    }
   }
 
   // Promote an enemy to an elite (champion) with a random affix. Reused by the
@@ -1725,6 +1776,8 @@
     game.rift = null;       // entering a normal biome is never a rift
     game.activeBiomeId = biomeId;
     game.activeFloor = floor;
+    // Rare Treasure Goblin sighting (not on boss floors)
+    if (!game.world.isBoss && roll(0.08)) spawnGoblin(floor);
     // Tag the zone name with the difficulty tier (non-Normal)
     const diffId = game.save.difficulty || 'normal';
     if (diffId !== 'normal') game.world.name += ` [${DIFFICULTIES[diffId].short}]`;
@@ -2844,6 +2897,24 @@
     burst(e.x, e.y, e.color, e.boss ? 35 : 20);
     burst(e.x, e.y, '#ffffff', e.boss ? 12 : 5);
     game.screenShake = Math.max(game.screenShake, e.boss ? 0.45 : 0.12);
+    // Treasure Goblin JACKPOT — a burst of gold + a handful of high-rarity items
+    if (e.isGoblin) {
+      sfx('gold'); sfx('legendary');
+      const lvl = game.char ? game.char.level : 1;
+      const bonusGold = irand(120, 280) + lvl * 12;
+      game.char.gold += bonusGold;
+      floatText('+' + bonusGold + 'g', e.x, e.y - 0.9, 'loot');
+      burst(e.x, e.y, '#ffd24a', 44);
+      const drops = 3 + irand(0, 2);
+      for (let i = 0; i < drops; i++) {
+        const r = roll(0.2) ? 'unique' : (roll(0.5) ? 'rare' : 'magic');
+        const item = rollItem(Math.max(1, (e.ilvl || lvl) + 2), r, { preferLegendary: r === 'unique' });
+        if (item) {
+          const a = rand() * PI2, rd = 0.4 + rand() * 0.7;
+          game.items.push({ x: e.x + Math.cos(a) * rd, y: e.y + Math.sin(a) * rd, item, age: 0 });
+        }
+      }
+    }
     // Bestiary: record the kill (first kill "discovers" the entry)
     if (game.save) {
       if (!game.save.bestiary) game.save.bestiary = {};
@@ -3237,6 +3308,8 @@
       if (e.stagger > 0) continue;
       const dx = p.x - e.x, dy = p.y - e.y;
       const d = Math.sqrt(dx * dx + dy * dy);
+      // Treasure Goblin: only ever flees + escapes — never runs the normal chase/attack AI
+      if (e.isGoblin) { tickGoblin(e, dt, dx, dy, d, _i); continue; }
       // Boss mechanics (enrage / summon / telegraphed smash) run before awareness cull
       if (e.boss) tickBoss(e, dt, d, p);
       if (d > 12) continue; // out of awareness
