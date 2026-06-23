@@ -387,7 +387,15 @@
         <h1>Sync Save</h1>
       </header>
       <div class="content">
-        <p class="sync-help">Save files live in your browser only. Generate a short code on one device, type it on the other.</p>
+        <p class="sync-help">Save files live in your browser. Use Cloud Sync to share one character across PC, phone &amp; glasses automatically — or the codes below to move a save by hand.</p>
+
+        <div class="sync-section" id="sync-cloud-section">
+          <h3>Cloud Sync — PC · phone · glasses</h3>
+          <p class="sync-help" id="sync-cloud-status">Checking cloud sync…</p>
+          <textarea id="sync-cloud-link" class="sync-box" readonly placeholder="Your personal sync link appears here."></textarea>
+          <button class="nav-item focusable" data-action="sync-copy-link">Copy Sync Link</button>
+          <p class="sync-help">Open this exact link on your other devices — they share one save automatically (the most recently played device wins).</p>
+        </div>
 
         <div class="sync-section">
           <h3>Export — short code</h3>
@@ -593,6 +601,8 @@
     </div>
 
   </div>
+  <script src="config.js"></script>
+  <script src="cloud.js"></script>
   <script src="audio.js"></script>
   <script src="app.js"></script>
   <script type="module" src="render3d.js"></script>

@@ -974,9 +974,30 @@
         };
       }
     }
+    // Stamp every write with a timestamp — the whole cross-device merge strategy is
+    // last-write-wins by this `t` (see mergeRemoteSave + the cloud worker).
+    game.save.t = Date.now();
     try {
       localStorage.setItem(CFG.storageKey, JSON.stringify(game.save));
     } catch (e) { console.warn('save failed', e); }
+    // Optional automatic cloud sync (dormant unless config.js sets cloudUrl).
+    try { if (window.__CLOUD) window.__CLOUD.push(game.save); } catch (e) {}
+  }
+
+  // Adopt a cloud save iff it is newer-or-equal to the local one (last-write-wins).
+  // Returns true if the remote was written to localStorage.
+  function mergeRemoteSave(remote) {
+    if (!remote || remote.v !== 2 || !remote.char) return false;
+    try {
+      const raw = localStorage.getItem(CFG.storageKey) || localStorage.getItem(CFG.legacyStorageKey);
+      const local = raw ? JSON.parse(raw) : null;
+      // No local save at all → adopt. Otherwise adopt only a STRICTLY newer, stamped
+      // remote — never let an unstamped (rt=0) or equal-timestamp remote clobber local.
+      if (!local) { localStorage.setItem(CFG.storageKey, JSON.stringify(remote)); return true; }
+      const lt = local.t || 0, rt = remote.t || 0;
+      if (rt > 0 && rt > lt) { localStorage.setItem(CFG.storageKey, JSON.stringify(remote)); return true; }
+    } catch (e) {}
+    return false;
   }
 
   // ============================================================
@@ -7300,6 +7321,14 @@
       if (codeBox) { codeBox.textContent = ''; codeBox.classList.add('muted'); }
       const shortInput = document.getElementById('sync-short-input');
       if (shortInput) shortInput.value = '';
+      // Cloud-sync section: show this device's sharable link + on/off status
+      const cloud = window.__CLOUD;
+      const linkEl = document.getElementById('sync-cloud-link');
+      const statusEl = document.getElementById('sync-cloud-status');
+      if (linkEl) linkEl.value = cloud ? cloud.link() : '';
+      if (statusEl) statusEl.textContent = (cloud && cloud.enabled)
+        ? 'Cloud sync is ON. Open the link below on another device to share this save.'
+        : 'Cloud sync is OFF — saves stay on this device. Deploy the worker + set cloudUrl in config.js to turn it on (the link below works once it is on).';
     }
     if (id === 'code-picker') {
       renderCodePicker();
@@ -7325,8 +7354,9 @@
 
   function renderTitle() {
     const cont = $('title-continue');
-    if (game.save) cont.classList.remove('disabled');
-    else cont.classList.add('disabled');
+    // While a cloud pull is in flight, hold Continue so we don't load a stale local save.
+    if (game._cloudPullPending) { cont.classList.add('disabled'); cont.dataset.syncing = '1'; }
+    else { delete cont.dataset.syncing; if (game.save) cont.classList.remove('disabled'); else cont.classList.add('disabled'); }
     // Build the drifting ember field once (cosmetic — plain Math.random is fine)
     const field = $('title-embers');
     if (field && !field.childElementCount) {
@@ -8220,6 +8250,7 @@
 
       // title
       case 'title-continue':
+        if (game._cloudPullPending) { showHudToast('Syncing your latest save…'); return; }
         if (!game.save) return;
         loadIntoSession(game.save);
         // Resume at last known location if saved
@@ -8416,6 +8447,20 @@
         return;
 
       // save sync — export / import
+      case 'sync-copy-link': {
+        const linkEl = document.getElementById('sync-cloud-link');
+        const link = (window.__CLOUD && window.__CLOUD.link()) || (linkEl && linkEl.value) || '';
+        if (linkEl) { linkEl.value = link; try { linkEl.focus(); linkEl.select(); } catch (e) {} }
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(link)
+            .then(() => showHudToast('Sync link copied!'))
+            .catch(() => showHudToast('Select the link and copy it'));
+        } else {
+          showHudToast('Select the link and copy it');
+        }
+        sfx('ui');
+        return;
+      }
       case 'sync-export':
         syncExport();
         return;
@@ -9338,6 +9383,21 @@
     }
     navigateTo('title', { addToHistory: false });
     requestAnimationFrame(frame);
+    // Optional cloud sync: pull in the background so the title shows immediately, then
+    // adopt a newer cloud save (last-write-wins) IF the player hasn't started a run yet.
+    if (window.__CLOUD && window.__CLOUD.enabled) {
+      // Hold "Continue" until the pull settles so the player can't load a stale local
+      // save while a newer cloud save is still in flight (which the next push would clobber).
+      game._cloudPullPending = true;
+      renderTitle();
+      window.__CLOUD.pull().then(function (remote) {
+        game._cloudPullPending = false;
+        // Adopt the cloud save ONLY if no run has started yet — check the guard BEFORE
+        // mergeRemoteSave writes localStorage, so an in-progress run is never overwritten.
+        if (remote && !game.world && mergeRemoteSave(remote)) game.save = loadSave();
+        if (game.screen === 'title') renderTitle();
+      });
+    }
     // expose for debugging (old alias kept for back-compat)
     window.__hollowlight = window.__glasspire = { game, enterBiome, enterTown, CLASSES, BIOMES };
   }
