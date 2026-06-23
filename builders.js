@@ -5716,5 +5716,66 @@ export function buildHireling(opts) {
   return g;
 }
 
+// THE HOLLOW KING — the campaign final boss. A towering crowned void-monarch:
+// dark regal robe, hollow crown, a blazing void core, spectral mantle + tendrils,
+// a skull-mask face with burning eyes. opts.color = void theme. Engine scales x1.6.
+export function buildEnemy_hollowking(opts) {
+  const c = (opts && opts.color) || '#b388ff';
+  const g = new T.Group();
+  const robe = mat(c, 0.34), robeDeep = mat(c, 0.2), bone = mat('#cfc6b0'), boneDark = mat('#6d6552');
+  const gold = matAdd('#ffd27a', 0.9), voidGlow = matAdd(c, 0.95), eye = matAdd('#ff3df0', 1);
+  // long regal robe (no legs) — wide hem to narrow chest
+  const hem = m(cyl(0.22, 0.6, 1.0, 6), robeDeep); hem.position.y = 0.5; hem.rotation.y = Math.PI / 6;
+  const torso = m(cyl(0.18, 0.26, 0.5, 6), robe); torso.position.y = 1.25; torso.rotation.y = Math.PI / 6;
+  const frontPanel = m(box(0.3, 0.9, 0.06), mat(c, 0.46)); frontPanel.position.set(0, 0.95, 0.3);
+  // blazing void core in the chest
+  const coreMat = new T.MeshBasicMaterial({ color: c, fog: false, transparent: true, opacity: 0.95, blending: T.AdditiveBlending, depthWrite: false });
+  const core = m(geo('hkCore', () => new T.IcosahedronGeometry(0.16, 0)), coreMat); core.position.set(0, 1.2, 0.3);
+  const coreRing = m(geo('hkCoreRing', () => new T.TorusGeometry(0.22, 0.025, 4, 16)), voidGlow); coreRing.position.set(0, 1.2, 0.3);
+  // broad spectral shoulder mantle + gold trim
+  const mantleL = m(cone(0.3, 0.4, 4), robe); mantleL.position.set(-0.42, 1.5, 0); mantleL.rotation.set(0, Math.PI / 4, 0.8);
+  const mantleR = m(cone(0.3, 0.4, 4), robe); mantleR.position.set(0.42, 1.5, 0); mantleR.rotation.set(0, Math.PI / 4, -0.8);
+  const collar = m(cyl(0.28, 0.36, 0.16, 6), gold); collar.position.y = 1.55;
+  // raised skeletal arms with clawed hands
+  const armL = m(box(0.09, 0.6, 0.1), robe); armL.position.set(-0.32, 1.3, 0.1); armL.rotation.set(0.3, 0, 0.7);
+  const armR = m(box(0.09, 0.6, 0.1), robe); armR.position.set(0.32, 1.3, 0.1); armR.rotation.set(0.3, 0, -0.7);
+  const clawL = m(cone(0.08, 0.2, 4), bone); clawL.position.set(-0.58, 1.62, 0.18); clawL.rotation.z = 0.4;
+  const clawR = m(cone(0.08, 0.2, 4), bone); clawR.position.set(0.58, 1.62, 0.18); clawR.rotation.z = -0.4;
+  // hooded skull face
+  const hood = m(cone(0.28, 0.5, 5), robe); hood.position.y = 1.95;
+  const skull = m(box(0.18, 0.22, 0.16), boneDark); skull.position.set(0, 1.8, 0.14);
+  const jaw = m(box(0.13, 0.06, 0.13), bone); jaw.position.set(0, 1.69, 0.15);
+  const eyeL = m(box(0.05, 0.06, 0.04), eye); eyeL.position.set(-0.06, 1.83, 0.21);
+  const eyeR = m(box(0.05, 0.06, 0.04), eye); eyeR.position.set(0.06, 1.83, 0.21);
+  // the HOLLOW CROWN — a ring of gold spikes above the hood
+  const crownBand = m(cyl(0.22, 0.22, 0.1, 7), gold); crownBand.position.y = 2.22;
+  const crownPts = [];
+  for (let i = 0; i < 7; i++) {
+    const a = (i / 7) * Math.PI * 2;
+    const sp = m(cone(0.05, 0.22 + (i % 2) * 0.12, 4), gold);
+    sp.position.set(Math.cos(a) * 0.2, 2.36 + (i % 2) * 0.06, Math.sin(a) * 0.2);
+    g.add(sp); crownPts.push(sp);
+  }
+  // orbiting void tendrils/shards
+  const shards = [];
+  for (let i = 0; i < 4; i++) {
+    const sh = m(geo('hkShard', () => new T.OctahedronGeometry(0.1, 0)), voidGlow);
+    sh.userData.a = (i / 4) * Math.PI * 2; sh.userData.r = 0.7 + (i % 2) * 0.15;
+    g.add(sh); shards.push(sh);
+  }
+  g.add(hem, torso, frontPanel, core, coreRing, mantleL, mantleR, collar, armL, armR, clawL, clawR, hood, skull, jaw, eyeL, eyeR, crownBand);
+  g.userData.anim = (grp, now) => {
+    coreMat.opacity = 0.7 + Math.sin(now / 180) * 0.25;
+    core.scale.setScalar(1 + Math.sin(now / 160) * 0.18);
+    grp.position.y = Math.sin(now / 520) * 0.05;   // ominous hover (added to engine bob)
+    for (let i = 0; i < shards.length; i++) {
+      const s = shards[i], ang = s.userData.a + now / 900;
+      s.position.set(Math.cos(ang) * s.userData.r, 1.3 + Math.sin(now / 700 + i) * 0.3, Math.sin(ang) * s.userData.r);
+      s.rotation.y = now / 200;
+    }
+  };
+  return g;
+}
+
 // expose the cache for the engine (warm-up / disposal if needed)
 export const _cache = { GEO, MATS };

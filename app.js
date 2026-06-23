@@ -292,6 +292,9 @@
     // Treasure Goblin — flees instead of fighting; kill it before it escapes for a jackpot.
     goblin:         { name: 'Treasure Goblin',  glyph: '$', color: '#ffd24a', hp: 60, dmg: 0, speed: 3.4, range: 0, attackKind: 'none', xp: 20, goldRange: [0, 0],
       trait: 'flee', shape: 'goblin' },
+    // THE HOLLOW KING — the campaign's final boss (reached via the Hollow Throne).
+    hollowking:     { name: 'The Hollow King',  glyph: '♔', color: '#b388ff', hp: 2600, dmg: 40, speed: 2.6, range: 6.0, attackKind: 'ranged-soul', xp: 900, goldRange: [400, 800], boss: true,
+      trait: 'multiatk', shape: 'hollowking', projColor: '#c489ff' },
   };
 
   // Bestiary lore — flavor text shown once an enemy has been discovered (killed).
@@ -786,6 +789,7 @@
       quest: null,    // active bounty
       questsCompleted: 0,
       wardrobe: {},   // { [lookId]: true } — appearance looks the player has discovered
+      gameWon: false, // true once the Hollow King (final boss) is defeated
       worldState: null,    // persisted location for resume on reload
       savedDungeon: null,  // dungeon to return to after using Sanctuary Scroll
       mysteryVendor: null, // { day: number, baseId: string, bought: bool }
@@ -1491,7 +1495,7 @@
     }
     // Boss
     if (isBossFloor) {
-      enemies.push(makeEnemy(biome.boss, last.cx + 0.5, last.cy + 0.5, floor + 2));
+      enemies.push(makeEnemy(opts.bossId || biome.boss, last.cx + 0.5, last.cy + 0.5, floor + 2));
       game.bossAlive = true; game.bossKilled = false;
     } else {
       game.bossAlive = false;
@@ -1824,6 +1828,42 @@
     snapCamera();
     navigateTo('game');
     showZoneToast(`${biome.shortName} — FLOOR ${floor}${diffId !== 'normal' ? ' · ' + DIFFICULTIES[diffId].name.toUpperCase() : ''}`);
+    applyDerivedToChar();
+    updateHud();
+  }
+
+  // ============================================================
+  // THE HOLLOW THRONE — the campaign's final battle against the Hollow King
+  // ============================================================
+  function enterThrone() {
+    const biome = BIOMES.find(b => b.id === 'voidspire') || BIOMES[BIOMES.length - 1];
+    game.world = generateDungeon(biome, CFG.biomeFloors, { bossId: 'hollowking', throne: true });
+    game.world.name = 'THE HOLLOW THRONE';
+    game.world.isThrone = true;
+    if (window.__GL) window.__GL.onZoneChange(game.world);
+    if (window.__AUDIO) window.__AUDIO.music('void');
+    game.enemies = game.world.enemies; game.world.enemies = null;
+    // focus the arena on the King + a small honor guard (he summons more in the fight)
+    {
+      const king = game.enemies.find(e => e.id === 'hollowking');
+      const guard = game.enemies.filter(e => e.id !== 'hollowking').slice(0, 6);
+      game.enemies = king ? [king].concat(guard) : guard;
+    }
+    game.projectiles = [];
+    game.items = game.world.loot || []; game.world.loot = null;
+    game.minions = [];
+    game.particles = [];
+    game.floatingTexts = [];
+    ambientParticles.length = 0;
+    clearSkillEffects();
+    game.activeBuffs = {};
+    game.rift = null;
+    game.activeBiomeId = 'voidspire';
+    game.activeFloor = CFG.biomeFloors;
+    spawnHireling();
+    snapCamera();
+    navigateTo('game');
+    showZoneToast('THE HOLLOW THRONE');
     applyDerivedToChar();
     updateHud();
   }
@@ -3117,6 +3157,20 @@
     // Boss flag
     if (e.boss) {
       game.bossKilled = true;
+      // THE HOLLOW KING — campaign victory
+      if (e.id === 'hollowking') {
+        game.bossAlive = false;
+        game.save.gameWon = true;
+        game.char.gold += 2500;
+        for (let i = 0; i < 4; i++) {           // grand finale loot: 1 mythic + 3 legendaries
+          const it = rollItem(Math.max(1, e.ilvl + 2), i === 0 ? 'mythic' : 'unique', { preferLegendary: true });
+          if (it) game.items.push({ x: e.x + (i - 1.5) * 0.6, y: e.y + 0.3, item: it, age: 0 });
+        }
+        saveGame(); sfx('legendary');
+        if (window.__AUDIO) window.__AUDIO.stopMusic();
+        setTimeout(() => { if (game.char && game.char.hp > 0) navigateTo('victory'); }, 1300);
+        return;   // skip the normal biome-unlock / portal handling
+      }
       const biomeId = game.activeBiomeId;
       game.save.bossesKilled[biomeId] = (game.save.bossesKilled[biomeId] || 0) + 1;
       // unlock next biome
@@ -6795,6 +6849,13 @@
     html += '<div style="font-size:12px;opacity:0.7;text-align:center;margin-top:8px;">Gold: ' + c.gold + '</div>';
     box.innerHTML = html;
   }
+  function renderVictory() {
+    const c = game.char; const box = $('victory-stats');
+    if (!box || !c) return;
+    const cls = (CLASSES[c.classId] && CLASSES[c.classId].name) || c.classId;
+    box.innerHTML = cls + ' &middot; Level ' + c.level + (c.paragonLevel ? ' &middot; Paragon ' + c.paragonLevel : '')
+      + (c.hardcore ? '<br><span style="color:#ff6b85;">&#9760; Hardcore Hero</span>' : '');
+  }
 
   function itemTypeLabel(base) {
     // Check type first for non-equipment categories
@@ -7017,6 +7078,7 @@
     if (id === 'honor') renderHonor();
     if (id === 'wardrobe') renderWardrobe();
     if (id === 'mercenary') renderMercenary();
+    if (id === 'victory') renderVictory();
     if (id === 'death') {
       const hc = game._permadeath;
       const gl = $('death-glyph'), ti = $('death-title'), su = $('death-sub'), bt = $('death-return-btn');
@@ -7869,6 +7931,19 @@
       </div>
     `;
     el.appendChild(riftCard);
+    // The Hollow Throne — the campaign's final battle, unlocked once all biome bosses fall
+    const throneUnlocked = BIOMES.every(b => (game.save.bossesKilled[b.id] || 0) > 0);
+    const won = !!game.save.gameWon;
+    const throneCard = document.createElement('button');
+    throneCard.className = 'waypoint-card rift-card focusable' + (throneUnlocked ? '' : ' locked');
+    if (throneUnlocked) { throneCard.dataset.action = 'enter-throne'; } else { throneCard.tabIndex = -1; }
+    throneCard.innerHTML = `
+      <div class="waypoint-glyph" style="color:#ff3df0;text-shadow:0 0 14px #c489ff">${throneUnlocked ? '♔' : '🔒'}</div>
+      <div class="waypoint-meta">
+        <div class="waypoint-name" style="color:${throneUnlocked ? '#e7c2ff' : '#9a9ab0'};text-shadow:0 0 10px #c489ff">The Hollow Throne</div>
+        <div class="waypoint-sub">${throneUnlocked ? (won ? 'The Hollow King stirs once more…' : 'Face the Hollow King — the final battle') : 'Locked — defeat all five biome bosses'}</div>
+      </div>`;
+    el.appendChild(throneCard);
     BIOMES.forEach(b => {
       const unlocked = game.save.unlockedBiomes[b.id];
       const card = document.createElement('button');
@@ -8315,6 +8390,10 @@
         enterRift(1);
         game.history = [];
         return;
+      case 'enter-throne':
+        enterThrone();
+        game.history = [];
+        return;
       case 'set-difficulty': {
         const did = el.dataset.diff;
         const maxIdx = DIFFICULTY_ORDER.indexOf(game.save.maxDifficulty || 'normal');
@@ -8332,6 +8411,8 @@
 
       // levelup / death
       case 'levelup-ok': navigateBack(); return;
+      case 'victory-return':
+        enterTown(); game.history = []; return;
       case 'death-return':
         if (game._permadeath) { game._permadeath = false; navigateTo('title'); return; }
         respawn();
