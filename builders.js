@@ -5777,5 +5777,1543 @@ export function buildEnemy_hollowking(opts) {
   return g;
 }
 
+// =============================================================
+// SKILL CAST ANIMATIONS
+// CAST_ANIMS[id](prog, pm, ud, now, moving): drive the PLAYER RIG for a cast.
+//   prog 0..1 over the cast. pm = player Group (its rotation.y is preset to facing
+//   each frame — OVERRIDE it for spins, or leave it and use rotation.x/z for lean/pitch).
+//   pm.position.y += dy  (a bob is already applied; add to it for hops/crouch).
+//   pm.scale for pulses. ud.arms[0,1] (shoulders; legged AND robed classes have arms),
+//   ud.legs[0,1] (ONLY warrior+ranger — mage/summoner are robed, ud.legs is []),
+//   ud.weaponMount (rotation/position — the held weapon). Reset to baseline by the engine
+//   every frame, so only set what you animate. PURE TRANSFORMS — never touch
+//   ud.bodyMat/trimMat/eyeMat (shared, recolored on equip).
+// buildCastFx_<id>(opts{color}): a Group flourish parented to the player at its feet/origin,
+//   faces +Z. Optional userData.castAnim(g, prog, now) driven by cast progress. Any material
+//   whose opacity/color is animated MUST be a fresh `new T.MeshBasicMaterial` (never cached).
+// =============================================================
+const _TAU = Math.PI * 2;
+export const CAST_ANIMS = {
+  // WARRIOR — Whirlwind: 3 fast full-body spins, arms flung out level, blade swung wide.
+  whirlwind: (prog, pm, ud) => {
+    pm.rotation.y = prog * 3 * _TAU;                 // override facing → spin
+    const env = Math.sin(prog * Math.PI);            // 0→1→0 envelope
+    pm.rotation.z = env * 0.16;                      // lean into the spin
+    pm.position.y += env * 0.06;                     // slight lift mid-spin
+    if (ud.arms && ud.arms.length >= 2) {
+      ud.arms[0].rotation.z = env * 1.25; ud.arms[1].rotation.z = -env * 1.25;
+      ud.arms[0].rotation.x = 0.15; ud.arms[1].rotation.x = 0.15;
+    }
+    ud.weaponMount.rotation.z = -1.15; ud.weaponMount.rotation.x = 0.10;
+  },
+  leapslam: (prog, pm, ud) => {
+  let dy = 0, pitch = 0, weapX = 0, weapY = 0, weapZ = 0, legTuck = 0, armUp = 0, sc = 1;
+  if (prog < 0.3) {
+    const t = prog / 0.3;
+    const dip = Math.sin(Math.min(t, 0.5) / 0.5 * Math.PI * 0.5);
+    const launch = t > 0.5 ? (t - 0.5) / 0.5 : 0;
+    dy = -0.55 * dip * (1 - launch) + 0.9 * launch * launch;
+    pitch = -0.05 - 0.18 * dip * (1 - launch) + 0.22 * launch;
+    legTuck = -0.7 * dip * (1 - launch);
+    armUp = -0.6 - 1.4 * t;
+    sc = 1 + 0.05 * launch;
+  } else if (prog < 0.6) {
+    const t = (prog - 0.3) / 0.3;
+    const air = Math.sin(t * Math.PI);
+    dy = 0.9 + 0.55 * air;
+    pitch = 0.22 - 0.1 * t;
+    legTuck = 1.5 * Math.sin(Math.min(t * 1.3, 1) * Math.PI * 0.5);
+    armUp = -2.0;
+    weapX = -2.3;
+  } else if (prog < 0.8) {
+    const t = (prog - 0.6) / 0.2;
+    const drive = t * t;
+    dy = 0.9 * (1 - drive) - 0.35 * Math.sin(Math.min(t, 0.85) / 0.85 * Math.PI);
+    pitch = -0.55 * drive;
+    legTuck = 1.5 * (1 - drive) - 0.25 * drive;
+    armUp = -2.0 + 2.6 * drive;
+    weapX = -2.3 + 3.0 * drive;
+    sc = 1 + 0.08 * Math.sin(t * Math.PI);
+  } else {
+    const t = (prog - 0.8) / 0.2;
+    const rec = Math.sin(t * Math.PI * 0.5);
+    dy = -0.35 * (1 - rec);
+    pitch = -0.55 * (1 - rec);
+    legTuck = -0.25 * (1 - rec);
+    armUp = 0.6 * (1 - rec);
+    weapX = 0.7 * (1 - rec);
+  }
+  pm.position.y += dy;
+  pm.rotation.x = pitch;
+  pm.scale.setScalar(sc);
+  if (ud.arms && ud.arms.length >= 2) {
+    ud.arms[0].rotation.x = armUp; ud.arms[1].rotation.x = armUp;
+    ud.arms[0].rotation.z = 0.18; ud.arms[1].rotation.z = -0.18;
+  }
+  if (ud.legs && ud.legs.length >= 2) {
+    ud.legs[0].rotation.x = legTuck; ud.legs[1].rotation.x = legTuck;
+  }
+  ud.weaponMount.rotation.x = weapX;
+  ud.weaponMount.rotation.y = weapY;
+  ud.weaponMount.rotation.z = weapZ;
+},
+  warcry: (prog, pm, ud, now, moving) => {
+  const plant = Math.min(1, prog / 0.2);
+  const swell = Math.sin(Math.min(1, prog / 0.6) * Math.PI * 0.5);
+  const hold = prog > 0.25 && prog < 0.72 ? 1 : Math.max(0, 1 - Math.abs(prog - 0.48) / 0.48);
+  const thrust = prog > 0.72 ? (prog - 0.72) / 0.28 : 0;
+  const tEnv = Math.sin(thrust * Math.PI);
+  pm.scale.setScalar(1 + swell * (0.13 + Math.sin(now * 0.022) * 0.02 * hold) - thrust * 0.05);
+  pm.rotation.x = -swell * 0.34 * (1 - thrust) + tEnv * 0.42;
+  pm.position.y += swell * 0.05 * (1 - thrust) - thrust * 0.04;
+  pm.rotation.z = Math.sin(now * 0.03) * 0.025 * hold;
+  if (ud.arms && ud.arms.length >= 2) {
+    const back = -2.0 * swell * (1 - thrust) - thrust * 0.3;
+    const out = 1.15 * swell * (1 - thrust * 0.6);
+    ud.arms[0].rotation.x = back; ud.arms[1].rotation.x = back;
+    ud.arms[0].rotation.z = out; ud.arms[1].rotation.z = -out;
+    if (thrust > 0) { ud.arms[0].rotation.x = -0.4 + tEnv * 1.2; ud.arms[1].rotation.x = -0.4 + tEnv * 1.2; ud.arms[0].rotation.z = 0.5 * (1 - tEnv); ud.arms[1].rotation.z = -0.5 * (1 - tEnv); }
+  }
+  if (ud.legs && ud.legs.length >= 2) {
+    ud.legs[0].rotation.x = 0.28 * plant; ud.legs[1].rotation.x = -0.28 * plant;
+    ud.legs[0].rotation.z = 0.12 * plant; ud.legs[1].rotation.z = -0.12 * plant;
+  }
+},
+  shieldwall: (prog, pm, ud) => {
+  const set = Math.min(prog / 0.18, 1);
+  const release = prog > 0.86 ? (prog - 0.86) / 0.14 : 0;
+  const brace = set * (1 - release);
+  const tremble = Math.sin(prog * Math.PI * 22) * 0.012 * (brace > 0.4 ? 1 : 0);
+  pm.position.y -= brace * 0.26;
+  pm.rotation.x = -brace * 0.2;
+  pm.rotation.z = tremble;
+  if (ud.legs && ud.legs.length >= 2) {
+    ud.legs[0].rotation.x = brace * 0.34; ud.legs[0].rotation.z = brace * 0.26;
+    ud.legs[1].rotation.x = -brace * 0.30; ud.legs[1].rotation.z = -brace * 0.26;
+  }
+  if (ud.arms && ud.arms.length >= 2) {
+    ud.arms[0].rotation.x = -brace * 1.35;
+    ud.arms[0].rotation.z = -brace * 0.55 + tremble * 3;
+    ud.arms[0].rotation.y = brace * 0.45;
+    ud.arms[1].rotation.x = brace * 0.55;
+    ud.arms[1].rotation.z = -brace * 0.18;
+  }
+  ud.weaponMount.rotation.x = brace * 0.9;
+  ud.weaponMount.rotation.z = -brace * 0.5;
+  ud.weaponMount.position.y = -brace * 0.12;
+},
+  frostnova: (prog, pm, ud) => {
+  const raise = Math.min(1, prog / 0.45);
+  const ease = raise * raise * (3 - 2 * raise);
+  const snap = prog < 0.45 ? 0 : Math.min(1, (prog - 0.45) / 0.12);
+  const settle = prog < 0.57 ? 0 : (prog - 0.57) / 0.43;
+  const recoil = Math.sin(snap * Math.PI) * (1 - settle * 0.6);
+  pm.rotation.x = -ease * 0.18 + recoil * 0.42;
+  pm.position.y += -recoil * 0.22 - ease * 0.04;
+  const burst = snap < 1 ? snap : Math.max(0, 1 - (prog - 0.57) / 0.18);
+  pm.scale.setScalar(1 + burst * 0.07);
+  if (ud.arms && ud.arms.length >= 2) {
+    const up = -ease * 2.0;
+    const slam = snap * 2.7;
+    const ax = up + slam;
+    ud.arms[0].rotation.x = ax;
+    ud.arms[1].rotation.x = ax;
+    const spread = ease * 0.5 + snap * 0.55 - settle * 0.4;
+    ud.arms[0].rotation.z = spread;
+    ud.arms[1].rotation.z = -spread;
+  }
+},
+  chainlightning: (prog, pm, ud, now, moving) => {
+  const coil = Math.min(prog / 0.35, 1);
+  const thrust = prog < 0.35 ? 0 : Math.min((prog - 0.35) / 0.25, 1);
+  const cEase = coil * coil;
+  const tEase = thrust < 0.5 ? 2 * thrust * thrust : 1 - Math.pow(-2 * thrust + 2, 2) / 2;
+  const jolt = prog > 0.6 ? Math.sin((prog - 0.6) / 0.4 * Math.PI * 9) * Math.pow(1 - (prog - 0.6) / 0.4, 2) : 0;
+  pm.rotation.x = -cEase * 0.32 * (1 - thrust) + tEase * 0.28 + jolt * 0.05;
+  pm.rotation.y += cEase * 0.5 - tEase * 0.7 + (tEase > 0.85 ? (tEase - 0.85) * 1.2 : 0) + jolt * 0.08;
+  pm.rotation.z = cEase * 0.12 * (1 - thrust) - jolt * 0.04;
+  pm.position.y += -cEase * 0.05 * (1 - thrust) + tEase * 0.03;
+  if (ud.arms && ud.arms.length >= 2) {
+    ud.arms[1].rotation.x = -cEase * 0.5 * (1 - thrust) - tEase * 2.6 + jolt * 0.12;
+    ud.arms[1].rotation.z = -cEase * 0.7 * (1 - thrust) + tEase * 0.5;
+    ud.arms[1].rotation.y = tEase * 0.3;
+    ud.arms[0].rotation.z = cEase * 0.55 * (1 - thrust) - tEase * 0.45;
+    ud.arms[0].rotation.x = -tEase * 0.25;
+  }
+},
+  meteor: (prog, pm, ud) => {
+  const gather = Math.min(prog / 0.75, 1);
+  const gEase = gather * gather * (3 - 2 * gather);
+  const snap = prog > 0.75 ? (prog - 0.75) / 0.25 : 0;
+  const sEase = snap * snap;
+  pm.rotation.x = -gEase * 0.42 + sEase * 0.95;
+  pm.position.y += gEase * 0.1 - sEase * 0.14;
+  pm.rotation.z = Math.sin(gather * Math.PI * 4) * 0.03 * gEase * (1 - snap);
+  if (ud.arms && ud.arms.length >= 2) {
+    const up = -gEase * 2.7 + sEase * 4.2;
+    const tremor = Math.sin(prog * 55) * 0.05 * gEase * (1 - snap);
+    ud.arms[0].rotation.x = up + tremor;
+    ud.arms[1].rotation.x = up - tremor;
+    ud.arms[0].rotation.z = gEase * 0.22 - sEase * 0.18;
+    ud.arms[1].rotation.z = -gEase * 0.22 + sEase * 0.18;
+  }
+},
+  blinkstrike: (prog, pm, ud, now, moving) => {
+  if (prog < 0.32) {
+    const t = prog / 0.32;
+    const e = t * t;
+    pm.scale.setScalar(1 - e * 0.62);
+    pm.position.y += -e * 0.28;
+    pm.rotation.x = -e * 0.18;
+    if (ud.arms && ud.arms.length >= 2) {
+      ud.arms[0].rotation.x = e * 0.5; ud.arms[1].rotation.x = e * 0.5;
+      ud.arms[0].rotation.z = e * 0.3; ud.arms[1].rotation.z = -e * 0.3;
+    }
+  } else {
+    const t = (prog - 0.32) / 0.68;
+    const burst = 1 - Math.pow(1 - t, 3);
+    const flick = 1 + Math.sin(prog * 90) * 0.04 * (1 - t);
+    pm.scale.setScalar((0.38 + burst * 0.62) * flick);
+    pm.position.y += -0.28 * (1 - burst) + Math.sin(t * Math.PI) * 0.1;
+    const lunge = Math.sin(Math.min(t * 1.4, 1) * Math.PI);
+    pm.rotation.x = -0.18 - lunge * 0.42;
+    if (ud.arms && ud.arms.length >= 2) {
+      ud.arms[1].rotation.x = -1.5 - lunge * 0.6;
+      ud.arms[1].rotation.z = -0.1;
+      ud.arms[0].rotation.x = 0.6 - lunge * 0.4;
+      ud.arms[0].rotation.z = 0.35;
+    }
+    ud.weaponMount.rotation.x = -1.7 - lunge * 0.5;
+    ud.weaponMount.position.z = lunge * 0.45;
+    ud.weaponMount.position.y = lunge * 0.2;
+  }
+},
+  multishot: (prog, pm, ud) => {
+  const draw = Math.min(1, prog / 0.62);
+  const drawE = draw * draw * (3 - 2 * draw);
+  const released = prog > 0.62;
+  const rel = released ? (prog - 0.62) / 0.38 : 0;
+  const snap = released ? Math.sin(Math.min(1, rel * 1.6) * Math.PI) * (1 - rel * 0.4) : 0;
+  pm.rotation.y += -0.5 * drawE + snap * 0.22;
+  pm.rotation.z = drawE * 0.05 - snap * 0.04;
+  pm.rotation.x = -drawE * 0.05 + snap * 0.12;
+  pm.position.y += -drawE * 0.03 + snap * 0.02;
+  if (ud.arms && ud.arms.length >= 2) {
+    ud.arms[0].rotation.x = -1.45 * drawE;
+    ud.arms[0].rotation.z = 0.12 * drawE;
+    ud.arms[0].rotation.y = -0.25 * drawE;
+    const drawBack = 0.9 + 0.55 * drawE;
+    const fwd = released ? snap * 1.7 : 0;
+    ud.arms[1].rotation.x = -drawBack + fwd;
+    ud.arms[1].rotation.z = -0.55 * drawE + snap * 0.3;
+    ud.arms[1].rotation.y = 0.35 * drawE - snap * 0.4;
+  }
+  if (ud.legs && ud.legs.length >= 2) {
+    ud.legs[0].rotation.x = 0.25 * drawE;
+    ud.legs[1].rotation.x = -0.3 * drawE;
+  }
+  ud.weaponMount.rotation.z = 1.5 * drawE;
+  ud.weaponMount.rotation.x = -0.15 * drawE - snap * 0.2;
+  ud.weaponMount.position.x = 0.1 * drawE;
+},
+  poisontrap: (prog, pm, ud) => {
+  const k = Math.sin(prog * Math.PI);                 // 0->1->0 kneel envelope
+  const down = Math.sin(Math.min(prog, 0.85) / 0.85 * Math.PI); // hold low through middle
+  pm.position.y -= k * 0.42;                           // dip notably into a kneel
+  pm.rotation.x = -k * 0.42;                           // lean forward over the trap
+  pm.rotation.z = k * 0.05;                            // tiny weight shift
+  if (ud.legs && ud.legs.length >= 2) {                // bend both legs to crouch/kneel
+    ud.legs[0].rotation.x = k * 1.25;                  // front knee deep
+    ud.legs[1].rotation.x = -k * 0.55;                 // back leg trails
+    ud.legs[0].rotation.z = k * 0.18;
+  }
+  if (ud.arms && ud.arms.length >= 2) {
+    const pat = 0.12 * Math.sin(prog * Math.PI * 6) * down; // small pat at the bottom
+    ud.arms[0].rotation.x = down * 2.05 + pat;         // planting hand swings to ground
+    ud.arms[0].rotation.z = down * 0.32;               // cross slightly inward
+    ud.arms[1].rotation.x = down * 0.55;               // other arm braces on knee
+    ud.arms[1].rotation.z = -down * 0.12;
+  }
+},
+  piercingshot: (prog, pm, ud) => {
+  const lunge = Math.min(1, prog / 0.55);
+  const le = lunge * lunge * (3 - 2 * lunge);
+  const draw = prog < 0.55 ? le : 1;
+  const release = prog > 0.6 ? Math.min(1, (prog - 0.6) / 0.4) : 0;
+  const re = release * release * (3 - 2 * release);
+  pm.rotation.x = -0.6 * le + re * 0.12;
+  pm.position.y += -0.2 * le + re * 0.05;
+  pm.rotation.z = 0.05 * le * (1 - re);
+  if (ud.legs && ud.legs.length >= 2) {
+    ud.legs[0].rotation.x = 1.05 * le + re * 0.2;
+    ud.legs[1].rotation.x = -0.9 * le;
+  }
+  if (ud.arms && ud.arms.length >= 2) {
+    const tension = draw * (1 - re);
+    ud.arms[0].rotation.x = -1.35 - 0.3 * tension + re * 0.35;
+    ud.arms[0].rotation.z = 0.45 * draw - re * 0.45;
+    ud.arms[1].rotation.x = -0.9 + 0.55 * tension - 0.6 * re;
+    ud.arms[1].rotation.z = -0.55 * draw + re * 1.0;
+  }
+},
+  volley: (prog, pm, ud) => {
+  const draw = Math.min(prog / 0.6, 1);
+  const drawE = draw * draw * (3 - 2 * draw);
+  const rel = prog > 0.6 ? (prog - 0.6) / 0.4 : 0;
+  const relE = rel * rel * (3 - 2 * rel);
+  const lean = -0.6 * drawE + 0.85 * relE;
+  pm.rotation.x = lean;
+  pm.position.y += -0.06 * drawE + 0.03 * relE;
+  pm.rotation.z = 0.07 * Math.sin(prog * Math.PI);
+  if (ud.arms && ud.arms.length >= 2) {
+    const raise = -2.4 * drawE + 2.2 * relE;
+    ud.arms[0].rotation.x = raise;
+    ud.arms[1].rotation.x = raise;
+    ud.arms[0].rotation.z = 0.4 * drawE - 0.3 * relE;
+    ud.arms[1].rotation.z = -0.4 * drawE + 0.3 * relE;
+    const drawPull = -0.55 * drawE * (1 - rel);
+    ud.arms[1].rotation.x += drawPull;
+  }
+  if (ud.legs && ud.legs.length >= 2) {
+    ud.legs[0].rotation.x = 0.32 * drawE - 0.25 * relE;
+    ud.legs[1].rotation.x = -0.32 * drawE + 0.4 * relE;
+  }
+  ud.weaponMount.rotation.x = -2.3 * drawE + 1.7 * relE;
+  ud.weaponMount.rotation.z = 0.28 * drawE - 0.15 * relE;
+},
+  raisedead: (prog, pm, ud) => {
+  const env = Math.sin(prog * Math.PI);                 // 0->1->0 channel envelope
+  const rise = prog * prog;                              // hands climb, peak at climax
+  const sway = Math.sin(prog * Math.PI * 4);            // body sways with channeled power
+  pm.rotation.z = env * 0.14 * sway;                    // ritual sway side to side
+  pm.rotation.x = -env * 0.10;                          // lean back, gaze upward
+  pm.position.y += env * 0.05;                          // subtle channel lift
+  if (ud.arms && ud.arms.length >= 2) {
+    const spread = 0.45 + env * 0.95;                   // spread WIDE
+    const lift = -(0.25 + rise * env * 1.55);          // raise, palms up, higher at climax
+    ud.arms[0].rotation.z = spread; ud.arms[1].rotation.z = -spread;
+    ud.arms[0].rotation.x = lift; ud.arms[1].rotation.x = lift;
+    ud.arms[0].rotation.y = -env * 0.25; ud.arms[1].rotation.y = env * 0.25;
+  }
+},
+  souldrain: (prog, pm, ud) => {
+  const pull = 0.5 - 0.5 * Math.cos(prog * Math.PI * 2);
+  const reel = (Math.sin(prog * Math.PI * 5) * 0.5 + 0.5) * (1 - prog * 0.3);
+  const draw = prog;
+  pm.rotation.x = (-0.18 * (1 - draw)) + (0.22 * draw) + reel * 0.04;
+  pm.rotation.z = 0.05 * Math.sin(prog * Math.PI * 3);
+  pm.position.y += draw * -0.05 + reel * 0.02;
+  if (ud.arms && ud.arms.length >= 2) {
+    const reach = -1.55 * (1 - draw) - 0.55 * draw;
+    const claw = reel * 0.18;
+    ud.arms[0].rotation.x = reach + claw;
+    ud.arms[0].rotation.z = -0.35 - 0.5 * draw;
+    ud.arms[0].rotation.y = 0.25 * draw;
+    ud.arms[1].rotation.x = -0.25 - 0.2 * pull;
+    ud.arms[1].rotation.z = 0.4;
+  }
+},
+  corpseexplosion: (prog, pm, ud) => {
+  const TAU = Math.PI * 2;
+  const gather = Math.min(prog / 0.45, 1);
+  const ge = Math.sin(gather * Math.PI / 2);
+  const d = Math.max(0, 1 - Math.abs(prog - 0.5) / 0.12);
+  const snap = d * d * d;
+  const recoil = prog > 0.55 ? Math.max(0, 1 - (prog - 0.55) / 0.45) : 0;
+  const rb = Math.sin(recoil * Math.PI) * 0.5;
+  pm.rotation.x = -ge * 0.35 + snap * 0.85 - rb * 0.12;
+  pm.position.y += ge * 0.08 - snap * 0.22;
+  pm.rotation.z = Math.sin(prog * TAU * 1.5) * snap * 0.06;
+  const tremble = (snap > 0.2) ? Math.sin(prog * 90) * snap * 0.04 : 0;
+  pm.position.y += tremble;
+  if (ud.arms && ud.arms.length >= 2) {
+    const upBack = -ge * 2.4;
+    const slam = snap * 3.4;
+    const ax = upBack + slam - rb * 0.4;
+    ud.arms[0].rotation.x = ax;
+    ud.arms[1].rotation.x = ax;
+    const flare = ge * 0.9 - snap * 0.7;
+    ud.arms[0].rotation.z = flare;
+    ud.arms[1].rotation.z = -flare;
+    ud.arms[0].rotation.y = -ge * 0.3 + snap * 0.4;
+    ud.arms[1].rotation.y = ge * 0.3 - snap * 0.4;
+  }
+},
+  boneprison: (prog, pm, ud, now) => {
+  const press = prog < 0.25 ? (prog / 0.25) : 1;
+  const release = prog > 0.85 ? (1 - (prog - 0.85) / 0.15) : 1;
+  const lock = press * release;
+  pm.position.y -= lock * 0.18;
+  pm.rotation.x = lock * 0.20;
+  const tremor = (prog > 0.25 && prog < 0.85) ? Math.sin(now * 0.045) * 0.012 * release : 0;
+  pm.rotation.z = tremor;
+  if (ud.arms && ud.arms.length >= 2) {
+    ud.arms[0].rotation.x = 0.55 + lock * 0.85;
+    ud.arms[1].rotation.x = 0.55 + lock * 0.85;
+    ud.arms[0].rotation.z = lock * 0.95;
+    ud.arms[1].rotation.z = -lock * 0.95;
+    const slam = press < 1 ? Math.sin(press * Math.PI) * 0.25 : 0;
+    ud.arms[0].rotation.x += slam;
+    ud.arms[1].rotation.x += slam;
+  }
+},
+  demonslash: (prog, pm, ud) => {
+  const wind = Math.min(1, prog / 0.28);
+  const swing = prog < 0.28 ? 0 : Math.min(1, (prog - 0.28) / 0.52);
+  const recover = prog < 0.8 ? 0 : (prog - 0.8) / 0.2;
+  const ease = swing < 1 ? swing * swing * (3 - 2 * swing) : 1;
+  const swingEnv = Math.sin(swing * Math.PI);
+  pm.rotation.y += -0.7 * wind * (1 - swing) + 1.6 * ease - 0.5 * recover;
+  pm.rotation.z = -0.28 * wind * (1 - swing) + 0.4 * swingEnv - 0.12 * recover;
+  pm.rotation.x = -0.18 * swingEnv;
+  pm.position.y += -0.05 * wind * (1 - swing) + 0.04 * swingEnv;
+  pm.scale.setScalar(1 + 0.05 * swingEnv);
+  if (ud.arms && ud.arms.length >= 2) {
+    ud.arms[1].rotation.x = -0.5 - 1.1 * wind * (1 - swing) + 0.9 * ease;
+    ud.arms[1].rotation.z = -0.4 - 0.9 * wind * (1 - swing) + 1.3 * ease;
+    ud.arms[1].rotation.y = -0.6 * wind * (1 - swing) + 0.7 * ease;
+    ud.arms[0].rotation.z = 0.5 * swingEnv;
+    ud.arms[0].rotation.x = 0.2 * swingEnv;
+  }
+  if (ud.legs && ud.legs.length >= 2) {
+    ud.legs[0].rotation.x = 0.4 * wind * (1 - swing) + 0.3 * ease;
+    ud.legs[1].rotation.x = -0.3 * wind * (1 - swing) - 0.2 * ease;
+  }
+  if (ud.weaponMount) {
+    ud.weaponMount.rotation.z = -1.5 + 1.1 * wind * (1 - swing) + 2.6 * ease;
+    ud.weaponMount.rotation.y = 1.2 * wind * (1 - swing) - 2.4 * ease;
+    ud.weaponMount.rotation.x = 0.3 * swingEnv - 0.3 * recover;
+  }
+},
+  starfall: (prog, pm, ud) => {
+      const rise = Math.sin(Math.min(prog, 0.7) / 0.7 * Math.PI * 0.5);
+      const arch = rise;
+      const strike = prog > 0.7 ? (prog - 0.7) / 0.3 : 0;
+      const ease = strike * strike * (3 - 2 * strike);
+      pm.rotation.x = -arch * 0.42 + ease * 0.6;
+      pm.position.y += rise * 0.14 - ease * 0.12;
+      if (ud.arms && ud.arms.length >= 2) {
+        const up = -2.7;
+        const lx = up * (1 - ease) + ease * 0.45;
+        ud.arms[0].rotation.x = lx; ud.arms[1].rotation.x = lx;
+        ud.arms[0].rotation.z = (0.55 * (1 - ease)) - ease * 0.15;
+        ud.arms[1].rotation.z = (-0.55 * (1 - ease)) + ease * 0.15;
+      }
+      if (ud.legs && ud.legs.length >= 2) {
+        ud.legs[0].rotation.x = -ease * 0.25; ud.legs[1].rotation.x = ease * 0.25;
+      }
+      if (ud.weaponMount) { ud.weaponMount.rotation.z = -arch * 0.5 + ease * 0.3; }
+    },
+  typhoonshot: (prog, pm, ud) => { const coil = Math.min(prog / 0.5, 1); const rel = Math.max((prog - 0.5) / 0.5, 0); const ease = (1 - Math.cos(coil * Math.PI)) / 2; const relEase = Math.sin(Math.min(rel, 1) * Math.PI * 0.5); const env = Math.sin(prog * Math.PI); pm.rotation.y += -0.8 * (1 - ease) * coil + 2.0 * relEase - 0.8 * relEase * relEase; pm.rotation.z = -0.28 * ease * (1 - rel) + 0.18 * relEase * (1 - relEase) * 2; pm.rotation.x = -0.18 * relEase * (1 - relEase) * 2; pm.position.y += env * 0.07 - 0.05 * ease * (1 - rel); const draw = ease * (1 - rel); if (ud.arms && ud.arms.length >= 2) { ud.arms[0].rotation.x = -0.5 - 0.9 * draw + 0.4 * relEase; ud.arms[1].rotation.x = -0.5 - 0.9 * draw + 0.4 * relEase; ud.arms[0].rotation.z = 0.4 + 0.9 * draw - 1.5 * relEase; ud.arms[1].rotation.z = -0.4 - 0.9 * draw + 1.5 * relEase; ud.arms[0].rotation.y = 0.7 * draw - 0.5 * relEase; ud.arms[1].rotation.y = -0.7 * draw + 0.5 * relEase; } if (ud.legs && ud.legs.length >= 2) { ud.legs[0].rotation.x = 0.25 * ease * (1 - rel) - 0.3 * relEase; ud.legs[1].rotation.x = -0.25 * ease * (1 - rel) + 0.3 * relEase; } if (ud.weaponMount) { ud.weaponMount.rotation.z = -0.8 - 0.6 * draw + 1.0 * relEase; ud.weaponMount.rotation.x = -0.3 * draw + 0.5 * relEase; ud.weaponMount.rotation.y = 0.6 * draw - 0.9 * relEase; } },
+  soulharvest: (prog, pm, ud, now, moving) => {
+  const reap = Math.min(prog / 0.62, 1);
+  const draw = Math.max((prog - 0.62) / 0.38, 0);
+  const reapE = Math.sin(reap * Math.PI * 0.5);
+  const drawE = draw * draw * (3 - 2 * draw);
+  pm.rotation.y += reapE * 1.0 * (1 - drawE * 0.35);
+  pm.rotation.z = reapE * 0.12 * (1 - drawE);
+  pm.rotation.x = -drawE * 0.14 + reapE * 0.05 * (1 - drawE);
+  pm.position.y += drawE * 0.13 - reapE * 0.03 * (1 - drawE);
+  const pulse = 1 + drawE * 0.07 * Math.sin(now * 0.02);
+  pm.scale.setScalar(pulse);
+  if (ud.arms && ud.arms.length >= 2) {
+    const out = reapE * 1.45 * (1 - drawE);
+    ud.arms[0].rotation.z = out - drawE * 0.55;
+    ud.arms[1].rotation.z = -out + drawE * 0.55;
+    const lift = reapE * 0.55 * (1 - drawE);
+    ud.arms[0].rotation.x = -lift - drawE * 1.25;
+    ud.arms[1].rotation.x = -lift - drawE * 1.25;
+    ud.arms[0].rotation.y = reapE * 0.45 * (1 - drawE);
+    ud.arms[1].rotation.y = -reapE * 0.45 * (1 - drawE);
+  }
+  if (ud.legs && ud.legs.length >= 2) {
+    ud.legs[0].rotation.x = reapE * 0.18 * (1 - drawE);
+    ud.legs[1].rotation.x = -reapE * 0.18 * (1 - drawE);
+  }
+  if (ud.weaponMount) { ud.weaponMount.rotation.z = -0.7 - reapE * 0.5; ud.weaponMount.rotation.x = 0.2; }
+},
+};
+
+// WARRIOR — Whirlwind flourish: a spinning translucent blade-disc + streaks at waist height.
+export function buildCastFx_whirlwind(opts) {
+  const c = (opts && opts.color) || '#ff4d6d';
+  const g = new T.Group();
+  const fxMat = new T.MeshBasicMaterial({ color: c, fog: false, transparent: true, opacity: 0.55, blending: T.AdditiveBlending, depthWrite: false });
+  const disc = m(geo('cfxWwDisc', () => new T.RingGeometry(1.2, 2.1, 28)), fxMat);
+  disc.rotation.x = -Math.PI / 2; disc.position.y = 0.6; g.add(disc);
+  const streaks = [];
+  for (let i = 0; i < 5; i++) {
+    const s = m(box(1.8, 0.05, 0.14), fxMat);
+    s.position.y = 0.55 + i * 0.06;
+    s.userData.a = (i / 5) * _TAU;
+    g.add(s); streaks.push(s);
+  }
+  g.userData.castAnim = (grp, prog) => {
+    const env = Math.sin(prog * Math.PI);
+    fxMat.opacity = 0.6 * env;
+    disc.scale.setScalar(0.5 + prog * 0.7);
+    for (let i = 0; i < streaks.length; i++) streaks[i].rotation.y = streaks[i].userData.a + prog * _TAU * 5;
+  };
+  return g;
+}
+
+export function buildCastFx_leapslam(opts) {
+  const c = (opts && opts.color) || "#ffc857";
+  const g = new T.Group();
+
+  const ringMat = new T.MeshBasicMaterial({ color: c, fog:false, transparent:true, opacity:0.0, blending:T.AdditiveBlending, depthWrite:false });
+  const ring2Mat = new T.MeshBasicMaterial({ color: c, fog:false, transparent:true, opacity:0.0, blending:T.AdditiveBlending, depthWrite:false });
+  const dustMat = new T.MeshBasicMaterial({ color: c, fog:false, transparent:true, opacity:0.0, blending:T.AdditiveBlending, depthWrite:false });
+  const lineMat = new T.MeshBasicMaterial({ color: c, fog:false, transparent:true, opacity:0.0, blending:T.AdditiveBlending, depthWrite:false });
+  const flashMat = new T.MeshBasicMaterial({ color: c, fog:false, transparent:true, opacity:0.0, blending:T.AdditiveBlending, depthWrite:false });
+
+  const ring = m(geo("cfxLeapslamRing", () => new T.RingGeometry(0.55, 1.0, 36)), ringMat);
+  ring.rotation.x = -Math.PI / 2; ring.position.y = 0.04; g.add(ring);
+
+  const ring2 = m(geo("cfxLeapslamRing2", () => new T.RingGeometry(0.2, 0.45, 28)), ring2Mat);
+  ring2.rotation.x = -Math.PI / 2; ring2.position.y = 0.05; g.add(ring2);
+
+  const flash = m(geo("cfxLeapslamFlash", () => new T.CircleGeometry(0.6, 24)), flashMat);
+  flash.rotation.x = -Math.PI / 2; flash.position.y = 0.06; g.add(flash);
+
+  const spikes = [];
+  for (let i = 0; i < 8; i++) {
+    const s = m(box(0.85, 0.05, 0.12), dustMat);
+    const a = (i / 8) * Math.PI * 2;
+    s.userData.a = a;
+    s.position.y = 0.07;
+    g.add(s); spikes.push(s);
+  }
+
+  const streak = m(box(0.1, 1.8, 0.1), lineMat);
+  streak.position.y = 1.0; g.add(streak);
+
+  g.userData.castAnim = (grp, prog) => {
+    if (prog < 0.6) {
+      lineMat.opacity = 0.0;
+      ringMat.opacity = 0.0; ring2Mat.opacity = 0.0; dustMat.opacity = 0.0; flashMat.opacity = 0.0;
+    } else if (prog < 0.8) {
+      const t = (prog - 0.6) / 0.2;
+      lineMat.opacity = 0.5 * (1 - Math.abs(t - 0.5) * 2);
+      streak.scale.y = 1.0;
+      streak.position.y = 1.4 - 1.1 * t;
+      ringMat.opacity = 0.0; ring2Mat.opacity = 0.0; dustMat.opacity = 0.0;
+      const b = Math.max(0, (t - 0.7) / 0.3);
+      flashMat.opacity = 0.9 * b;
+      flash.scale.setScalar(0.4 + 0.8 * b);
+    } else {
+      const t = (prog - 0.8) / 0.2;
+      const fade = 1 - t;
+      lineMat.opacity = 0.0;
+      ringMat.opacity = 0.75 * fade;
+      ring.scale.setScalar(0.5 + 2.6 * t);
+      ring2Mat.opacity = 0.6 * fade;
+      ring2.scale.setScalar(0.4 + 1.8 * Math.min(t * 1.4, 1));
+      flashMat.opacity = 0.9 * Math.max(0, 1 - t * 2.2);
+      flash.scale.setScalar(1.2 + 1.4 * t);
+      dustMat.opacity = 0.7 * fade;
+      const reach = 0.4 + 2.2 * t;
+      for (let i = 0; i < spikes.length; i++) {
+        const s = spikes[i];
+        s.rotation.y = s.userData.a;
+        s.position.x = Math.cos(s.userData.a) * reach;
+        s.position.z = Math.sin(s.userData.a) * reach;
+        s.scale.x = 0.6 + 1.4 * t;
+      }
+    }
+  };
+
+  return g;
+}
+
+export function buildCastFx_warcry(opts) {
+  const c = (opts && opts.color) || "#ffb44a";
+  const g = new T.Group();
+
+  // Expanding shockwave ring on the ground (released near the end)
+  const waveMat = new T.MeshBasicMaterial({ color: c, fog:false, transparent:true, opacity:0, blending:T.AdditiveBlending, depthWrite:false });
+  const wave = m(geo("cfxWarcryWave", () => new T.RingGeometry(0.55, 0.95, 36)), waveMat);
+  wave.rotation.x = -Math.PI / 2; wave.position.y = 0.05; g.add(wave);
+
+  // Second trailing wave for depth
+  const wave2Mat = new T.MeshBasicMaterial({ color: c, fog:false, transparent:true, opacity:0, blending:T.AdditiveBlending, depthWrite:false });
+  const wave2 = m(geo("cfxWarcryWave2", () => new T.RingGeometry(0.4, 0.62, 30)), wave2Mat);
+  wave2.rotation.x = -Math.PI / 2; wave2.position.y = 0.05; g.add(wave2);
+
+  // Roar cone bursting out the front (from chest height)
+  const roarMat = new T.MeshBasicMaterial({ color: c, fog:false, transparent:true, opacity:0, blending:T.AdditiveBlending, depthWrite:false });
+  const roar = m(cone(0.6, 1.0, 18), roarMat);
+  roar.rotation.x = Math.PI / 2; roar.position.set(0, 1.05, 0.5); g.add(roar);
+
+  // Vertical fury column swelling at the chest during the held roar
+  const colMat = new T.MeshBasicMaterial({ color: c, fog:false, transparent:true, opacity:0, blending:T.AdditiveBlending, depthWrite:false });
+  const col = m(cyl(0.32, 0.5, 1.3, 16), colMat);
+  col.position.y = 0.95; g.add(col);
+
+  // Rising fury embers around the body
+  const embers = [];
+  for (let i = 0; i < 6; i++) {
+    const eMat = new T.MeshBasicMaterial({ color: c, fog:false, transparent:true, opacity:0, blending:T.AdditiveBlending, depthWrite:false });
+    const e = m(box(0.1, 0.22, 0.1), eMat);
+    const a = (i / 6) * Math.PI * 2;
+    e.userData.a = a; e.userData.r = 0.42 + (i % 2) * 0.18; e.userData.ph = i * 0.16;
+    e.userData.mat = eMat;
+    g.add(e); embers.push(e);
+  }
+
+  g.userData.castAnim = (grp, prog, now) => {
+    const swell = Math.sin(Math.min(1, prog / 0.6) * Math.PI * 0.5);
+    const hold = prog > 0.25 && prog < 0.72 ? 1 : Math.max(0, 1 - Math.abs(prog - 0.48) / 0.5);
+    const rel = prog > 0.72 ? (prog - 0.72) / 0.28 : 0;
+    const relEnv = Math.sin(rel * Math.PI);
+
+    // Shockwaves blast outward on release
+    waveMat.opacity = 0.7 * relEnv;
+    wave.scale.setScalar(0.3 + rel * 3.4);
+    wave2Mat.opacity = 0.5 * relEnv;
+    wave2.scale.setScalar(0.3 + rel * 2.2);
+
+    // Roar cone punches forward
+    roarMat.opacity = 0.6 * relEnv;
+    roar.scale.set(0.5 + rel * 1.3, 0.5 + rel * 2.2, 0.5 + rel * 1.3);
+    roar.position.z = 0.5 + rel * 0.7;
+
+    // Fury column pulses during the held roar, then collapses
+    colMat.opacity = 0.45 * hold * (1 - rel);
+    const pulse = 1 + Math.sin(now * 0.02) * 0.12 * hold;
+    col.scale.set((0.6 + swell * 0.6) * pulse, 0.7 + swell * 0.7, (0.6 + swell * 0.6) * pulse);
+
+    // Embers rise and intensify with the build
+    for (let i = 0; i < embers.length; i++) {
+      const e = embers[i];
+      const t = ((now * 0.0009 + e.userData.ph) % 1);
+      e.position.x = Math.cos(e.userData.a) * e.userData.r;
+      e.position.z = Math.sin(e.userData.a) * e.userData.r;
+      e.position.y = 0.2 + t * 1.6;
+      e.userData.mat.opacity = (0.55 * swell) * (1 - t) * (1 - rel * 0.7);
+    }
+  };
+
+  return g;
+}
+
+export function buildCastFx_shieldwall(opts) {
+  const c = (opts && opts.color) || "#8fb7ff";
+  const g = new T.Group();
+  const dome = new T.Group();
+  dome.position.set(0, 0.0, 0.85);
+  g.add(dome);
+
+  const shellMat = new T.MeshBasicMaterial({ color: c, fog:false, transparent:true, opacity:0.18, blending:T.AdditiveBlending, depthWrite:false, wireframe:true });
+  const shell = m(geo("cfxSwDome", () => new T.SphereGeometry(0.95, 6, 4, 0, Math.PI*2, 0, Math.PI/2)), shellMat);
+  shell.scale.set(1, 1.0, 0.55);
+  dome.add(shell);
+
+  const skinMat = new T.MeshBasicMaterial({ color: c, fog:false, transparent:true, opacity:0.07, blending:T.AdditiveBlending, depthWrite:false });
+  const skin = m(geo("cfxSwSkin", () => new T.SphereGeometry(0.9, 12, 8, 0, Math.PI*2, 0, Math.PI/2)), skinMat);
+  skin.scale.set(1, 1.0, 0.55);
+  dome.add(skin);
+
+  const rings = [];
+  for (let i = 0; i < 3; i++) {
+    const rMat = new T.MeshBasicMaterial({ color: c, fog:false, transparent:true, opacity:0.4, blending:T.AdditiveBlending, depthWrite:false });
+    const r = m(geo("cfxSwRing" + i, () => new T.TorusGeometry(0.4 + i*0.22, 0.025, 6, 24)), rMat);
+    r.rotation.x = Math.PI/2;
+    r.position.y = 0.05 + i*0.18;
+    r.scale.z = 0.55;
+    r.userData.mat = rMat; r.userData.base = 0.42 - i*0.06;
+    dome.add(r); rings.push(r);
+  }
+
+  const base = new T.MeshBasicMaterial({ color: c, fog:false, transparent:true, opacity:0.5, blending:T.AdditiveBlending, depthWrite:false });
+  const ground = m(geo("cfxSwGround", () => new T.RingGeometry(0.55, 0.95, 6)), base);
+  ground.rotation.x = -Math.PI/2; ground.position.y = 0.02; ground.scale.z = 0.6;
+  dome.add(ground);
+
+  g.userData.castAnim = (grp, prog, now) => {
+    const set = Math.min(prog / 0.18, 1);
+    const rel = prog > 0.86 ? 1 - (prog - 0.86) / 0.14 : 1;
+    const up = set * rel;
+    const pulse = 0.5 + 0.5 * Math.sin(now * 0.006);
+    shellMat.opacity = (0.1 + 0.14 * pulse) * up;
+    skinMat.opacity = (0.04 + 0.06 * pulse) * up;
+    base.opacity = (0.3 + 0.3 * pulse) * up;
+    dome.scale.setScalar(0.85 + 0.15 * set + 0.04 * pulse);
+    for (let i = 0; i < rings.length; i++) {
+      const m2 = rings[i].userData.mat;
+      m2.opacity = (rings[i].userData.base * (0.6 + 0.6 * (0.5 + 0.5 * Math.sin(now * 0.005 + i)))) * up;
+      rings[i].rotation.z = now * 0.0008 * (i + 1) * (i % 2 ? -1 : 1);
+    }
+  };
+  return g;
+}
+
+export function buildCastFx_frostnova(opts) {
+  const c = (opts && opts.color) || "#6df1ff";
+  const g = new T.Group();
+  const ringMat = new T.MeshBasicMaterial({ color: c, fog:false, transparent:true, opacity:0.0, blending:T.AdditiveBlending, depthWrite:false });
+  const innerMat = new T.MeshBasicMaterial({ color: c, fog:false, transparent:true, opacity:0.0, blending:T.AdditiveBlending, depthWrite:false });
+  const shardMat = new T.MeshBasicMaterial({ color: c, fog:false, transparent:true, opacity:0.0, blending:T.AdditiveBlending, depthWrite:false });
+  const flashMat = new T.MeshBasicMaterial({ color: c, fog:false, transparent:true, opacity:0.0, blending:T.AdditiveBlending, depthWrite:false });
+
+  const ring = m(geo("cfxFnRing", () => new T.RingGeometry(0.82, 1.0, 40)), ringMat);
+  ring.rotation.x = -Math.PI / 2; ring.position.y = 0.04; g.add(ring);
+
+  const inner = m(geo("cfxFnInner", () => new T.RingGeometry(0.5, 0.62, 32)), innerMat);
+  inner.rotation.x = -Math.PI / 2; inner.position.y = 0.03; g.add(inner);
+
+  const flash = m(geo("cfxFnFlash", () => new T.CircleGeometry(0.6, 24)), flashMat);
+  flash.rotation.x = -Math.PI / 2; flash.position.y = 0.02; g.add(flash);
+
+  const shards = [];
+  const N = 8;
+  for (let i = 0; i < N; i++) {
+    const sh = m(geo("cfxFnShard", () => new T.ConeGeometry(0.12, 0.6, 4)), shardMat);
+    const a = (i / N) * Math.PI * 2;
+    sh.userData.a = a;
+    sh.rotation.x = Math.PI / 2;
+    sh.rotation.z = -a;
+    sh.position.y = 0.06;
+    g.add(sh);
+    shards.push(sh);
+  }
+
+  g.userData.castAnim = (grp, prog) => {
+    const snap = prog < 0.45 ? 0 : Math.min(1, (prog - 0.45) / 0.1);
+    const wave = prog < 0.45 ? 0 : (prog - 0.45) / 0.55;
+    const fade = Math.max(0, 1 - wave);
+
+    const r = 0.2 + wave * 3.5;
+    ring.scale.set(r, r, r);
+    ring.rotation.z = wave * 0.6;
+    ringMat.opacity = 0.75 * fade * snap;
+
+    const ri = 0.2 + wave * 2.4;
+    inner.scale.set(ri, ri, ri);
+    innerMat.opacity = 0.5 * fade * snap;
+
+    flashMat.opacity = 0.9 * Math.sin(snap * Math.PI);
+    const fs = 0.5 + snap * 1.2;
+    flash.scale.set(fs, fs, fs);
+
+    shardMat.opacity = 0.8 * fade * snap;
+    const reach = 0.4 + wave * 2.9;
+    for (let i = 0; i < shards.length; i++) {
+      const sh = shards[i];
+      const a = sh.userData.a;
+      sh.position.x = Math.cos(a) * reach;
+      sh.position.z = Math.sin(a) * reach;
+      const sc = 0.4 + snap * 1.1;
+      sh.scale.set(sc, 1 + wave * 0.8, sc);
+    }
+  };
+
+  return g;
+}
+
+export function buildCastFx_chainlightning(opts) {
+  const c = (opts && opts.color) || "#bff0ff";
+  const g = new T.Group();
+  const boltMat = new T.MeshBasicMaterial({ color: c, fog:false, transparent:true, opacity:0, blending:T.AdditiveBlending, depthWrite:false });
+  const hx = 0.32, hy = 0.92;
+  const pts = [
+    [hx, hy, 0.1], [hx+0.18, hy+0.16, 0.6], [hx-0.05, hy-0.05, 1.1],
+    [hx+0.12, hy+0.1, 1.7], [hx-0.1, hy-0.12, 2.3], [hx+0.06, hy+0.05, 3.0]
+  ];
+  const segs = [];
+  for (let i = 0; i < pts.length - 1; i++) {
+    const a = pts[i], b = pts[i+1];
+    const dx = b[0]-a[0], dy = b[1]-a[1], dz = b[2]-a[2];
+    const len = Math.sqrt(dx*dx+dy*dy+dz*dz);
+    const s = m(box(0.07, 0.07, 1), boltMat);
+    s.scale.z = len;
+    s.position.set((a[0]+b[0])/2, (a[1]+b[1])/2, (a[2]+b[2])/2);
+    s.lookAt(new T.Vector3(b[0], b[1], b[2]));
+    s.userData.t0 = i / (pts.length - 1);
+    s.userData.len = len;
+    g.add(s); segs.push(s);
+  }
+  const forks = [];
+  const fbase = [[pts[2], 0.5, 0.4], [pts[3], -0.55, 0.3], [pts[4], 0.45, -0.35]];
+  for (let i = 0; i < fbase.length; i++) {
+    const o = fbase[i][0];
+    const f = m(box(0.05, 0.05, 1), boltMat);
+    f.scale.z = 0.55;
+    f.position.set(o[0] + fbase[i][1]*0.25, o[1] + (i%2?-0.2:0.25), o[2] + fbase[i][2]*0.5);
+    f.rotation.z = fbase[i][1]; f.rotation.y = fbase[i][2];
+    f.userData.t0 = 0.4 + i*0.18;
+    g.add(f); forks.push(f);
+  }
+  const burst = m(geo("cfxClBurst", () => new T.SphereGeometry(0.22, 8, 8)), boltMat);
+  burst.position.set(hx, hy, 0.1); g.add(burst);
+  const tip = m(geo("cfxClTip", () => new T.SphereGeometry(0.14, 6, 6)), boltMat);
+  tip.position.set(hx+0.06, hy+0.05, 3.0); g.add(tip);
+  g.userData.castAnim = (grp, prog, now) => {
+    const fire = prog < 0.45 ? 0 : (prog - 0.45) / 0.55;
+    const flick = 0.6 + 0.4 * Math.sin(now * 0.06);
+    const fade = 1 - Math.max(0, (prog - 0.9) / 0.1) * 0.5;
+    boltMat.opacity = fire > 0 ? 0.9 * flick * fade : 0;
+    for (let i = 0; i < segs.length; i++) {
+      const s = segs[i];
+      s.visible = fire > s.userData.t0;
+      s.scale.x = 0.07 * flick + 0.02;
+      s.scale.y = 0.07 * flick + 0.02;
+      s.scale.z = s.userData.len;
+    }
+    for (let i = 0; i < forks.length; i++) forks[i].visible = fire > forks[i].userData.t0;
+    burst.visible = fire > 0 && fire < 0.5;
+    burst.scale.setScalar(fire < 0.5 ? (0.5 + fire * 2) : 0.001);
+    tip.visible = fire > 0.85;
+    tip.scale.setScalar(0.8 + Math.sin(now * 0.1) * 0.5);
+  };
+  return g;
+}
+
+export function buildCastFx_meteor(opts) {
+  const c = (opts && opts.color) || "#ff7a3c";
+  const g = new T.Group();
+  const orbMat = new T.MeshBasicMaterial({ color: c, fog:false, transparent:true, opacity:0.0, blending:T.AdditiveBlending, depthWrite:false });
+  const haloMat = new T.MeshBasicMaterial({ color: c, fog:false, transparent:true, opacity:0.0, blending:T.AdditiveBlending, depthWrite:false });
+  const trailMat = new T.MeshBasicMaterial({ color: c, fog:false, transparent:true, opacity:0.0, blending:T.AdditiveBlending, depthWrite:false });
+  const orb = m(geo("cfxMeteorOrb", () => new T.SphereGeometry(0.26, 16, 12)), orbMat);
+  orb.position.set(0, 1.95, 0.45); g.add(orb);
+  const halo = m(geo("cfxMeteorHalo", () => new T.RingGeometry(0.3, 0.55, 24)), haloMat);
+  halo.position.set(0, 1.95, 0.45); g.add(halo);
+  const shards = [];
+  for (let i = 0; i < 5; i++) {
+    const s = m(box(0.05, 0.05, 0.5), orbMat);
+    const a = (i / 5) * Math.PI * 2;
+    s.userData.a = a; s.userData.r = 0.42;
+    g.add(s); shards.push(s);
+  }
+  const trail = m(cyl(0.04, 0.2, 1.0, 8), trailMat);
+  trail.position.set(0, 1.95, 0.45); g.add(trail);
+  g.userData.castAnim = (grp, prog) => {
+    const gather = Math.min(prog / 0.75, 1);
+    const gEase = gather * gather * (3 - 2 * gather);
+    const snap = prog > 0.75 ? (prog - 0.75) / 0.25 : 0;
+    const pulse = 1 + Math.sin(prog * 30) * 0.12 * (1 - snap);
+    orbMat.opacity = (0.4 + 0.5 * gEase) * (1 - snap * 0.3);
+    const grow = 0.4 + gEase * 0.8;
+    orb.scale.setScalar(grow * pulse);
+    haloMat.opacity = gEase * 0.5 * (1 - snap);
+    halo.scale.setScalar(0.6 + gEase * 1.0 + Math.sin(prog * 18) * 0.1);
+    halo.rotation.z = prog * 3.0;
+    for (let i = 0; i < shards.length; i++) {
+      const s = shards[i];
+      const spin = prog * 6.0 + s.userData.a;
+      const r = s.userData.r * grow;
+      s.position.set(Math.cos(spin) * r, 1.95 + Math.sin(prog * 12 + i) * 0.05, 0.45 + Math.sin(spin) * r);
+      s.lookAt(0, 1.95, 0.45);
+      s.scale.setScalar(0.5 + gEase * 0.8);
+    }
+    if (snap > 0) {
+      const drop = snap * snap;
+      const y = 1.95 - drop * 1.7;
+      const z = 0.45 + drop * 1.6;
+      orb.position.set(0, y, z);
+      orb.scale.setScalar(grow * (1 + drop * 0.5));
+      orbMat.opacity = 0.9 * (1 - drop * 0.4);
+      trailMat.opacity = drop * 0.7 * (1 - drop * 0.5);
+      trail.position.set(0, (1.95 + y) / 2, (0.45 + z) / 2);
+      trail.scale.set(1, 1.0 + drop * 3.0, 1);
+      trail.lookAt(0, y, z);
+      for (let i = 0; i < shards.length; i++) { shards[i].position.set(0, y, z); shards[i].scale.setScalar(0.001); }
+      haloMat.opacity = 0;
+    } else {
+      orb.position.set(0, 1.95, 0.45);
+      trailMat.opacity = 0;
+    }
+  };
+  return g;
+}
+
+export function buildCastFx_blinkstrike(opts) {
+  const c = (opts && opts.color) || "#c489ff";
+  const g = new T.Group();
+  const shellMat = new T.MeshBasicMaterial({ color: c, fog: false, transparent: true, opacity: 0.5, blending: T.AdditiveBlending, depthWrite: false });
+  const sparkMat = new T.MeshBasicMaterial({ color: c, fog: false, transparent: true, opacity: 0.9, blending: T.AdditiveBlending, depthWrite: false });
+  const ringMat = new T.MeshBasicMaterial({ color: c, fog: false, transparent: true, opacity: 0.7, blending: T.AdditiveBlending, depthWrite: false });
+
+  const shell = m(cyl(0.34, 0.34, 1.5, 10), shellMat);
+  shell.position.y = 0.75; g.add(shell);
+
+  const ring = m(geo("cfxBlinkRing", () => new T.RingGeometry(0.5, 0.75, 24)), ringMat);
+  ring.rotation.x = -Math.PI / 2; ring.position.y = 0.05; g.add(ring);
+
+  const sparks = [];
+  for (let i = 0; i < 7; i++) {
+    const s = m(box(0.07, 0.07, 0.5), sparkMat);
+    const a = (i / 7) * Math.PI * 2;
+    s.userData.a = a; s.userData.h = 0.5 + (i % 3) * 0.4;
+    s.position.y = 0.8; g.add(s); sparks.push(s);
+  }
+
+  const lance = m(box(0.1, 0.1, 1.4), sparkMat);
+  lance.position.set(0, 0.85, 0.7); g.add(lance);
+
+  g.userData.castAnim = (grp, prog) => {
+    if (prog < 0.32) {
+      const t = prog / 0.32;
+      shellMat.opacity = 0.55 * (1 - t);
+      shell.scale.set(1 - t * 0.4, 1 - t * 0.5, 1 - t * 0.4);
+      ringMat.opacity = 0.6 * (1 - t);
+      ring.scale.setScalar(1 - t * 0.6);
+      sparkMat.opacity = 0;
+      lance.scale.z = 0; lance.scale.x = 0;
+    } else {
+      const t = (prog - 0.32) / 0.68;
+      const burst = 1 - Math.pow(1 - t, 3);
+      shellMat.opacity = 0.6 * (1 - t);
+      shell.scale.set(1 + burst * 2.5, 1 + burst * 0.6, 1 + burst * 2.5);
+      ringMat.opacity = 0.7 * (1 - t);
+      ring.scale.setScalar(0.4 + burst * 2.2);
+      const fade = Math.sin(t * Math.PI);
+      sparkMat.opacity = 0.95 * fade;
+      for (let i = 0; i < sparks.length; i++) {
+        const s = sparks[i];
+        const r = burst * 1.1;
+        s.position.x = Math.cos(s.userData.a) * r;
+        s.position.z = Math.sin(s.userData.a) * r;
+        s.position.y = s.userData.h + burst * 0.3;
+        s.rotation.y = s.userData.a;
+        s.scale.z = 0.4 + burst * 1.2;
+      }
+      const lp = Math.sin(Math.min(t * 1.4, 1) * Math.PI);
+      lance.scale.z = 0.3 + lp * 1.2;
+      lance.scale.x = 0.5 + lp;
+      lance.position.z = 0.4 + lp * 0.7;
+    }
+  };
+  return g;
+}
+
+export function buildCastFx_multishot(opts) {
+  const c = (opts && opts.color) || "#7dffb0";
+  const g = new T.Group();
+  const fan = [];
+  const N = 5;
+  for (let i = 0; i < N; i++) {
+    const ang = (i - (N - 1) / 2) * 0.32;
+    const arrowMat = new T.MeshBasicMaterial({ color: c, fog: false, transparent: true, opacity: 0, blending: T.AdditiveBlending, depthWrite: false });
+    const shaft = m(box(0.06, 0.06, 1.5), arrowMat);
+    shaft.position.z = 0.75;
+    const head = m(cone(0.12, 0.28, 6), arrowMat);
+    head.rotation.x = Math.PI / 2;
+    head.position.z = 1.5;
+    const arrow = new T.Group();
+    arrow.add(shaft); arrow.add(head);
+    arrow.position.y = 0.85;
+    arrow.rotation.y = ang;
+    arrow.userData.ang = ang;
+    arrow.userData.mat = arrowMat;
+    g.add(arrow);
+    fan.push(arrow);
+  }
+  const flashMat = new T.MeshBasicMaterial({ color: c, fog: false, transparent: true, opacity: 0, blending: T.AdditiveBlending, depthWrite: false });
+  const flash = m(geo("cfxMsFlash", () => new T.RingGeometry(0.1, 0.45, 16)), flashMat);
+  flash.position.set(0, 0.85, 0.2);
+  g.add(flash);
+  g.userData.castAnim = (grp, prog) => {
+    const released = prog > 0.62;
+    const rel = released ? (prog - 0.62) / 0.38 : 0;
+    for (let i = 0; i < fan.length; i++) {
+      const a = fan[i];
+      const reach = released ? rel : 0;
+      a.position.z = reach * (2.6 + Math.abs(a.userData.ang) * 1.5);
+      a.userData.mat.opacity = released ? (0.85 * (1 - rel)) : 0;
+      const sc = 0.6 + reach * 0.6;
+      a.scale.set(1, 1, sc);
+    }
+    const fl = released ? Math.sin(Math.min(1, rel * 3) * Math.PI) : 0;
+    flashMat.opacity = 0.7 * fl;
+    flash.scale.setScalar(0.6 + fl * 1.4);
+  };
+  return g;
+}
+
+export function buildCastFx_poisontrap(opts) {
+  const c = (opts && opts.color) || "#9be57c";
+  const g = new T.Group();
+  // Bubbling pod core at the feet (fresh material -> opacity animated)
+  const podMat = new T.MeshBasicMaterial({ color: c, fog:false, transparent:true, opacity:0.0, blending:T.AdditiveBlending, depthWrite:false });
+  const pod = m(geo("cfxPtPod", () => new T.SphereGeometry(0.5, 16, 12)), podMat);
+  pod.position.y = 0.18; pod.scale.set(0.2, 0.12, 0.2); g.add(pod);
+  // Toxic ground ring marking the trap (fresh material)
+  const ringMat = new T.MeshBasicMaterial({ color: c, fog:false, transparent:true, opacity:0.0, blending:T.AdditiveBlending, depthWrite:false });
+  const ring = m(geo("cfxPtRing", () => new T.RingGeometry(0.55, 0.95, 30)), ringMat);
+  ring.rotation.x = -Math.PI/2; ring.position.y = 0.03; g.add(ring);
+  // Rising bubbles that roil up out of the pod -- each gets its OWN fresh material so fade is independent
+  const bubbles = [];
+  for (let i = 0; i < 7; i++) {
+    const bMat = new T.MeshBasicMaterial({ color: c, fog:false, transparent:true, opacity:0.0, blending:T.AdditiveBlending, depthWrite:false });
+    const b = m(geo("cfxPtBub", () => new T.SphereGeometry(0.12, 8, 6)), bMat);
+    const a = (i / 7) * Math.PI * 2;
+    b.userData.a = a; b.userData.r = 0.18 + (i % 3) * 0.12; b.userData.ph = i * 0.6; b.userData.mat = bMat;
+    b.position.set(Math.cos(a) * b.userData.r, 0.18, Math.sin(a) * b.userData.r);
+    g.add(b); bubbles.push(b);
+  }
+  g.userData.castAnim = (grp, prog, now) => {
+    const env = Math.sin(prog * Math.PI);
+    const grow = Math.min(prog / 0.7, 1);
+    const t = (now || 0) * 0.004;
+    // pod swells and roils with a wobble
+    podMat.opacity = 0.6 * env;
+    const sw = 0.2 + grow * 0.85;
+    pod.scale.set(sw * (1 + 0.12 * Math.sin(t * 3)), sw * 0.7 * (1 + 0.15 * Math.sin(t * 4 + 1)), sw * (1 + 0.12 * Math.sin(t * 3 + 2)));
+    pod.position.y = 0.18 + 0.04 * Math.sin(t * 2);
+    // ring expands and pulses
+    ringMat.opacity = 0.5 * env;
+    ring.scale.setScalar(0.6 + grow * 0.9 + 0.06 * Math.sin(t * 3));
+    ring.rotation.z = prog * 1.6;
+    // bubbles drift up and out, popping back down (roil) -- independent per-bubble fade
+    for (let i = 0; i < bubbles.length; i++) {
+      const b = bubbles[i];
+      const up = ((t + b.userData.ph) % 1.0);
+      const rr = b.userData.r + up * 0.35;
+      b.position.set(Math.cos(b.userData.a) * rr, 0.12 + up * 0.7, Math.sin(b.userData.a) * rr);
+      const fade = (1 - up);
+      b.scale.setScalar((0.5 + 0.6 * Math.sin(up * Math.PI)) * grow);
+      b.userData.mat.opacity = 0.55 * env * fade;
+    }
+  };
+  return g;
+}
+
+export function buildCastFx_piercingshot(opts) {
+  const c = (opts && opts.color) || "#caa15a";
+  const g = new T.Group();
+  const boltMat = new T.MeshBasicMaterial({ color: c, fog:false, transparent:true, opacity:0.0, blending:T.AdditiveBlending, depthWrite:false });
+  const tipMat = new T.MeshBasicMaterial({ color: c, fog:false, transparent:true, opacity:0.0, blending:T.AdditiveBlending, depthWrite:false });
+  const ringMat = new T.MeshBasicMaterial({ color: c, fog:false, transparent:true, opacity:0.0, blending:T.AdditiveBlending, depthWrite:false });
+  const muzMat = new T.MeshBasicMaterial({ color: c, fog:false, transparent:true, opacity:0.0, blending:T.AdditiveBlending, depthWrite:false });
+
+  const bolt = m(cyl(0.035, 0.035, 1, 6), boltMat);
+  bolt.rotation.x = Math.PI/2;
+  bolt.position.set(0, 0.9, 0.5);
+  g.add(bolt);
+
+  const glow = m(box(0.16, 0.16, 1.0), boltMat);
+  glow.position.set(0, 0.9, 0.5);
+  g.add(glow);
+
+  const tip = m(cone(0.12, 0.45, 8), tipMat);
+  tip.rotation.x = Math.PI/2;
+  tip.position.set(0, 0.9, 1.0);
+  g.add(tip);
+
+  const rings = [];
+  for (let i = 0; i < 3; i++) {
+    const r = m(geo("cfxPsRing" + i, () => new T.RingGeometry(0.18, 0.34, 18)), ringMat);
+    r.position.set(0, 0.9, 0.2);
+    r.userData.off = i / 3;
+    g.add(r);
+    rings.push(r);
+  }
+
+  const muzzle = m(geo("cfxPsMuzzle", () => new T.RingGeometry(0.05, 0.4, 16)), muzMat);
+  muzzle.position.set(0, 0.9, 0.05);
+  g.add(muzzle);
+
+  g.userData.castAnim = (grp, prog) => {
+    const fire = prog > 0.6 ? (prog - 0.6) / 0.4 : 0;
+    const env = Math.sin(Math.min(1, fire) * Math.PI);
+    const reach = 0.1 + fire * 5.5;
+    boltMat.opacity = 0.7 * env;
+    tipMat.opacity = 0.85 * env;
+    ringMat.opacity = 0.6 * env;
+
+    const len = reach;
+    bolt.scale.y = len;
+    bolt.position.z = 0.1 + len * 0.5;
+    glow.scale.z = len;
+    glow.position.z = 0.1 + len * 0.5;
+    tip.position.z = 0.1 + len + 0.2;
+    tip.scale.setScalar(1 + 0.4 * env);
+
+    for (let i = 0; i < rings.length; i++) {
+      const r = rings[i];
+      const t = (fire + r.userData.off) % 1;
+      r.position.z = 0.1 + t * reach;
+      r.scale.setScalar(1 + t * 0.6);
+    }
+
+    const flash = prog < 0.62 ? 0 : Math.max(0, 1 - (prog - 0.6) / 0.18);
+    muzMat.opacity = 0.9 * flash;
+    muzzle.scale.setScalar(0.6 + flash * 2.2);
+  };
+  return g;
+}
+
+export function buildCastFx_volley(opts) {
+  const c = (opts && opts.color) || "#7dffb0";
+  const g = new T.Group();
+  const arrowMat = new T.MeshBasicMaterial({ color: c, fog:false, transparent:true, opacity:0.0, blending:T.AdditiveBlending, depthWrite:false });
+  const N = 8;
+  const arrows = [];
+  for (let i = 0; i < N; i++) {
+    const a = m(box(0.06, 0.06, 0.7), arrowMat);
+    const head = m(cone(0.12, 0.28, 4), arrowMat);
+    head.position.z = 0.5; head.rotation.x = Math.PI / 2; a.add(head);
+    a.userData.ang = (i / N) * Math.PI * 2;
+    a.userData.spread = 1.5 + (i % 3) * 0.55;
+    g.add(a); arrows.push(a);
+  }
+  const ringMat = new T.MeshBasicMaterial({ color: c, fog:false, transparent:true, opacity:0.0, blending:T.AdditiveBlending, depthWrite:false });
+  const ring = m(geo("cfxVolleyRing", () => new T.RingGeometry(0.5, 0.85, 32)), ringMat);
+  ring.rotation.x = -Math.PI / 2; ring.position.y = 0.05; g.add(ring);
+  g.userData.castAnim = (grp, prog) => {
+    const draw = Math.min(prog / 0.6, 1);
+    const launch = prog > 0.6 ? (prog - 0.6) / 0.4 : 0;
+    const env = Math.sin(prog * Math.PI);
+    for (let i = 0; i < arrows.length; i++) {
+      const a = arrows[i];
+      const ang = a.userData.ang;
+      const sp = a.userData.spread;
+      const t = Math.min(launch * 1.15, 1);
+      const arc = Math.sin(t * Math.PI);
+      const radius = t * sp;
+      a.position.x = Math.cos(ang) * radius;
+      a.position.z = Math.sin(ang) * radius;
+      a.position.y = 0.85 + arc * 2.8 + draw * 0.3;
+      const pitch = (0.5 - t) * 1.9;
+      a.rotation.set(pitch, -ang + Math.PI / 2, 0);
+      const s = 0.6 + draw * 0.4 + launch * 0.3;
+      a.scale.setScalar(s);
+    }
+    arrowMat.opacity = launch > 0 ? 0.85 * (1 - 0.35 * launch) : 0.15 + 0.6 * draw;
+    ringMat.opacity = 0.6 * env;
+    ring.scale.setScalar(0.6 + prog * 1.7);
+  };
+  return g;
+}
+
+export function buildCastFx_raisedead(opts) {
+  const c = (opts && opts.color) || "#a0ffc0";
+  const g = new T.Group();
+  const wispMat = new T.MeshBasicMaterial({ color: c, fog:false, transparent:true, opacity:0.0, blending:T.AdditiveBlending, depthWrite:false });
+  const ringMat = new T.MeshBasicMaterial({ color: c, fog:false, transparent:true, opacity:0.0, blending:T.AdditiveBlending, depthWrite:false });
+  // ground summoning ring
+  const ring = m(geo("cfxRdRing", () => new T.RingGeometry(0.55, 0.95, 32)), ringMat);
+  ring.rotation.x = -Math.PI/2; ring.position.y = 0.03; g.add(ring);
+  const ring2 = m(geo("cfxRdRing2", () => new T.RingGeometry(0.95, 1.05, 32)), ringMat);
+  ring2.rotation.x = -Math.PI/2; ring2.position.y = 0.03; g.add(ring2);
+  // bone/soul wisps rising from a ring around the feet
+  const wisps = [];
+  const N = 8;
+  for (let i = 0; i < N; i++) {
+    const a = (i / N) * Math.PI * 2;
+    const w = m(geo("cfxRdWisp", () => new T.ConeGeometry(0.07, 0.4, 6)), wispMat);
+    const r = 0.8;
+    w.userData.bx = Math.cos(a) * r;
+    w.userData.bz = Math.sin(a) * r;
+    w.userData.ph = i / N;
+    w.position.set(w.userData.bx, 0.1, w.userData.bz);
+    g.add(w); wisps.push(w);
+  }
+  g.userData.castAnim = (grp, prog, now) => {
+    const env = Math.sin(prog * Math.PI);
+    ringMat.opacity = 0.7 * env;
+    ring.rotation.z = prog * Math.PI * 1.5;
+    ring2.scale.setScalar(0.85 + env * 0.3);
+    wispMat.opacity = 0.85 * env;
+    const t = (now || 0) * 0.004;
+    for (let i = 0; i < wisps.length; i++) {
+      const w = wisps[i];
+      const local = (prog * 1.3 + w.userData.ph) % 1;       // each wisp loops upward
+      w.position.y = 0.05 + local * 1.7;                    // rise from ground
+      const fade = Math.sin(local * Math.PI);               // born low, fade high
+      w.scale.set(fade, 0.5 + fade * 1.1, fade);
+      const swirl = w.userData.ph * Math.PI * 2 + t;        // curl inward as they rise
+      const rr = 0.8 * (1 - local * 0.55);
+      w.position.x = Math.cos(swirl) * rr;
+      w.position.z = Math.sin(swirl) * rr;
+      w.rotation.y = swirl;
+    }
+  };
+  return g;
+}
+
+export function buildCastFx_souldrain(opts) {
+  const c = (opts && opts.color) || "#c489ff";
+  const g = new T.Group();
+  const handY = 1.05, handZ = 0.35;
+  const tipZ = 1.9;
+  const tetherMat = new T.MeshBasicMaterial({ color: c, fog:false, transparent:true, opacity:0.7, blending:T.AdditiveBlending, depthWrite:false });
+  const motes = [];
+  const N = 6;
+  for (let i = 0; i < N; i++) {
+    const s = m(geo("cfxSdMote", () => new T.OctahedronGeometry(0.11, 0)), tetherMat);
+    s.userData.ph = i / N;
+    g.add(s); motes.push(s);
+  }
+  const core = m(geo("cfxSdCore", () => new T.SphereGeometry(0.16, 10, 10)), tetherMat);
+  core.position.set(0, handY, handZ); g.add(core);
+  const strand = m(cyl(0.025, 0.025, 1, 6), tetherMat);
+  strand.position.set(0, handY, (handZ + tipZ) / 2);
+  strand.rotation.x = Math.PI / 2;
+  strand.scale.y = tipZ - handZ;
+  g.add(strand);
+  const wisp = m(geo("cfxSdWisp", () => new T.RingGeometry(0.18, 0.3, 16)), tetherMat);
+  wisp.position.set(0, handY, tipZ); g.add(wisp);
+  g.userData.castAnim = (grp, prog, now) => {
+    const t = now * 0.004;
+    const env = Math.sin(prog * Math.PI);
+    const pullT = 0.5 - 0.5 * Math.cos(prog * Math.PI * 2);
+    tetherMat.opacity = 0.75 * env;
+    const reach = tipZ - prog * 0.55;
+    strand.position.z = (handZ + reach) / 2;
+    strand.scale.y = reach - handZ;
+    strand.scale.x = strand.scale.z = 1 + Math.sin(t * 3) * 0.25;
+    wisp.position.z = reach;
+    wisp.position.y = handY + Math.sin(t * 2) * 0.08;
+    wisp.scale.setScalar(0.8 + pullT * 0.5);
+    wisp.rotation.z = t;
+    core.scale.setScalar(0.6 + pullT * 0.9 + env * 0.3);
+    for (let i = 0; i < motes.length; i++) {
+      const mt = motes[i];
+      let f = (mt.userData.ph + prog * 1.6) % 1;
+      f = 1 - f;
+      const z = handZ + f * (reach - handZ);
+      mt.position.set(Math.sin(z * 6 + t * 4) * 0.12, handY + Math.cos(z * 5 + t * 3) * 0.1, z);
+      const s = (0.5 + (1 - f) * 0.7) * env;
+      mt.scale.setScalar(s);
+      mt.rotation.x = t * 2 + i; mt.rotation.y = t * 3;
+    }
+  };
+  return g;
+}
+
+export function buildCastFx_corpseexplosion(opts) {
+  const c = (opts && opts.color) || "#b6ff6a";
+  const g = new T.Group();
+  const CHEST = 0.85;
+
+  const ringMat = new T.MeshBasicMaterial({ color: c, fog:false, transparent:true, opacity:0.0, blending:T.AdditiveBlending, depthWrite:false });
+  const groundMat = new T.MeshBasicMaterial({ color: c, fog:false, transparent:true, opacity:0.0, blending:T.AdditiveBlending, depthWrite:false });
+  const coreMat = new T.MeshBasicMaterial({ color: c, fog:false, transparent:true, opacity:0.0, blending:T.AdditiveBlending, depthWrite:false });
+  const shardMat = new T.MeshBasicMaterial({ color: c, fog:false, transparent:true, opacity:0.0, blending:T.AdditiveBlending, depthWrite:false });
+
+  const ring = m(geo("cfxCeRing", () => new T.RingGeometry(0.55, 0.85, 36)), ringMat);
+  ring.position.y = CHEST;
+  g.add(ring);
+
+  const ground = m(geo("cfxCeGround", () => new T.RingGeometry(0.6, 0.95, 36)), groundMat);
+  ground.rotation.x = -Math.PI / 2;
+  ground.position.y = 0.04;
+  g.add(ground);
+
+  const core = m(geo("cfxCeCore", () => new T.SphereGeometry(0.32, 16, 12)), coreMat);
+  core.position.y = CHEST;
+  g.add(core);
+
+  const shards = [];
+  const N = 8;
+  for (let i = 0; i < N; i++) {
+    const s = m(box(0.5, 0.07, 0.07), shardMat);
+    const a = (i / N) * Math.PI * 2;
+    s.userData.a = a;
+    s.position.y = CHEST;
+    s.rotation.y = a;
+    g.add(s);
+    shards.push(s);
+  }
+
+  g.userData.castAnim = (grp, prog) => {
+    const d = Math.max(0, 1 - Math.abs(prog - 0.5) / 0.16);
+    const blast = d * d;
+    const t = (prog - 0.45) / 0.55;
+    const grow = t < 0 ? 0 : (t > 1 ? 1 : t);
+    const after = prog > 0.45 ? 1 : 0;
+
+    const rScale = 0.4 + grow * 3.6;
+    ring.scale.setScalar(rScale);
+    ground.scale.setScalar(0.4 + grow * 4.2);
+    ringMat.opacity = (0.95 * blast + 0.4 * (1 - grow)) * after;
+    groundMat.opacity = (0.7 * blast + 0.3 * (1 - grow)) * after;
+
+    const charge = Math.min(prog / 0.45, 1);
+    core.scale.setScalar(0.3 + charge * 0.6 + blast * 1.8);
+    coreMat.opacity = 0.25 * charge + 0.95 * blast;
+
+    const reach = grow * 2.6;
+    shardMat.opacity = (0.85 * blast + 0.4 * (1 - grow)) * after;
+    for (let i = 0; i < shards.length; i++) {
+      const s = shards[i];
+      const a = s.userData.a;
+      s.position.x = Math.sin(a) * reach;
+      s.position.z = Math.cos(a) * reach;
+      s.position.y = CHEST + Math.sin(grow * Math.PI) * 0.3 - grow * 0.5;
+      s.scale.setScalar(0.6 + blast * 1.2);
+    }
+
+    grp.rotation.y = prog * 0.6;
+  };
+
+  return g;
+}
+
+export function buildCastFx_boneprison(opts) {
+  const c = (opts && opts.color) || "#e8e0c0";
+  const g = new T.Group();
+  const spikeMat = new T.MeshBasicMaterial({ color: c, fog:false, transparent:true, opacity:0.0, blending:T.AdditiveBlending, depthWrite:false });
+  const ringMat = new T.MeshBasicMaterial({ color: c, fog:false, transparent:true, opacity:0.0, blending:T.AdditiveBlending, depthWrite:false });
+  const N = 8;
+  const R = 0.95;
+  const spikes = [];
+  for (let i = 0; i < N; i++) {
+    const a = (i / N) * Math.PI * 2;
+    const sp = m(geo("cfxBpSpike", () => new T.ConeGeometry(0.13, 0.85, 5)), spikeMat);
+    sp.position.set(Math.cos(a) * R, 0.0, Math.sin(a) * R);
+    sp.rotation.z = Math.cos(a) * 0.18;
+    sp.rotation.x = -Math.sin(a) * 0.18;
+    sp.scale.set(1, 0.05, 1);
+    sp.userData.ph = i / N;
+    g.add(sp);
+    spikes.push(sp);
+  }
+  const ring = m(geo("cfxBpRing", () => new T.RingGeometry(R - 0.12, R + 0.12, 32)), ringMat);
+  ring.rotation.x = -Math.PI / 2;
+  ring.position.y = 0.04;
+  g.add(ring);
+  const core = m(geo("cfxBpCore", () => new T.RingGeometry(0.18, 0.42, 20)), ringMat);
+  core.rotation.x = -Math.PI / 2;
+  core.position.y = 0.03;
+  g.add(core);
+  g.userData.castAnim = (grp, prog) => {
+    const rise = prog < 0.45 ? (prog / 0.45) : 1;
+    const fade = prog > 0.8 ? (1 - (prog - 0.8) / 0.2) : 1;
+    const er = Math.sin(Math.min(rise, 1) * Math.PI * 0.5);
+    for (let i = 0; i < spikes.length; i++) {
+      const sp = spikes[i];
+      const local = Math.max(0, Math.min(1, (rise - sp.userData.ph * 0.3) / 0.7));
+      const h = Math.sin(local * Math.PI * 0.5);
+      sp.scale.y = 0.05 + h * 1.0;
+      sp.position.y = (0.85 * (0.05 + h * 1.0)) * 0.5 - 0.05;
+    }
+    spikeMat.opacity = 0.85 * fade;
+    ringMat.opacity = 0.5 * er * fade;
+    const pulse = 1 + Math.sin(prog * Math.PI * 6) * 0.04;
+    ring.scale.setScalar(pulse);
+    core.scale.setScalar(0.6 + er * 0.6);
+  };
+  return g;
+}
+
+export function buildCastFx_demonslash(opts) {
+  const c = (opts && opts.color) || "#ff3b2f";
+  const g = new T.Group();
+  const crescentMat = new T.MeshBasicMaterial({ color: c, fog:false, transparent:true, opacity:0.0, blending:T.AdditiveBlending, depthWrite:false });
+  const coreMat = new T.MeshBasicMaterial({ color: "#ffd28a", fog:false, transparent:true, opacity:0.0, blending:T.AdditiveBlending, depthWrite:false });
+  const arc = m(geo("cfxDsArc", () => new T.RingGeometry(1.3, 2.2, 40, 1, -Math.PI * 0.62, Math.PI * 1.24)), crescentMat);
+  arc.rotation.x = -Math.PI / 2; arc.position.y = 0.85; g.add(arc);
+  const core = m(geo("cfxDsCore", () => new T.RingGeometry(1.55, 1.95, 40, 1, -Math.PI * 0.55, Math.PI * 1.1)), coreMat);
+  core.rotation.x = -Math.PI / 2; core.position.y = 0.85; g.add(core);
+  const embers = [];
+  for (let i = 0; i < 7; i++) {
+    const eMat = new T.MeshBasicMaterial({ color: c, fog:false, transparent:true, opacity:0.0, blending:T.AdditiveBlending, depthWrite:false });
+    const e = m(box(0.16, 0.16, 0.16), eMat);
+    const a = -Math.PI * 0.5 + (i / 6) * Math.PI;
+    e.position.set(Math.cos(a) * 1.85, 0.85, Math.sin(a) * 1.85);
+    e.userData.a = a; e.userData.mat = eMat; e.userData.phase = i * 0.12;
+    g.add(e); embers.push(e);
+  }
+  const flash = m(plane(2.6, 1.6), new T.MeshBasicMaterial({ color: "#ffb070", fog:false, transparent:true, opacity:0.0, blending:T.AdditiveBlending, depthWrite:false }));
+  flash.position.set(0, 0.9, 1.4); g.add(flash);
+  g.userData.castAnim = (grp, prog, now) => {
+    const swing = prog < 0.28 ? 0 : Math.min(1, (prog - 0.28) / 0.52);
+    const sweepEnv = Math.sin(Math.max(0, swing) * Math.PI);
+    const wind = Math.min(1, prog / 0.28);
+    const fade = prog < 0.85 ? 1 : Math.max(0, 1 - (prog - 0.85) / 0.15);
+    grp.rotation.y = -1.0 * (1 - swing) + 1.6 * swing;
+    const sc = 0.7 + 0.5 * swing;
+    arc.scale.set(sc, sc, sc); core.scale.set(sc, sc, sc);
+    crescentMat.opacity = (0.75 * sweepEnv + 0.2 * wind * (1 - swing)) * fade;
+    coreMat.opacity = 0.85 * sweepEnv * fade;
+    for (let i = 0; i < embers.length; i++) {
+      const e = embers[i];
+      const lag = Math.max(0, Math.min(1, (swing - e.userData.phase) * 1.6));
+      const r = 1.85 + lag * 0.6;
+      e.position.set(Math.cos(e.userData.a) * r, 0.85 + lag * 0.5 + Math.sin(now * 0.012 + i) * 0.06, Math.sin(e.userData.a) * r);
+      const es = 1 - lag * 0.7;
+      e.scale.setScalar(Math.max(0.05, es));
+      e.userData.mat.opacity = 0.9 * sweepEnv * (1 - lag * 0.5) * fade;
+    }
+    flash.material.opacity = 0.6 * Math.max(0, 1 - Math.abs(swing - 0.45) * 4) * fade;
+    flash.scale.setScalar(0.8 + swing * 0.6);
+  };
+  return g;
+}
+
+export function buildCastFx_starfall(opts) {
+      const c = (opts && opts.color) || "#ffe08a";
+      const g = new T.Group();
+      const haloMat = new T.MeshBasicMaterial({ color: c, fog:false, transparent:true, opacity:0.0, blending:T.AdditiveBlending, depthWrite:false });
+      const moteMat = new T.MeshBasicMaterial({ color: c, fog:false, transparent:true, opacity:0.0, blending:T.AdditiveBlending, depthWrite:false });
+      const trailMat = new T.MeshBasicMaterial({ color: c, fog:false, transparent:true, opacity:0.0, blending:T.AdditiveBlending, depthWrite:false });
+      const SKY = 3.4;
+      const halo = m(geo("cfxStarfallHalo", () => new T.RingGeometry(0.5, 1.05, 30)), haloMat);
+      halo.rotation.x = -Math.PI / 2; halo.position.y = SKY; g.add(halo);
+      const motes = [];
+      for (let i = 0; i < 7; i++) {
+        const s = m(geo("cfxStarfallMote", () => new T.OctahedronGeometry(0.16, 0)), moteMat);
+        s.userData.a = (i / 7) * Math.PI * 2;
+        s.userData.r = 0.7 + (i % 3) * 0.18;
+        g.add(s); motes.push(s);
+      }
+      const meteors = [];
+      for (let i = 0; i < 3; i++) {
+        const grp = new T.Group();
+        const head = m(geo("cfxStarfallHead", () => new T.OctahedronGeometry(0.22, 0)), trailMat);
+        grp.add(head);
+        const tail = m(geo("cfxStarfallTail", () => new T.ConeGeometry(0.16, 1.3, 8)), trailMat);
+        tail.position.y = 0.75; grp.add(tail);
+        const ang = (i / 3) * Math.PI * 2 + 0.4;
+        grp.userData.tx = Math.cos(ang) * 0.95;
+        grp.userData.tz = Math.sin(ang) * 0.95;
+        grp.visible = false;
+        g.add(grp); meteors.push(grp);
+      }
+      g.userData.castAnim = (grp, prog) => {
+        const gather = Math.min(prog, 0.7) / 0.7;
+        const strike = prog > 0.7 ? (prog - 0.7) / 0.3 : 0;
+        haloMat.opacity = 0.5 * gather * (1 - strike);
+        halo.scale.setScalar(0.4 + gather * 0.9 + strike * 0.6);
+        halo.rotation.z = prog * Math.PI * 1.5;
+        const conv = 1 - gather * 0.7;
+        moteMat.opacity = 0.85 * gather * (1 - strike);
+        for (let i = 0; i < motes.length; i++) {
+          const s = motes[i];
+          const a = s.userData.a + prog * Math.PI * 2.5;
+          const r = s.userData.r * conv;
+          s.position.set(Math.cos(a) * r, SKY + Math.sin(prog * 6 + i) * 0.12, Math.sin(a) * r);
+          s.scale.setScalar(0.6 + gather * 0.6);
+          s.rotation.y = a * 2;
+        }
+        trailMat.opacity = 0.9 * (strike > 0 ? 1 : 0) * (1 - strike * 0.3);
+        for (let i = 0; i < meteors.length; i++) {
+          const mt = meteors[i];
+          const local = Math.min(1, Math.max(0, (strike - i * 0.12) * 1.5));
+          mt.visible = local > 0;
+          const y = SKY - local * SKY;
+          mt.position.set(mt.userData.tx * local, y, mt.userData.tz * local);
+          mt.scale.setScalar(0.7 + local * 0.5);
+        }
+      };
+      return g;
+    }
+
+export function buildCastFx_typhoonshot(opts) {
+  const c = (opts && opts.color) || "#7dffb0";
+  const g = new T.Group();
+  const ringMat = new T.MeshBasicMaterial({ color: c, fog:false, transparent:true, opacity:0.0, blending:T.AdditiveBlending, depthWrite:false });
+  const arrowMat = new T.MeshBasicMaterial({ color: c, fog:false, transparent:true, opacity:0.0, blending:T.AdditiveBlending, depthWrite:false });
+
+  // Two tilted swirling wind vortex rings stacked at chest height
+  const ringA = m(geo("cfxTyphRingA", () => new T.TorusGeometry(0.9, 0.06, 8, 28)), ringMat);
+  ringA.position.y = 0.85; ringA.rotation.x = -Math.PI/2 + 0.5; g.add(ringA);
+  const ringB = m(geo("cfxTyphRingB", () => new T.TorusGeometry(0.6, 0.05, 8, 24)), ringMat);
+  ringB.position.y = 1.05; ringB.rotation.x = -Math.PI/2 - 0.45; g.add(ringB);
+
+  // Arrow streaks spiraling forward (+Z), built as thin boxes with cone heads
+  const arrows = [];
+  for (let i = 0; i < 6; i++) {
+    const a = new T.Group();
+    const shaft = m(box(0.04, 0.04, 0.9), arrowMat); shaft.position.z = 0.0; a.add(shaft);
+    const head = m(cone(0.1, 0.22, 6), arrowMat); head.rotation.x = Math.PI/2; head.position.z = 0.5; a.add(head);
+    a.userData.a = (i / 6) * Math.PI * 2;
+    a.userData.r = 0.5 + (i % 3) * 0.18;
+    a.position.y = 0.95;
+    g.add(a); arrows.push(a);
+  }
+
+  g.userData.castAnim = (grp, prog) => {
+    const coil = Math.min(prog / 0.5, 1);
+    const rel = Math.max((prog - 0.5) / 0.5, 0);
+    const env = Math.sin(prog * Math.PI);
+    ringMat.opacity = 0.5 * env;
+    arrowMat.opacity = 0.7 * rel * (1 - rel * 0.3);
+    // Rings wind up tight then expand on release, spinning fast
+    const spin = prog * Math.PI * 2 * 4;
+    ringA.rotation.z = spin; ringB.rotation.z = -spin * 1.3;
+    const grow = 0.4 + coil * 0.3 + rel * 0.8;
+    ringA.scale.setScalar(grow); ringB.scale.setScalar(grow * 0.85);
+    // Arrows spiral and shoot forward, fanning outward as they go
+    for (let i = 0; i < arrows.length; i++) {
+      const ar = arrows[i];
+      const ang = ar.userData.a + spin * 0.6;
+      const reach = rel * 3.2;
+      const spread = ar.userData.r * (0.6 + rel * 1.4);
+      ar.position.x = Math.cos(ang) * spread;
+      ar.position.z = 0.4 + reach;
+      ar.position.y = 0.95 + Math.sin(ang) * spread * 0.4;
+      ar.rotation.y = ang * 0.3 + (ar.userData.a - Math.PI) * 0.4;
+      ar.scale.setScalar(0.6 + rel * 0.6);
+    }
+  };
+  return g;
+}
+
+export function buildCastFx_soulharvest(opts) {
+  const c = (opts && opts.color) || "#c489ff";
+  const g = new T.Group();
+
+  const ringMat = new T.MeshBasicMaterial({ color: c, fog:false, transparent:true, opacity:0.4, blending:T.AdditiveBlending, depthWrite:false });
+  const ring = m(geo("cfxShReapRing", () => new T.RingGeometry(3.4, 3.95, 40)), ringMat);
+  ring.rotation.x = -Math.PI / 2; ring.position.y = 0.7; g.add(ring);
+
+  const wispMat = new T.MeshBasicMaterial({ color: c, fog:false, transparent:true, opacity:0.9, blending:T.AdditiveBlending, depthWrite:false });
+  const wisps = [];
+  const N = 9;
+  for (let i = 0; i < N; i++) {
+    const w = m(geo("cfxShWisp", () => new T.SphereGeometry(0.12, 8, 8)), wispMat);
+    w.userData.a = (i / N) * Math.PI * 2;
+    w.userData.ph = (i / N);
+    g.add(w); wisps.push(w);
+  }
+
+  const coreMat = new T.MeshBasicMaterial({ color: c, fog:false, transparent:true, opacity:0.0, blending:T.AdditiveBlending, depthWrite:false });
+  const core = m(geo("cfxShCore", () => new T.SphereGeometry(0.45, 12, 12)), coreMat);
+  core.position.y = 1.0; g.add(core);
+
+  const pillarMat = new T.MeshBasicMaterial({ color: c, fog:false, transparent:true, opacity:0.0, blending:T.AdditiveBlending, depthWrite:false });
+  const pillar = m(cyl(0.18, 0.05, 2.2, 10), pillarMat);
+  pillar.position.y = 1.1; g.add(pillar);
+
+  g.userData.castAnim = (grp, prog) => {
+    const reap = Math.min(prog / 0.62, 1);
+    const draw = Math.max((prog - 0.62) / 0.38, 0);
+    const reapE = Math.sin(reap * Math.PI * 0.5);
+
+    ringMat.opacity = 0.45 * reapE * (1 - draw * 0.8);
+    ring.rotation.z = reap * Math.PI * 1.2;
+    ring.scale.setScalar(1 - draw * 0.3);
+
+    const inward = draw;
+    for (let i = 0; i < wisps.length; i++) {
+      const w = wisps[i];
+      const local = Math.min(Math.max((prog - w.userData.ph * 0.25) / 0.75, 0), 1);
+      const rad = 3.6 * (1 - inward) * (1 - local * 0.15);
+      const spin = w.userData.a + prog * Math.PI * 3.2 + inward * Math.PI * 2.5;
+      const rNow = rad * (1 - inward * 0.95);
+      w.position.x = Math.cos(spin) * rNow;
+      w.position.z = Math.sin(spin) * rNow;
+      w.position.y = 0.5 + inward * (0.7 + (i % 3) * 0.18) + reapE * 0.1;
+      const s = 0.7 + reapE * 0.5 + inward * 0.6;
+      w.scale.setScalar(s);
+    }
+    wispMat.opacity = 0.85 * Math.min(reap * 1.4, 1) * (1 - draw * 0.5);
+
+    coreMat.opacity = draw * 0.85;
+    core.scale.setScalar(0.4 + draw * 1.3 + Math.sin(prog * 40) * 0.05 * draw);
+
+    pillarMat.opacity = draw * 0.5 * (1 - draw * 0.4);
+    pillar.scale.y = 0.3 + draw * 1.1;
+    pillar.scale.x = pillar.scale.z = 0.5 + draw * 0.8;
+  };
+
+  return g;
+}
+
 // expose the cache for the engine (warm-up / disposal if needed)
 export const _cache = { GEO, MATS };

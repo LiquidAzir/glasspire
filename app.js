@@ -182,6 +182,34 @@
     return rid ? RUNES[rid] : null;
   }
 
+  // ===== CAST ANIMATIONS — per-skill body-motion tuning =====
+  // Each cast sets p.castAnim = { id, t, dur, color, uid }. tickPlayer advances t;
+  // render3d's syncPlayer reads p.castAnim and drives the rig via builders' CAST_ANIMS[id]
+  // (distinct body motion) + buildCastFx_<id> (a 3D flourish on the player). dur = seconds,
+  // color = theme for the flourish.
+  const CAST_FX = {
+    whirlwind:      { dur: 0.75, color: '#ff4d6d' },
+    leapslam:       { dur: 0.64, color: '#ffc857' },
+    warcry:         { dur: 0.70, color: '#ffb44a' },
+    shieldwall:     { dur: 0.85, color: '#8fb7ff' },
+    frostnova:      { dur: 0.60, color: '#6df1ff' },
+    chainlightning: { dur: 0.55, color: '#bff0ff' },
+    meteor:         { dur: 0.80, color: '#ff7a3c' },
+    blinkstrike:    { dur: 0.45, color: '#c489ff' },
+    multishot:      { dur: 0.50, color: '#7dffb0' },
+    poisontrap:     { dur: 0.58, color: '#9be57c' },
+    piercingshot:   { dur: 0.55, color: '#caa15a' },
+    volley:         { dur: 0.72, color: '#7dffb0' },
+    raisedead:      { dur: 0.82, color: '#a0ffc0' },
+    souldrain:      { dur: 0.72, color: '#c489ff' },
+    corpseexplosion:{ dur: 0.60, color: '#b6ff6a' },
+    boneprison:     { dur: 0.62, color: '#e8e0c0' },
+    demonslash:     { dur: 0.58, color: '#ff3b2f' },
+    starfall:       { dur: 0.82, color: '#ffe08a' },
+    typhoonshot:    { dur: 0.62, color: '#7dffb0' },
+    soulharvest:    { dur: 0.75, color: '#c489ff' },
+  };
+
   const BIOMES = [
     { id: 'crypts',   name: 'The Crypts',          shortName: 'CRYPTS',
       palette: { wall: '#6df1ff', floor: '#1a2a3a', accent: '#c489ff' },
@@ -2397,6 +2425,9 @@
     // Skill damage multiplier from the equipped rune — read by hitEnemy + spawnProjectile.
     // try/finally guarantees it resets even if a skill takes an early return.
     game._skillDmgMul = rune ? (rune.dmgMul || 1) : 1;
+    // Kick off the cast body-animation + flourish (purely visual; advanced in tickPlayer).
+    const _cfx = CAST_FX[skillId] || { dur: 0.6, color: '#ffffff' };
+    p.castAnim = { id: skillId, t: 0, dur: _cfx.dur, color: _cfx.color, uid: (game._castUid = (game._castUid || 0) + 1) };
     try {
     if (skillId === 'whirlwind') {
       const radius = 2.4;
@@ -4014,6 +4045,8 @@
     p.skillCd = Math.max(0, p.skillCd - dt);
     if (p.dashCd !== undefined) p.dashCd = Math.max(0, p.dashCd - dt);
     p.attackingFor = Math.max(0, p.attackingFor - dt);
+    // advance the cast body-animation timer; clear when finished
+    if (p.castAnim) { p.castAnim.t += dt; if (p.castAnim.t >= p.castAnim.dur) p.castAnim = null; }
 
     // passive mana regen (2× while Shrine of Arcana is active)
     if (game.char.mp < game.char.mpMax) {

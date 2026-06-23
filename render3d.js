@@ -332,6 +332,10 @@ function syncPlayer(game, now) {
     if (top >= 3 && Builders.buildAura) ud.auraMount.add(Builders.buildAura({ color: accent, prismatic: top >= 4, tier: top }));
   }
 
+  // --- reset transient cast transforms (cast anims mutate these; nothing else does) ---
+  pm.rotation.x = 0; pm.rotation.z = 0; pm.scale.setScalar(1);
+  ud.weaponMount.rotation.set(0, 0, 0);
+
   // --- position, facing, bob + walk cycle ---
   const dx = p.x - (ud.lastX == null ? p.x : ud.lastX);
   const dy = p.y - (ud.lastY == null ? p.y : ud.lastY);
@@ -343,11 +347,35 @@ function syncPlayer(game, now) {
   if (d.x || d.y) pm.rotation.y = Math.atan2(d.x, d.y);
   const sw = moving ? Math.sin(now / 110) * 0.5 : 0;
   if (ud.legs && ud.legs.length >= 2) { ud.legs[0].rotation.x = sw; ud.legs[1].rotation.x = -sw; }   // walk cycle (legged classes)
-  if (ud.arms && ud.arms.length >= 2) { ud.arms[0].rotation.x = -sw * 0.6; ud.arms[1].rotation.x = sw * 0.6; }
+  if (ud.arms && ud.arms.length >= 2) { ud.arms[0].rotation.x = -sw * 0.6; ud.arms[1].rotation.x = sw * 0.6; ud.arms[0].rotation.z = 0; ud.arms[1].rotation.z = 0; }
   if (ud.anim) ud.anim(pm, now, moving);               // class-specific idle/move motion (robe sway, mote orbit)
   // per-child special animations (weapon FX, cape sway, halo spin, aura, kit…)
   if (!degrade) for (const mnt of [ud.weaponMount, ud.backMount, ud.headMount, ud.chestMount, ud.auraMount])
     for (const ch of mnt.children) if (ch.userData.anim) ch.userData.anim(ch, now);
+
+  // --- skill cast animation overlay: distinct per-skill body motion + a 3D flourish ---
+  if (!ud.castFxMount) { ud.castFxMount = new THREE.Object3D(); pm.add(ud.castFxMount); }
+  const cast = p.castAnim;
+  if (cast) {
+    const prog = Math.max(0, Math.min(1, cast.t / (cast.dur || 0.6)));
+    // build the flourish mesh once per cast instance
+    if (ud.castFxUid !== cast.uid) {
+      ud.castFxUid = cast.uid;
+      clearMount(ud.castFxMount);
+      const fxFn = Builders['buildCastFx_' + cast.id];
+      if (fxFn) { try { ud.castFxMount.add(fxFn({ color: cast.color })); } catch (e) {} }
+    }
+    ud.castFxMount.visible = true;
+    // body animation — rig manipulation (spin, leap, lunge, raise…)
+    const animFn = Builders.CAST_ANIMS && Builders.CAST_ANIMS[cast.id];
+    if (animFn) { try { animFn(prog, pm, ud, now, moving); } catch (e) {} }
+    // drive flourish children by cast progress (deterministic 0..1)
+    for (const ch of ud.castFxMount.children) if (ch.userData && ch.userData.castAnim) { try { ch.userData.castAnim(ch, prog, now); } catch (e) {} }
+  } else if (ud.castFxUid != null) {
+    ud.castFxUid = null;
+    clearMount(ud.castFxMount);
+    ud.castFxMount.visible = false;
+  }
 
   pm.visible = true;
 }
