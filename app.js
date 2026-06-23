@@ -777,6 +777,7 @@
         hardcore: false,       // one life — permadeath when true (set at class select)
         transmog: { weapon: null, armor: null },  // appearance overrides (look id or null = item's own)
         hireling: null,        // recruited companion: { type, level } or null
+        sigils: 0,             // Nightmare Sigils — consumed to open keyed Nightmare dungeons
       },
       stash: [],
       unlockedBiomes: { crypts: true, overgrowth: false, frostpeak: false, infernal: false, voidspire: false },
@@ -876,6 +877,13 @@
       if (!obj.maxDifficulty) obj.maxDifficulty = 'normal';
       // migrate: permanent upgrades for old saves
       if (!obj.upgrades) obj.upgrades = { pickup: 0, xpgain: 0, goldfind: 0, potions: 0 };
+      // migrate: feature-batch fields for old saves
+      if (!obj.bossesKilled) obj.bossesKilled = {};
+      if (!obj.wardrobe) obj.wardrobe = {};
+      if (obj.gameWon === undefined) obj.gameWon = false;
+      if (obj.char && !obj.char.transmog) obj.char.transmog = { weapon: null, armor: null };
+      if (obj.char && obj.char.hireling === undefined) obj.char.hireling = null;
+      if (obj.char && obj.char.sigils === undefined) obj.char.sigils = 0;
       // Reconcile equipped item references with inventory entries by id.
       // JSON round-trips lose object identity, so equip.weapon and the inventory
       // copy are different objects after load. Re-link them so isEquipped works.
@@ -1866,6 +1874,61 @@
     showZoneToast('THE HOLLOW THRONE');
     applyDerivedToChar();
     updateHud();
+  }
+
+  // ============================================================
+  // KEYED NIGHTMARE DUNGEONS — consume a Sigil to open a modified, harder
+  // dungeon with rolled modifiers and boosted loot.
+  // ============================================================
+  const NIGHTMARE_MODS = {
+    empowered: { name: 'Empowered', color: '#ff4d6d', apply: e => { e.dmg = Math.floor(e.dmg * 1.3); } },
+    frenzied:  { name: 'Frenzied',  color: '#ffd166', apply: e => { e.speed *= 1.3; } },
+    teeming:   { name: 'Teeming',   color: '#9be57c', apply: null },   // handled at spawn
+    brutal:    { name: 'Brutal',    color: '#ff8c42', apply: e => { e.hp = Math.floor(e.hp * 1.4); e.hpMax = e.hp; } },
+  };
+  function rollNightmareMods() {
+    const keys = Object.keys(NIGHTMARE_MODS), n = roll(0.5) ? 2 : 1, chosen = [];
+    while (chosen.length < n) { const k = pick(keys); if (chosen.indexOf(k) < 0) chosen.push(k); }
+    return chosen;
+  }
+  function enterNightmare() {
+    const c = game.char;
+    if (!c.sigils || c.sigils < 1) { showHudToast('No Nightmare Sigils.'); sfx('error'); return; }
+    c.sigils -= 1;
+    const unlocked = BIOMES.filter(b => game.save.unlockedBiomes[b.id]);
+    const biome = pick(unlocked.length ? unlocked : [BIOMES[0]]);
+    const floor = Math.min(CFG.biomeFloors - 1, 3 + irand(0, 2));
+    const mods = rollNightmareMods();
+    game.world = generateDungeon(biome, floor, { nightmare: true });
+    game.world.name = 'NIGHTMARE — ' + biome.shortName;
+    game.world.nightmare = { mods: mods };
+    if (window.__GL) window.__GL.onZoneChange(game.world);
+    if (window.__AUDIO) window.__AUDIO.music(biome.musicId || biome.id);
+    game.enemies = game.world.enemies; game.world.enemies = null;
+    // Teeming: ~50% more monsters
+    if (mods.indexOf('teeming') >= 0) {
+      const pool = biome.enemies, extra = Math.floor(game.enemies.length * 0.5);
+      for (let i = 0, tries = 0; i < extra && tries < extra * 4; tries++) {
+        const gx = irand(1, game.world.w - 2), gy = irand(1, game.world.h - 2);
+        if (game.world.grid[gy][gx] !== 0) continue;
+        game.enemies.push(makeEnemy(pick(pool), gx + 0.5, gy + 0.5, floor)); i++;
+      }
+    }
+    // Flat Nightmare boost + per-mod effects + richer loot level
+    for (const e of game.enemies) {
+      e.hp = Math.floor(e.hp * 1.7); e.hpMax = e.hp;
+      e.dmg = Math.floor(e.dmg * 1.35);
+      e.ilvl = (e.ilvl || floor) + 4;
+      for (const mk of mods) { const md = NIGHTMARE_MODS[mk]; if (md && md.apply) md.apply(e); }
+    }
+    game.projectiles = []; game.items = game.world.loot || []; game.world.loot = null;
+    game.minions = []; game.particles = []; game.floatingTexts = []; ambientParticles.length = 0;
+    clearSkillEffects(); game.activeBuffs = {}; game.rift = null;
+    game.activeBiomeId = biome.id; game.activeFloor = floor;
+    spawnHireling();
+    snapCamera(); navigateTo('game');
+    showZoneToast('NIGHTMARE · ' + mods.map(m => NIGHTMARE_MODS[m].name).join(' · '));
+    applyDerivedToChar(); updateHud();
   }
 
   // ============================================================
@@ -3149,6 +3212,15 @@
       }
     }
 
+    // Nightmare dungeon bonuses: extra high-tier drop + a chance for elites to drop a Sigil
+    if (game.world && game.world.nightmare && !e._isSplit) {
+      if (roll(0.35)) {
+        const it = rollItem(Math.max(1, (e.ilvl || 1)), roll(0.3) ? 'rare' : 'magic');
+        if (it) game.items.push({ x: e.x + (rand() - 0.5) * 0.6, y: e.y + 0.3, item: it, age: 0 });
+      }
+      if (e.elite && roll(0.3)) { game.char.sigils = (game.char.sigils || 0) + 1; floatText('+ Sigil', e.x, e.y - 0.8, 'loot'); }
+    }
+
     // Quest progress
     if (game.save.quest && game.save.quest.target === e.id) {
       game.save.quest.progress = Math.min(game.save.quest.required, game.save.quest.progress + 1);
@@ -3157,6 +3229,8 @@
     // Boss flag
     if (e.boss) {
       game.bossKilled = true;
+      // bosses drop Nightmare Sigils (key for the Nightmare dungeons)
+      if (roll(0.6)) { game.char.sigils = (game.char.sigils || 0) + 1; showHudToast('+1 Nightmare Sigil'); floatText('+ Sigil', e.x, e.y - 0.8, 'loot'); }
       // THE HOLLOW KING — campaign victory
       if (e.id === 'hollowking') {
         game.bossAlive = false;
@@ -7944,6 +8018,18 @@
         <div class="waypoint-sub">${throneUnlocked ? (won ? 'The Hollow King stirs once more…' : 'Face the Hollow King — the final battle') : 'Locked — defeat all five biome bosses'}</div>
       </div>`;
     el.appendChild(throneCard);
+    // Nightmare Dungeon — keyed by Sigils (dropped by bosses)
+    const sigils = game.char.sigils || 0;
+    const nmCard = document.createElement('button');
+    nmCard.className = 'waypoint-card rift-card focusable' + (sigils > 0 ? '' : ' locked');
+    if (sigils > 0) { nmCard.dataset.action = 'enter-nightmare'; } else { nmCard.tabIndex = -1; }
+    nmCard.innerHTML = `
+      <div class="waypoint-glyph" style="color:#ff6a2c;text-shadow:0 0 12px #ff6a2c">${sigils > 0 ? '✦' : '🔒'}</div>
+      <div class="waypoint-meta">
+        <div class="waypoint-name" style="color:${sigils > 0 ? '#ffc6a0' : '#9a9ab0'};text-shadow:0 0 8px #ff6a2c">Nightmare Dungeon</div>
+        <div class="waypoint-sub">${sigils > 0 ? `Sigils: ${sigils} · Rolled modifiers · tougher foes, richer loot` : 'Locked — bosses drop Nightmare Sigils'}</div>
+      </div>`;
+    el.appendChild(nmCard);
     BIOMES.forEach(b => {
       const unlocked = game.save.unlockedBiomes[b.id];
       const card = document.createElement('button');
@@ -8392,6 +8478,10 @@
         return;
       case 'enter-throne':
         enterThrone();
+        game.history = [];
+        return;
+      case 'enter-nightmare':
+        enterNightmare();
         game.history = [];
         return;
       case 'set-difficulty': {
