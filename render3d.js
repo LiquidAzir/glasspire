@@ -503,9 +503,14 @@ const projectileLayer = makeLayer(
   }
 );
 const minionLayer = makeLayer(
-  e => 'minion',
-  e => ({ fn: 'buildMinion', opts: { color: '#c489ff' } }),
-  (slot, e, now) => { place(slot, e, now, 0, 0.04); slot.obj.scale.setScalar(e.ttl != null && e.ttl < 3 ? 0.85 * (0.6 + 0.4 * (e.ttl / 3)) : 0.85); }
+  e => e._hireling ? 'hire' + (e.htype || '') : 'minion',
+  e => e._hireling
+    ? { fn: 'buildHireling', opts: { color: e.color || '#cdd6e6', weapon: e.htype === 'marksman' ? 'bow' : e.htype === 'sorceress' ? 'staff' : 'sword' } }
+    : { fn: 'buildMinion', opts: { color: '#c489ff' } },
+  (slot, e, now) => {
+    place(slot, e, now, 0, 0.04);
+    slot.obj.scale.setScalar(e._hireling ? 1.0 : (e.ttl != null && e.ttl < 3 ? 0.85 * (0.6 + 0.4 * (e.ttl / 3)) : 0.85));
+  }
 );
 
 // telegraphs — flat additive ground ring + filling danger disc, sized by radius.

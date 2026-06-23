@@ -773,6 +773,7 @@
         autoPotionPct: 0.35,   // fraction of max HP that triggers an auto-potion
         hardcore: false,       // one life — permadeath when true (set at class select)
         transmog: { weapon: null, armor: null },  // appearance overrides (look id or null = item's own)
+        hireling: null,        // recruited companion: { type, level } or null
       },
       stash: [],
       unlockedBiomes: { crypts: true, overgrowth: false, frostpeak: false, infernal: false, voidspire: false },
@@ -1271,6 +1272,7 @@
       { id: 'quests',     name: 'Captain',        glyph: '✦', color: '#c489ff', x: 4,  y: 12, role: 'quests' },
       { id: 'waypoint',   name: 'Waystone',       glyph: '✪', color: '#51e6a4', x: 16, y: 12, role: 'waypoint' },
       { id: 'mystery',    name: 'Mystery Merchant', glyph: '?', color: '#ff77ff', x: 10, y: 14, role: 'mystery' },
+      { id: 'mercenary',  name: 'Sellsword Captain', glyph: '⚔', color: '#cdd6e6', x: 13, y: 6, role: 'mercenary' },
     ];
     // Center "fountain" decoration (block)
     grid[8][10] = 2; // 2 = decor
@@ -1815,6 +1817,7 @@
     if (!game.world.isBoss && roll(0.08)) spawnGoblin(floor);
     // Chance of an ambush event a few seconds in (not floor 1, not boss floors)
     if (!game.world.isBoss && floor > 1 && roll(0.16)) game.world.ambush = { armed: true, delay: 5 + rand() * 6, remaining: 0 };
+    spawnHireling();   // recruited companion joins the descent
     // Tag the zone name with the difficulty tier (non-Normal)
     const diffId = game.save.difficulty || 'normal';
     if (diffId !== 'normal') game.world.name += ` [${DIFFICULTIES[diffId].short}]`;
@@ -1874,6 +1877,7 @@
       killsNeeded: Math.max(6, Math.floor(game.enemies.length * 0.7)),
       timeLeft: carryTime,
     };
+    spawnHireling();   // companion joins the rift run
     snapCamera();
     navigateTo('game');
     showZoneToast(`GREATER RIFT ${level}`);
@@ -2200,6 +2204,7 @@
     else if (npc.role === 'quests') { openQuests(); }
     else if (npc.role === 'waypoint') { openWaypoint(); }
     else if (npc.role === 'mystery') { openMysteryVendor(); }
+    else if (npc.role === 'mercenary') { openMercenary(); }
   }
 
   function activatePortal(p) {
@@ -3618,11 +3623,59 @@
   // ============================================================
   // MINION AI (summoner pets)
   // ============================================================
+  // ---- Hireling companion: a permanent recruited ally that fights beside you ----
+  const HIRELING_TYPES = {
+    sellsword: { name: 'Sellsword', desc: 'A steel-clad mercenary. Tanky melee bruiser.', color: '#cdd6e6', weapon: 'sword', hp: 130, dmg: 14, speed: 3.2, range: 1.2, ranged: false, cost: 500 },
+    marksman:  { name: 'Marksman',  desc: 'A keen-eyed hunter. Rapid ranged fire.',       color: '#7dffb0', weapon: 'bow',   hp: 80,  dmg: 11, speed: 3.5, range: 6.5, ranged: true, projColor: '#caa15a', cost: 650 },
+    sorceress: { name: 'Sorceress', desc: 'An arcane adept. Heavy ranged spells.',        color: '#c489ff', weapon: 'staff', hp: 75,  dmg: 18, speed: 3.0, range: 5.2, ranged: true, projColor: '#c489ff', cost: 800 },
+  };
+  function hirelingUpgradeCost(level) { return 300 + (level - 1) * 250; }
+  function spawnHireling() {
+    const h = game.char && game.char.hireling;
+    if (!h || !HIRELING_TYPES[h.type] || !game.world || game.world.kind !== 'dungeon') return;
+    const t = HIRELING_TYPES[h.type];
+    const p = game.world.player;
+    const mul = 1 + (h.level - 1) * 0.25 + ((game.char.level || 1) - 1) * 0.08;
+    game.minions.push({
+      x: p.x - 0.8, y: p.y + 0.6, hp: Math.floor(t.hp * mul), hpMax: Math.floor(t.hp * mul),
+      dmg: Math.floor(t.dmg * mul), speed: t.speed, range: t.range, atkCd: 0, target: null,
+      ttl: Infinity, _hireling: true, htype: h.type, color: t.color, ranged: t.ranged,
+      projColor: t.projColor, lastDir: { x: 0, y: 1 },
+    });
+  }
+  function tickHireling(m, dt) {
+    const p = game.world.player;
+    let near = null, nd = Infinity;
+    for (const e of game.enemies) {
+      if (dist(e, p) > 10) continue;            // leash engagement to near the player
+      const d = dist(e, m); if (d < nd) { nd = d; near = e; }
+    }
+    if (!near) {                                 // no foe in range — keep pace with the player
+      const dx = p.x - m.x, dy = p.y - m.y, d = Math.hypot(dx, dy);
+      if (d > 2.2) { tryMove(m, dx / d * m.speed * dt, dy / d * m.speed * dt); m.lastDir = { x: dx, y: dy }; }
+      return;
+    }
+    const dx = near.x - m.x, dy = near.y - m.y, d = Math.hypot(dx, dy);
+    m.lastDir = { x: dx, y: dy };
+    if (d > m.range * 0.9) {
+      tryMove(m, dx / d * m.speed * dt, dy / d * m.speed * dt);
+    } else if (m.atkCd <= 0) {
+      if (m.ranged) {
+        const a = Math.atan2(dy, dx);
+        spawnProjectile(m.x, m.y, Math.cos(a), Math.sin(a), 9, m.dmg, m.projColor || '#fff', m.htype === 'marksman' ? 'arrow' : 'bolt', true);
+        m.atkCd = 1.1;
+      } else {
+        hitEnemy(near, m.dmg, 8); m.atkCd = 0.9;
+      }
+    }
+  }
+
   function tickMinions(dt) {
     for (let i = game.minions.length - 1; i >= 0; i--) {
       const m = game.minions[i];
-      m.ttl -= dt;
       m.atkCd = Math.max(0, m.atkCd - dt);
+      if (m._hireling) { tickHireling(m, dt); continue; }   // permanent ally — no ttl, follows player
+      m.ttl -= dt;
       if (m.ttl <= 0) { burst(m.x, m.y, '#c489ff', 10); game.minions.splice(i, 1); continue; }
       // find target
       let near = null, nd = Infinity;
@@ -6718,6 +6771,30 @@
     if (!aa) ah += '<p style="font-size:11px;opacity:0.5;padding:4px;">Find armor with looks (cape, wings, halo…) to unlock more.</p>';
     $('wardrobe-armor').innerHTML = ah;
   }
+  function openMercenary() { navigateTo('mercenary'); }
+  function renderMercenary() {
+    const box = $('mercenary-content'); if (!box) return;
+    const c = game.char; const h = c.hireling;
+    let html = '<p style="font-size:11px;opacity:0.6;text-align:center;">Hire a companion to fight at your side in the depths.</p>';
+    if (h && HIRELING_TYPES[h.type]) {
+      const t = HIRELING_TYPES[h.type];
+      const mul = 1 + (h.level - 1) * 0.25 + ((c.level || 1) - 1) * 0.08;
+      const upCost = hirelingUpgradeCost(h.level);
+      html += '<div class="nav-item" style="flex-direction:column;align-items:flex-start;gap:2px;"><div style="color:' + t.color + ';font-weight:bold;">&#9876; ' + t.name + ' &middot; Lv ' + h.level + '</div>'
+        + '<div style="font-size:11px;opacity:0.7;">HP ' + Math.floor(t.hp * mul) + ' &middot; DMG ' + Math.floor(t.dmg * mul) + ' &middot; ' + (t.ranged ? 'Ranged' : 'Melee') + '</div></div>';
+      html += '<button class="nav-item focusable" data-action="hireling-upgrade">Upgrade to Lv ' + (h.level + 1) + ' &mdash; ' + upCost + 'g</button>';
+      html += '<button class="nav-item focusable" data-action="hireling-dismiss">Dismiss Companion</button>';
+    } else {
+      for (const id in HIRELING_TYPES) {
+        const t = HIRELING_TYPES[id];
+        html += '<button class="nav-item focusable" data-action="hireling-recruit" data-type="' + id + '" style="flex-direction:column;align-items:flex-start;gap:2px;">'
+          + '<div style="color:' + t.color + ';font-weight:bold;">&#9876; ' + t.name + ' &mdash; ' + t.cost + 'g</div>'
+          + '<div style="font-size:11px;opacity:0.7;">' + t.desc + ' &middot; HP ' + t.hp + ' DMG ' + t.dmg + '</div></button>';
+      }
+    }
+    html += '<div style="font-size:12px;opacity:0.7;text-align:center;margin-top:8px;">Gold: ' + c.gold + '</div>';
+    box.innerHTML = html;
+  }
 
   function itemTypeLabel(base) {
     // Check type first for non-equipment categories
@@ -6939,6 +7016,7 @@
     if (id === 'class-select') refreshHardcoreLabel();
     if (id === 'honor') renderHonor();
     if (id === 'wardrobe') renderWardrobe();
+    if (id === 'mercenary') renderMercenary();
     if (id === 'death') {
       const hc = game._permadeath;
       const gl = $('death-glyph'), ti = $('death-title'), su = $('death-sub'), bt = $('death-return-btn');
@@ -7975,6 +8053,31 @@
           game.char.transmog[slot] = (look === 'default') ? null : look;
           sfx('equip'); saveGame(); renderWardrobe();
         }
+        return;
+      }
+      case 'hireling-recruit': {
+        const type = el.dataset.type, t = HIRELING_TYPES[type];
+        if (!t) return;
+        if (game.char.gold < t.cost) { showHudToast('Not enough gold.'); sfx('error'); return; }
+        game.char.gold -= t.cost;
+        game.char.hireling = { type, level: 1 };
+        sfx('levelup'); saveGame(); renderMercenary();
+        showHudToast(t.name + ' recruited! They join you in the depths.');
+        return;
+      }
+      case 'hireling-upgrade': {
+        const h = game.char.hireling; if (!h) return;
+        const cost = hirelingUpgradeCost(h.level);
+        if (game.char.gold < cost) { showHudToast('Not enough gold.'); sfx('error'); return; }
+        game.char.gold -= cost; h.level += 1;
+        sfx('levelup'); saveGame(); renderMercenary();
+        return;
+      }
+      case 'hireling-dismiss': {
+        game.char.hireling = null;
+        game.minions = game.minions.filter(m => !m._hireling);
+        sfx('uiBack'); saveGame(); renderMercenary();
+        showHudToast('Companion dismissed.');
         return;
       }
       case 'menu-skills': navigateTo('skills'); return;

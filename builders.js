@@ -5682,5 +5682,39 @@ export function buildTown_crates(opts){
   return g;
 }
 
+// Hireling companion — a humanoid ally; opts.color = theme, opts.weapon = sword|bow|staff.
+export function buildHireling(opts) {
+  const o = opts || {};
+  const c = o.color || '#cdd6e6';
+  const wpn = o.weapon || 'sword';
+  const g = new T.Group();
+  const body = mat(c, 0.85), dark = mat('#1a1a22'), eye = matAdd('#9fd8ff');
+  const lL = m(box(0.12, 0.34, 0.13), dark); lL.position.set(-0.09, 0.17, 0);
+  const rL = m(box(0.12, 0.34, 0.13), dark); rL.position.set(0.09, 0.17, 0);
+  const torso = m(box(0.36, 0.4, 0.26), body); torso.position.set(0, 0.55, 0);
+  const lP = m(box(0.15, 0.13, 0.22), body); lP.position.set(-0.24, 0.72, 0);
+  const rP = m(box(0.15, 0.13, 0.22), body); rP.position.set(0.24, 0.72, 0);
+  const lA = m(box(0.1, 0.32, 0.11), dark); lA.position.set(-0.25, 0.5, 0.02);
+  const rA = m(box(0.1, 0.32, 0.11), dark); rA.position.set(0.25, 0.5, 0.04);
+  const head = m(box(0.2, 0.2, 0.2), body); head.position.set(0, 0.92, 0);
+  const eyeL = m(box(0.05, 0.04, 0.03), eye); eyeL.position.set(-0.05, 0.93, 0.11);
+  const eyeR = m(box(0.05, 0.04, 0.03), eye); eyeR.position.set(0.05, 0.93, 0.11);
+  g.add(lL, rL, torso, lP, rP, lA, rA, head, eyeL, eyeR);
+  if (wpn === 'bow') {
+    const limb = m(geo('hireBow', () => new T.TorusGeometry(0.28, 0.025, 4, 8, Math.PI * 1.1)), mat(c, 0.8));
+    limb.position.set(0.32, 0.55, 0.12); limb.rotation.z = Math.PI / 2; g.add(limb);
+  } else if (wpn === 'staff') {
+    const shaft = m(cyl(0.03, 0.04, 0.82, 5), mat('#3a2e22')); shaft.position.set(0.34, 0.5, 0.1);
+    const orb = m(geo('hireOrb', () => new T.IcosahedronGeometry(0.1, 0)), matAdd(c, 0.95)); orb.position.set(0.34, 0.93, 0.1);
+    g.add(shaft, orb);
+    g.userData.anim = (grp, now) => orb.scale.setScalar(1 + Math.sin(now / 220) * 0.14);
+  } else {
+    const blade = m(box(0.05, 0.5, 0.02), matAdd(c, 0.7)); blade.position.set(0.36, 0.72, 0.1);
+    const guard = m(box(0.18, 0.05, 0.05), mat('#8a8f9c')); guard.position.set(0.36, 0.48, 0.1);
+    g.add(blade, guard);
+  }
+  return g;
+}
+
 // expose the cache for the engine (warm-up / disposal if needed)
 export const _cache = { GEO, MATS };
