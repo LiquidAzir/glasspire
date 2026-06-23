@@ -33,6 +33,7 @@
           <button class="title-btn focusable" data-action="title-continue" id="title-continue">Continue</button>
           <button class="title-btn focusable" data-action="title-new">New Hero</button>
           <button class="title-btn focusable" data-action="title-about">About</button>
+          <button class="title-btn focusable" data-action="title-honor">Roll of Honor</button>
           <button class="title-btn focusable" data-action="title-sync">Sync Save</button>
         </nav>
         <p class="title-hint">↑↓ navigate &middot; pinch to select</p>
@@ -73,6 +74,21 @@
           <div class="class-desc">Minions fight for you. Skill: Raise Dead.</div>
         </button>
       </div>
+      <div class="content" style="padding-top:0; gap:6px;">
+        <button class="nav-item focusable" data-action="toggle-hardcore" id="hardcore-toggle">&#9760; Hardcore: OFF</button>
+        <div style="font-size:11px; opacity:0.62; text-align:center; line-height:1.4;">Hardcore = one life. Death is <b>permanent</b> &mdash; your hero joins the Roll of Honor.</div>
+      </div>
+    </div>
+
+    <!-- ============================================================ -->
+    <!-- ROLL OF HONOR (fallen hardcore heroes)                        -->
+    <!-- ============================================================ -->
+    <div id="honor" class="screen hidden">
+      <header class="header">
+        <button class="back-btn focusable" data-action="back">&#8592;</button>
+        <h1>Roll of Honor</h1>
+      </header>
+      <div class="content" id="honor-list"></div>
     </div>
 
     <!-- ============================================================ -->
@@ -515,10 +531,10 @@
     <!-- ============================================================ -->
     <div id="death" class="screen hidden">
       <div class="death-frame">
-        <div class="death-glyph">✶</div>
-        <h1 class="death-title">You have fallen.</h1>
-        <p class="death-sub">Your soul drifts back to the Sanctuary.</p>
-        <button class="title-btn focusable" data-action="death-return">Return to Town</button>
+        <div class="death-glyph" id="death-glyph">✶</div>
+        <h1 class="death-title" id="death-title">You have fallen.</h1>
+        <p class="death-sub" id="death-sub">Your soul drifts back to the Sanctuary.</p>
+        <button class="title-btn focusable" data-action="death-return" id="death-return-btn">Return to Town</button>
       </div>
     </div>
 

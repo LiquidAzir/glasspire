@@ -768,6 +768,7 @@
         skillRunes: {},        // { [skillId]: runeId } — chosen augment per skill
         autoPotion: true,      // auto-drink a potion when HP drops below threshold
         autoPotionPct: 0.35,   // fraction of max HP that triggers an auto-potion
+        hardcore: false,       // one life — permadeath when true (set at class select)
       },
       stash: [],
       unlockedBiomes: { crypts: true, overgrowth: false, frostpeak: false, infernal: false, voidspire: false },
@@ -784,6 +785,29 @@
       mysteryVendor: null, // { day: number, baseId: string, bought: bool }
     };
   }
+
+  // ---- Hardcore mode (opt-in permadeath) + Roll of Honor ----
+  let _hardcorePick = false;
+  const HONOR_KEY = 'hl_honor';
+  function getHonor() { try { return JSON.parse(localStorage.getItem(HONOR_KEY) || '[]'); } catch (e) { return []; } }
+  function recordHonor(c) {
+    const list = getHonor();
+    list.unshift({ cls: c.classId, level: c.level || 1, paragon: c.paragonLevel || 0, gold: c.gold || 0, t: Date.now() });
+    while (list.length > 30) list.pop();
+    try { localStorage.setItem(HONOR_KEY, JSON.stringify(list)); } catch (e) {}
+  }
+  function renderHonor() {
+    const box = $('honor-list'); if (!box) return;
+    const list = getHonor();
+    if (!list.length) { box.innerHTML = '<p style="opacity:0.6;text-align:center;padding:24px;">No heroes have fallen… yet.<br>Begin a Hardcore run to test your courage.</p>'; return; }
+    box.innerHTML = list.map(function (h) {
+      const cls = (CLASSES[h.cls] && CLASSES[h.cls].name) || h.cls;
+      const pg = h.paragon ? ' · P' + h.paragon : '';
+      const when = new Date(h.t).toLocaleDateString();
+      return '<div class="nav-item" style="display:flex;justify-content:space-between;gap:10px;"><span>&#9760; ' + cls + ' &middot; Lv ' + (h.level || 1) + pg + '</span><span style="opacity:0.5;">' + when + '</span></div>';
+    }).join('');
+  }
+  function refreshHardcoreLabel() { const b = $('hardcore-toggle'); if (b) b.innerHTML = (_hardcorePick ? '&#9760; Hardcore: ON' : '&#9760; Hardcore: OFF'); }
 
   function loadSave() {
     try {
@@ -3522,7 +3546,16 @@
     game.char.hp = 0;
     sfx('boss');                 // a grim low knell on death
     if (window.__AUDIO) window.__AUDIO.stopMusic();
-    saveGame();
+    if (game.char.hardcore) {
+      // permadeath — the hero is gone forever; enshrine them and wipe the save
+      recordHonor(game.char);
+      game._permadeath = true;
+      try { localStorage.removeItem(CFG.storageKey); localStorage.removeItem('glasspire_save_v2'); } catch (e) {}
+      game.save = null;
+    } else {
+      game._permadeath = false;
+      saveGame();
+    }
     navigateTo('death');
   }
 
@@ -6734,7 +6767,16 @@
   // ============================================================
   function onScreenEnter(id) {
     if (id === 'title') renderTitle();
-    if (id === 'class-select') {}
+    if (id === 'class-select') refreshHardcoreLabel();
+    if (id === 'honor') renderHonor();
+    if (id === 'death') {
+      const hc = game._permadeath;
+      const gl = $('death-glyph'), ti = $('death-title'), su = $('death-sub'), bt = $('death-return-btn');
+      if (gl) gl.textContent = hc ? '☠' : '✶';
+      if (ti) ti.textContent = hc ? 'Fallen forever.' : 'You have fallen.';
+      if (su) su.textContent = hc ? 'Your Hardcore hero is gone — but enshrined in the Roll of Honor.' : 'Your soul drifts back to the Sanctuary.';
+      if (bt) bt.textContent = hc ? 'Return to Title' : 'Return to Town';
+    }
     if (id === 'inventory') renderInventory();
     if (id === 'character') renderCharacter();
     if (id === 'skills') renderSkills();
@@ -7731,14 +7773,19 @@
         navigateTo('class-select'); return;
       case 'title-about':
         navigateTo('about'); return;
+      case 'title-honor':
+        navigateTo('honor'); return;
       case 'title-sync':
         navigateTo('sync'); return;
+      case 'toggle-hardcore':
+        _hardcorePick = !_hardcorePick; refreshHardcoreLabel(); sfx('ui'); return;
 
       // class select
       case 'pick-class': {
         const id = el.dataset.class;
         game.save = defaultSave(id);
         loadIntoSession(game.save);
+        game.char.hardcore = _hardcorePick;   // one-life mode chosen on this screen
         // top up to derived maxima after equipment/stat bonuses applied
         game.char.hp = game.char.hpMax;
         game.char.mp = game.char.mpMax;
@@ -8004,6 +8051,7 @@
       // levelup / death
       case 'levelup-ok': navigateBack(); return;
       case 'death-return':
+        if (game._permadeath) { game._permadeath = false; navigateTo('title'); return; }
         respawn();
         return;
     }
