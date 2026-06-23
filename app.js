@@ -1076,6 +1076,7 @@
         amount -= need;
         c.xp = 0;
         c.level += 1;
+        sfx('levelup');
         c.statPoints += 3;
         applyDerivedToChar();
         c.hp = c.hpMax;
@@ -1660,6 +1661,7 @@
   function enterTown() {
     game.world = generateTown();
     if (window.__GL) window.__GL.onZoneChange(game.world);
+    if (window.__AUDIO) window.__AUDIO.music('town');
     game.enemies = [];
     game.projectiles = [];
     game.items = [];
@@ -1686,6 +1688,7 @@
     if (!biome) return;
     game.world = generateDungeon(biome, floor);
     if (window.__GL) window.__GL.onZoneChange(game.world);
+    if (window.__AUDIO) window.__AUDIO.music(biome.musicId || biome.id);
     game.enemies = game.world.enemies; game.world.enemies = null;
     game.projectiles = [];
     game.items = game.world.loot || []; game.world.loot = null;  // vault loot on the ground
@@ -1995,6 +1998,7 @@
     if (c.potions <= 0) { if (!auto) showHudToast('No potions.'); return; }
     if (c.hp >= c.hpMax) { if (!auto) showHudToast('Already full.'); return; }
     c.potions -= 1;
+    sfx('potion');
     const heal = Math.floor(c.hpMax * 0.4);
     c.hp = Math.min(c.hpMax, c.hp + heal);
     floatText(`+${heal}`, game.world.player.x, game.world.player.y, 'heal');
@@ -2718,6 +2722,11 @@
       if (dd <= range && dd < nd) { near = e; nd = dd; }
     }
     if (!near) return;
+    // attack swing / cast sound (per attack)
+    const ak = cls.attackKind;
+    if (ak === 'cleave') sfxT('cleave', 90);
+    else if (ak && ak.indexOf('projectile') === 0) sfxT('cast', 90, { base: ak === 'projectile-arrow' ? 620 : ak === 'projectile-bone' ? 360 : 460 });
+    else sfxT('attack', 90);
 
     // face the target
     const dx = near.x - p.x, dy = near.y - p.y;
@@ -2757,11 +2766,17 @@
     p.atkCd = interval;
   }
 
+  // ---- audio helpers (throttled so simultaneous events don't stack into noise) ----
+  const _sfxLast = {};
+  function sfx(name, opt) { if (window.__AUDIO) window.__AUDIO.play(name, opt); }
+  function sfxT(name, ms, opt) { const t = performance.now(); if (!_sfxLast[name] || t - _sfxLast[name] >= (ms || 60)) { _sfxLast[name] = t; sfx(name, opt); } }
+
   function hitEnemy(e, baseDmg, critPct) {
     const isCrit = roll((critPct || 5) / 100);
     const runeMul = game._skillDmgMul || 1;  // active only during a rune-augmented skill cast
     const dmg = Math.max(1, Math.floor(baseDmg * runeMul * (isCrit ? 1.8 : 1) * (0.85 + rand() * 0.3)));
     e.hp -= dmg;
+    if (isCrit) sfxT('crit', 55); else sfxT('enemyHit', 45);
     e.hitFlash = 0.18;
     e.stagger = Math.max(e.stagger, 0.12);
     floatText(`${dmg}`, e.x + (rand() - 0.5) * 0.3, e.y - 0.4, isCrit ? 'crit' : 'dmg');
@@ -2801,6 +2816,7 @@
   }
 
   function killEnemy(e) {
+    sfx(e.boss ? 'bossDie' : 'enemyDie');
     burst(e.x, e.y, e.color, e.boss ? 35 : 20);
     burst(e.x, e.y, '#ffffff', e.boss ? 12 : 5);
     game.screenShake = Math.max(game.screenShake, e.boss ? 0.45 : 0.12);
@@ -3492,6 +3508,7 @@
       dmg = Math.max(1, Math.floor(dmg * 0.3));
     }
     game.char.hp -= dmg;
+    sfxT('hurt', 120);
     floatText(`-${dmg}`, game.world.player.x + (rand() - 0.5) * 0.3, game.world.player.y - 0.4, 'crit');
     game.screenShake = Math.max(game.screenShake, 0.1);
     game.damageFlash = 0.15; // red flash timer
@@ -3503,6 +3520,8 @@
   }
   function onDeath() {
     game.char.hp = 0;
+    sfx('boss');                 // a grim low knell on death
+    if (window.__AUDIO) window.__AUDIO.stopMusic();
     saveGame();
     navigateTo('death');
   }
@@ -3817,6 +3836,9 @@
     if (it && game.char.inventory.length < 24) {
       game.items.splice(idx, 1);
       game.char.inventory.push(it.item);
+      const rr = it.item && it.item.rarity;
+      if (rr === 'unique' || rr === 'mythic') sfx('legendary');
+      else sfx('loot', { pitch: rr === 'rare' ? 1.25 : rr === 'magic' ? 1.12 : 1 });
       floatText(`+ ${it.item.name}`, it.x, it.y - 0.4, 'loot');
       saveGame();
     }
@@ -6781,6 +6803,8 @@
       // Update 3D renderer toggle label (3D is the default)
       const rBtn = $('menu-render-btn');
       if (rBtn) rBtn.textContent = (localStorage.getItem('hl_render') !== '2d') ? 'Graphics: 3D' : 'Graphics: 2D';
+      const sBtn = $('menu-sound-btn');
+      if (sBtn) sBtn.textContent = 'Sound: ' + (!window.__AUDIO || window.__AUDIO.isEnabled() ? 'ON' : 'OFF');
     }
     if (id === 'sync') {
       // Reset all fields on entry so the user starts with a clean slate
@@ -7831,6 +7855,14 @@
           setTimeout(() => location.reload(), 350);
         }
         return;
+      case 'menu-sound-toggle':
+        {
+          const on = !(window.__AUDIO && window.__AUDIO.isEnabled());
+          if (window.__AUDIO) { window.__AUDIO.setEnabled(on); if (on) { sfx('ui'); window.__AUDIO.music(game.world && game.world.kind === 'town' ? 'town' : (game.activeBiomeId || 'crypts')); } }
+          const sb = $('menu-sound-btn'); if (sb) sb.textContent = 'Sound: ' + (on ? 'ON' : 'OFF');
+          showHudToast('Sound ' + (on ? 'on' : 'off') + '.');
+        }
+        return;
       case 'menu-sync':
         navigateTo('sync');
         return;
@@ -8155,6 +8187,7 @@
     const it = game.char.inventory[idx]; if (!it) return;
     const slot = slotOf(it);
     game.char.equip[slot] = it;
+    sfx('equip');
     applyDerivedToChar();
     saveGame(); updateHud();
   }
