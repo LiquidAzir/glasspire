@@ -545,6 +545,31 @@
       bonusDesc: '3pc: +20% Damage, +40 MP, +20 HP',
       bonus: { dmgMul: 0.2, mp: 40, hp: 20 },
     },
+    // ---- Higher-tier sets (endgame builds) ----
+    glassbreaker: {
+      name: "Glassbreaker's Wrath",
+      pieces: ['spire-cleaver', 'shard-plate', 'shard-talisman'],
+      bonusDesc: '3pc: +30% Damage, +40 Armor, +60 HP',
+      bonus: { dmgMul: 0.3, def: 40, hp: 60 },
+    },
+    frostwarden: {
+      name: "Frostpeak Warden",
+      pieces: ['glassthorn-bow', 'mirrorweave', 'frostfire-band'],
+      bonusDesc: '3pc: +12% Crit, +25% Attack Speed, +30 Armor',
+      bonus: { crit: 12, aspdMul: 0.25, def: 30 },
+    },
+    spireborn: {
+      name: "Spireborn Magus",
+      pieces: ['spire-conductor', 'spire-mantle', 'spire-signet'],
+      bonusDesc: '3pc: +35% Damage, +70 MP, +20 HP',
+      bonus: { dmgMul: 0.35, mp: 70, hp: 20 },
+    },
+    soulbinder: {
+      name: "Soulbinder's Covenant",
+      pieces: ['soulglass-rod', 'glassweave-robe', 'void-amulet'],
+      bonusDesc: '3pc: +30% Damage, +50 MP, +50 HP',
+      bonus: { dmgMul: 0.3, mp: 50, hp: 50 },
+    },
   };
 
   // ============================================================
@@ -8788,6 +8813,7 @@
       const target = pick(biome.enemies);
       const targetName = ENEMIES[target].name;
       const required = 4 + Math.min(6, Math.floor(lv / 2));
+      const rewardSigil = roll(0.3);   // some bounties also grant a Nightmare Sigil
       const quest = {
         name: `Cull the ${targetName}s`,
         target,
@@ -8796,6 +8822,7 @@
         progress: 0,
         rewardGold: 30 + lv * 8,
         rewardXp: 40 + lv * 12,
+        rewardSigil,
         biomeId: biome.id,
       };
       // show dialog
@@ -8803,7 +8830,7 @@
         portrait: '✦',
         portraitColor: '#c489ff',
         title: 'Captain',
-        line: `Bounty: Kill ${required} ${targetName}s in ${biome.name}. Reward: ${quest.rewardGold}g + ${quest.rewardXp} XP + bonus item.`,
+        line: `Bounty: Kill ${required} ${targetName}s in ${biome.name}. Reward: ${quest.rewardGold}g + ${quest.rewardXp} XP + bonus item${rewardSigil ? ' + a Nightmare Sigil' : ''}.`,
         options: [
           { label: 'Accept', cb: () => { game.save.quest = quest; saveGame(); showHudToast('Quest accepted!'); navigateBack(); } },
           { label: 'Decline', cb: () => navigateBack() },
@@ -8817,8 +8844,8 @@
         portraitColor: '#c489ff',
         title: 'Captain',
         line: done
-          ? `Well done! Claim: ${q.rewardGold}g + ${q.rewardXp} XP + bonus item.`
-          : `Progress: ${q.progress}/${q.required} ${q.targetName}s. Reward: ${q.rewardGold}g + ${q.rewardXp} XP + item.`,
+          ? `Well done! Claim: ${q.rewardGold}g + ${q.rewardXp} XP + bonus item${q.rewardSigil ? ' + a Nightmare Sigil' : ''}.`
+          : `Progress: ${q.progress}/${q.required} ${q.targetName}s. Reward: ${q.rewardGold}g + ${q.rewardXp} XP + item${q.rewardSigil ? ' + Sigil' : ''}.`,
         options: done
           ? [{ label: 'Turn In', cb: () => { turnInQuest(); navigateBack(); } }]
           : [{ label: 'Onward', cb: () => navigateBack() }],
@@ -8836,12 +8863,15 @@
     if (bonusItem && game.char.inventory.length < 24) {
       game.char.inventory.push(bonusItem);
     }
+    // Some bounties also award a Nightmare Sigil (keys the Nightmare dungeons)
+    if (q.rewardSigil) game.char.sigils = (game.char.sigils || 0) + 1;
     game.save.questsCompleted += 1;
     game.save.quest = null;
     saveGame();
     // Explicit reward breakdown
     const rewardLines = [`+${q.rewardGold} Gold`, `+${q.rewardXp} XP`];
     if (bonusItem) rewardLines.push(`+ ${bonusItem.name}`);
+    if (q.rewardSigil) rewardLines.push('+ Nightmare Sigil');
     showHudToast(`QUEST COMPLETE! ${rewardLines.join(' | ')}`);
   }
 
