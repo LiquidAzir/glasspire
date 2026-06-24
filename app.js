@@ -9363,6 +9363,7 @@
   // letters (the most common) sit at the start of the cycle.
   const PICKER_CHARS = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
   const PICKER_LEN = 7;
+  const PICKER_BLANK = '·';   // a "blank" slot for cloud codes shorter than 7 (stripped on submit)
 
   // Set this device's cloud-sync code (the shared save slot). Reloads under it.
   function setCloudCode(raw) {
@@ -9376,13 +9377,17 @@
   function openCodePicker(mode) {
     // 'cloud' = pick the shared cloud-sync code; otherwise = enter a save short-code.
     game._pickerMode = (mode === 'cloud') ? 'cloud' : 'import';
-    const prefill = game._pickerMode === 'cloud'
-      ? ((window.__CLOUD && window.__CLOUD.uid) || '')
-      : (document.getElementById('sync-short-input')?.value || '').trim();
     const code = [];
-    for (let i = 0; i < PICKER_LEN; i++) {
-      const c = prefill[i];
-      code.push((c && PICKER_CHARS.indexOf(c) >= 0) ? c : 'a');
+    if (game._pickerMode === 'cloud') {
+      // Start every slot BLANK — type your code left-to-right and leave any extra
+      // slots as · (so a 6-char code like "kevin7" works on the 7-slot picker).
+      for (let i = 0; i < PICKER_LEN; i++) code.push(PICKER_BLANK);
+    } else {
+      const prefill = (document.getElementById('sync-short-input')?.value || '').trim();
+      for (let i = 0; i < PICKER_LEN; i++) {
+        const c = prefill[i];
+        code.push((c && PICKER_CHARS.indexOf(c) >= 0) ? c : 'a');
+      }
     }
     game.codePicker = { code, cursor: 0 };
     navigateTo('code-picker');
@@ -9396,16 +9401,20 @@
       `<div class="picker-slot ${i === cp.cursor ? 'active' : ''}">${c}</div>`
     ).join('');
     const status = document.getElementById('code-picker-status');
-    if (status) status.textContent = (game._pickerMode === 'cloud' ? 'Cloud code · ' : '') + `Slot ${cp.cursor + 1} of ${PICKER_LEN}`;
+    if (status) status.textContent = game._pickerMode === 'cloud'
+      ? `Cloud code — type it, leave extra slots blank (·) · slot ${cp.cursor + 1}/${PICKER_LEN}`
+      : `Slot ${cp.cursor + 1} of ${PICKER_LEN}`;
   }
 
   function cyclePickerChar(dir) {
     const cp = game.codePicker; if (!cp) return;
+    // Cloud codes can be shorter than 7, so include a leading BLANK in the cycle.
+    const chars = (game._pickerMode === 'cloud') ? (PICKER_BLANK + PICKER_CHARS) : PICKER_CHARS;
     const c = cp.code[cp.cursor];
-    let idx = PICKER_CHARS.indexOf(c);
+    let idx = chars.indexOf(c);
     if (idx < 0) idx = 0;
-    idx = (idx + dir + PICKER_CHARS.length) % PICKER_CHARS.length;
-    cp.code[cp.cursor] = PICKER_CHARS[idx];
+    idx = (idx + dir + chars.length) % chars.length;
+    cp.code[cp.cursor] = chars[idx];
     renderCodePicker();
   }
 
