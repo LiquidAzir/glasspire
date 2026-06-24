@@ -62,6 +62,17 @@
         .then(function (j) { return j && j.data ? j.data : null; })
         .catch(function () { return null; });
     },
+    // Switch this device to a chosen memorable account code (the shared "save slot").
+    // Persists it and reloads under ?u=<code> so the app re-inits + pulls that save.
+    // Enter the SAME code on every device to share one save.
+    setCode: function (code) {
+      var clean = (code || '').replace(/[^a-z0-9]/gi, '').slice(0, 40).toLowerCase();
+      if (!clean) return false;
+      try { localStorage.setItem(UIDKEY, clean); } catch (e) {}
+      try { location.href = location.origin + location.pathname + '?u=' + clean; }
+      catch (e) { try { location.reload(); } catch (e2) {} }
+      return true;
+    },
     // Push a snapshot object to the cloud (debounced 2.5s; skips no-op repeats).
     push: function (obj) {
       if (!enabled || !obj) return;

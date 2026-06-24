@@ -7388,14 +7388,16 @@
       if (codeBox) { codeBox.textContent = ''; codeBox.classList.add('muted'); }
       const shortInput = document.getElementById('sync-short-input');
       if (shortInput) shortInput.value = '';
-      // Cloud-sync section: show this device's sharable link + on/off status
+      // Cloud-sync section: show this device's current code + sharable link + status
       const cloud = window.__CLOUD;
       const linkEl = document.getElementById('sync-cloud-link');
       const statusEl = document.getElementById('sync-cloud-status');
+      const codeInput = document.getElementById('sync-cloud-code');
+      if (codeInput) codeInput.value = cloud ? cloud.uid : '';
       if (linkEl) linkEl.value = cloud ? cloud.link() : '';
       if (statusEl) statusEl.textContent = (cloud && cloud.enabled)
-        ? 'Cloud sync is ON. Open the link below on another device to share this save.'
-        : 'Cloud sync is OFF — saves stay on this device. Deploy the worker + set cloudUrl in config.js to turn it on (the link below works once it is on).';
+        ? 'Cloud sync is ON. Enter the SAME code on every device to share one save (this device: "' + cloud.uid + '").'
+        : 'Cloud sync is OFF — saves stay on this device. (Set cloudUrl in config.js to turn it on.)';
     }
     if (id === 'code-picker') {
       renderCodePicker();
@@ -8544,6 +8546,12 @@
       case 'open-code-picker':
         openCodePicker();
         return;
+      case 'sync-set-code':
+        setCloudCode((document.getElementById('sync-cloud-code') || {}).value || '');
+        return;
+      case 'open-cloud-code-picker':
+        openCodePicker('cloud');
+        return;
       case 'picker-submit':
         submitCodePicker();
         return;
@@ -9356,9 +9364,21 @@
   const PICKER_CHARS = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
   const PICKER_LEN = 7;
 
-  function openCodePicker() {
-    // Prefill from the text input if the user already started typing
-    const prefill = (document.getElementById('sync-short-input')?.value || '').trim();
+  // Set this device's cloud-sync code (the shared save slot). Reloads under it.
+  function setCloudCode(raw) {
+    const code = (raw || '').replace(/[^a-z0-9]/gi, '').toLowerCase();
+    if (code.length < 3) { showHudToast('Pick a code of at least 3 letters/numbers'); return; }
+    if (!(window.__CLOUD && window.__CLOUD.setCode)) { showHudToast('Cloud sync is off (set cloudUrl in config.js)'); return; }
+    showHudToast('Linking to code "' + code + '"…');
+    window.__CLOUD.setCode(code);   // persists + reloads the page under ?u=<code>
+  }
+
+  function openCodePicker(mode) {
+    // 'cloud' = pick the shared cloud-sync code; otherwise = enter a save short-code.
+    game._pickerMode = (mode === 'cloud') ? 'cloud' : 'import';
+    const prefill = game._pickerMode === 'cloud'
+      ? ((window.__CLOUD && window.__CLOUD.uid) || '')
+      : (document.getElementById('sync-short-input')?.value || '').trim();
     const code = [];
     for (let i = 0; i < PICKER_LEN; i++) {
       const c = prefill[i];
@@ -9376,7 +9396,7 @@
       `<div class="picker-slot ${i === cp.cursor ? 'active' : ''}">${c}</div>`
     ).join('');
     const status = document.getElementById('code-picker-status');
-    if (status) status.textContent = `Slot ${cp.cursor + 1} of ${PICKER_LEN}`;
+    if (status) status.textContent = (game._pickerMode === 'cloud' ? 'Cloud code · ' : '') + `Slot ${cp.cursor + 1} of ${PICKER_LEN}`;
   }
 
   function cyclePickerChar(dir) {
@@ -9398,8 +9418,12 @@
   function submitCodePicker() {
     const cp = game.codePicker; if (!cp) { navigateBack(); return; }
     const code = cp.code.join('');
-    // Drop the code into the regular input box, then reuse the existing
-    // syncShortImport flow so all validation/error handling is shared.
+    if (game._pickerMode === 'cloud') {
+      // Set the shared cloud-sync code (reloads under it). No navigateBack needed.
+      setCloudCode(code);
+      return;
+    }
+    // Otherwise drop the code into the input box + reuse the syncShortImport flow.
     const input = document.getElementById('sync-short-input');
     if (input) input.value = code;
     navigateBack();

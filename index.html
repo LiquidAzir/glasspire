@@ -382,9 +382,15 @@
         <div class="sync-section" id="sync-cloud-section">
           <h3>Cloud Sync — PC · phone · glasses</h3>
           <p class="sync-help" id="sync-cloud-status">Checking cloud sync…</p>
-          <textarea id="sync-cloud-link" class="sync-box" readonly placeholder="Your personal sync link appears here."></textarea>
-          <button class="nav-item focusable" data-action="sync-copy-link">Copy Sync Link</button>
-          <p class="sync-help">Open this exact link on your other devices — they share one save automatically (the most recently played device wins).</p>
+          <p class="sync-help">Pick ONE code and enter it on every device — they then share a single save automatically (the most recently played device wins). Glasses: use the D-pad button below.</p>
+          <input id="sync-cloud-code" class="sync-short-input" type="text" placeholder="pick a code, e.g. kevin7" maxlength="40" autocapitalize="off" autocorrect="off" spellcheck="false" />
+          <button class="nav-item focusable" data-action="sync-set-code">Use This Code</button>
+          <button class="nav-item focusable" data-action="open-cloud-code-picker">Set Code with D-pad (glasses)</button>
+          <details class="sync-fallback">
+            <summary>Or share by link instead</summary>
+            <textarea id="sync-cloud-link" class="sync-box" readonly placeholder="Your personal sync link appears here."></textarea>
+            <button class="nav-item focusable" data-action="sync-copy-link">Copy Sync Link</button>
+          </details>
         </div>
 
         <div class="sync-section">
