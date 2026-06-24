@@ -16,7 +16,10 @@
     if (ctx) return ctx;
     var AC = window.AudioContext || window.webkitAudioContext;
     if (!AC) return null;
-    ctx = new AC();
+    // 'playback' requests a LARGER output buffer so the audio thread survives the
+    // glasses' CPU contention with 3D rendering (fixes the drone/music break-up). It
+    // only adds a little output latency — the synthesized sound is otherwise identical.
+    try { ctx = new AC({ latencyHint: 'playback' }); } catch (e) { ctx = new AC(); }
     comp = ctx.createDynamicsCompressor();   // glue + avoid clipping when sounds stack
     comp.threshold.value = -16; comp.knee.value = 24; comp.ratio.value = 4;
     comp.attack.value = 0.003; comp.release.value = 0.18;
@@ -122,7 +125,11 @@
         var st = scale.steps[(Math.random() * scale.steps.length) | 0];
         var oct = Math.random() < 0.4 ? 4 : 2;
         var f = scale.root * oct * Math.pow(2, st / 12);
-        var t = ctx.currentTime + 0.02;
+        // Schedule the bell ~0.18s ahead (not 0.02): the bell is the only music voice
+        // timed from the busy main thread, and a small lead can land "in the past" after
+        // a janky frame and click. A bigger lead is safely ahead of the output buffer.
+        // Every gain/start/stop time below derives from t, so the note is unchanged.
+        var t = ctx.currentTime + 0.18;
         var o = ctx.createOscillator(), g = ctx.createGain();
         o.type = 'triangle'; o.frequency.value = f;
         g.gain.setValueAtTime(0.0001, t);
