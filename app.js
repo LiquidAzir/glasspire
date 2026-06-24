@@ -2236,7 +2236,14 @@
   }
 
   function onKeyDown(e) {
-    const key = e.key;
+    let key = e.key;
+    // On PC, the Spacebar mirrors Enter (the "pinch" / action / select) — except while
+    // typing in a text field, where space should still type a space.
+    if (key === ' ' || key === 'Spacebar') {
+      const ae = document.activeElement;
+      const typing = ae && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA');
+      if (!typing) { key = 'Enter'; e.preventDefault(); }
+    }
     const inGame = (game.screen === 'game');
 
     // Block arrow key repeats everywhere — they cause stuck movement in game
