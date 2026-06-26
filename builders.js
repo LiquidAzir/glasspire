@@ -7625,61 +7625,76 @@ export function buildEnemy_hollowking(opts) {
 // =============================================================
 const _TAU = Math.PI * 2;
 export const CAST_ANIMS = {
-  // WARRIOR — Whirlwind: 3 fast full-body spins, arms flung out level, blade swung wide.
   whirlwind: (prog, pm, ud) => {
-    pm.rotation.y = prog * 3 * _TAU;                 // override facing → spin
-    const env = Math.sin(prog * Math.PI);            // 0→1→0 envelope
-    pm.rotation.z = env * 0.16;                      // lean into the spin
-    pm.position.y += env * 0.06;                     // slight lift mid-spin
+    // STRENGTHENED: faster 4-rev spin w/ snappy wind-up→whirl→recovery, deeper lean, twin overhead blade sweep, crouch-and-lift
+    const wind = prog < 0.16 ? prog / 0.16 : 1;                 // 0→1 coil
+    const spin = prog < 0.16 ? 0 : (prog - 0.16) / 0.84;        // hold then unleash
+    const env = Math.sin(prog * Math.PI);                        // 0→1→0 power
+    pm.rotation.y = -wind * 0.5 + spin * spin * 4 * _TAU;        // coil back, then accelerate into 4 full spins
+    pm.rotation.z = env * 0.30 * (1 - 0.3 * Math.sin(prog * _TAU * 4)); // hard lean + wobble
+    pm.rotation.x = -wind * 0.18 + env * 0.05;                   // duck into the coil
+    pm.position.y += env * 0.12 - wind * 0.05;                   // crouch then lift off
     if (ud.arms && ud.arms.length >= 2) {
-      ud.arms[0].rotation.z = env * 1.25; ud.arms[1].rotation.z = -env * 1.25;
-      ud.arms[0].rotation.x = 0.15; ud.arms[1].rotation.x = 0.15;
+      ud.arms[0].rotation.z = 0.4 + env * 1.7;  ud.arms[1].rotation.z = -(0.4 + env * 1.7); // arms flung wide
+      ud.arms[0].rotation.x = -0.2 - env * 0.5; ud.arms[1].rotation.x = -0.2 - env * 0.5;   // raised overhead
     }
-    ud.weaponMount.rotation.z = -1.15; ud.weaponMount.rotation.x = 0.10;
+    if (ud.legs && ud.legs.length >= 2) {
+      ud.legs[0].rotation.z = env * 0.22; ud.legs[1].rotation.z = -env * 0.22;  // braced wide stance
+      ud.legs[0].rotation.x = env * 0.18; ud.legs[1].rotation.x = -env * 0.18;
+    }
+    ud.weaponMount.rotation.z = -1.45 - env * 0.25;             // blade swept flat & wide
+    ud.weaponMount.rotation.x = 0.05 + env * 0.20;
+    ud.weaponMount.rotation.y = env * 0.4;
   },
   leapslam: (prog, pm, ud) => {
-  let dy = 0, pitch = 0, weapX = 0, weapY = 0, weapZ = 0, legTuck = 0, armUp = 0, sc = 1;
-  if (prog < 0.3) {
-    const t = prog / 0.3;
-    const dip = Math.sin(Math.min(t, 0.5) / 0.5 * Math.PI * 0.5);
-    const launch = t > 0.5 ? (t - 0.5) / 0.5 : 0;
-    dy = -0.55 * dip * (1 - launch) + 0.9 * launch * launch;
-    pitch = -0.05 - 0.18 * dip * (1 - launch) + 0.22 * launch;
-    legTuck = -0.7 * dip * (1 - launch);
-    armUp = -0.6 - 1.4 * t;
-    sc = 1 + 0.05 * launch;
-  } else if (prog < 0.6) {
-    const t = (prog - 0.3) / 0.3;
+  let dy = 0, pitch = 0, weapX = 0, weapY = 0, weapZ = 0, legTuck = 0, armUp = 0, sc = 1, shake = 0;
+  if (prog < 0.28) {
+    const t = prog / 0.28;
+    const dip = Math.sin(Math.min(t, 0.55) / 0.55 * Math.PI * 0.5);
+    const launch = t > 0.55 ? (t - 0.55) / 0.45 : 0;
+    const lp = launch * launch;
+    dy = -0.85 * dip * (1 - launch) + 1.35 * lp;
+    pitch = -0.06 - 0.26 * dip * (1 - launch) + 0.30 * launch;
+    legTuck = -1.0 * dip * (1 - launch) + 0.8 * lp;
+    armUp = -0.5 - 1.7 * t;
+    sc = 1 - 0.07 * dip * (1 - launch) + 0.10 * lp;
+  } else if (prog < 0.58) {
+    const t = (prog - 0.28) / 0.30;
     const air = Math.sin(t * Math.PI);
-    dy = 0.9 + 0.55 * air;
-    pitch = 0.22 - 0.1 * t;
-    legTuck = 1.5 * Math.sin(Math.min(t * 1.3, 1) * Math.PI * 0.5);
-    armUp = -2.0;
-    weapX = -2.3;
-  } else if (prog < 0.8) {
-    const t = (prog - 0.6) / 0.2;
-    const drive = t * t;
-    dy = 0.9 * (1 - drive) - 0.35 * Math.sin(Math.min(t, 0.85) / 0.85 * Math.PI);
-    pitch = -0.55 * drive;
-    legTuck = 1.5 * (1 - drive) - 0.25 * drive;
-    armUp = -2.0 + 2.6 * drive;
-    weapX = -2.3 + 3.0 * drive;
-    sc = 1 + 0.08 * Math.sin(t * Math.PI);
+    dy = 1.35 + 0.65 * air;
+    pitch = 0.30 - 0.16 * t;
+    legTuck = 1.85 * Math.sin(Math.min(t * 1.35, 1) * Math.PI * 0.5);
+    armUp = -2.3;
+    weapX = -2.7;
+    sc = 1 + 0.04 * air;
+  } else if (prog < 0.76) {
+    const t = (prog - 0.58) / 0.18;
+    const drive = t * t * t;
+    dy = 1.35 * (1 - drive);
+    pitch = -0.75 * drive;
+    legTuck = 1.85 * (1 - drive) - 0.45 * drive;
+    armUp = -2.3 + 3.0 * drive;
+    weapX = -2.7 + 3.5 * drive;
+    sc = 1 + 0.10 * Math.sin(t * Math.PI);
   } else {
-    const t = (prog - 0.8) / 0.2;
+    const t = (prog - 0.76) / 0.24;
     const rec = Math.sin(t * Math.PI * 0.5);
-    dy = -0.35 * (1 - rec);
-    pitch = -0.55 * (1 - rec);
-    legTuck = -0.25 * (1 - rec);
-    armUp = 0.6 * (1 - rec);
-    weapX = 0.7 * (1 - rec);
+    const bounce = Math.sin(Math.min(t * 1.6, 1) * Math.PI) * (1 - t);
+    dy = -0.55 * (1 - rec) + 0.30 * bounce;
+    pitch = -0.75 * (1 - rec) * (1 - 0.5 * t);
+    legTuck = -0.45 * (1 - rec);
+    armUp = 0.7 * (1 - rec);
+    weapX = 0.8 * (1 - rec);
+    sc = 1 + 0.06 * bounce;
+    shake = (1 - t) * 0.05 * Math.sin(t * Math.PI * 9);
   }
   pm.position.y += dy;
   pm.rotation.x = pitch;
+  pm.rotation.z = shake;
   pm.scale.setScalar(sc);
   if (ud.arms && ud.arms.length >= 2) {
     ud.arms[0].rotation.x = armUp; ud.arms[1].rotation.x = armUp;
-    ud.arms[0].rotation.z = 0.18; ud.arms[1].rotation.z = -0.18;
+    ud.arms[0].rotation.z = 0.20; ud.arms[1].rotation.z = -0.20;
   }
   if (ud.legs && ud.legs.length >= 2) {
     ud.legs[0].rotation.x = legTuck; ud.legs[1].rotation.x = legTuck;
@@ -7689,181 +7704,254 @@ export const CAST_ANIMS = {
   ud.weaponMount.rotation.z = weapZ;
 },
   warcry: (prog, pm, ud, now, moving) => {
-  const plant = Math.min(1, prog / 0.2);
-  const swell = Math.sin(Math.min(1, prog / 0.6) * Math.PI * 0.5);
-  const hold = prog > 0.25 && prog < 0.72 ? 1 : Math.max(0, 1 - Math.abs(prog - 0.48) / 0.48);
-  const thrust = prog > 0.72 ? (prog - 0.72) / 0.28 : 0;
-  const tEnv = Math.sin(thrust * Math.PI);
-  pm.scale.setScalar(1 + swell * (0.13 + Math.sin(now * 0.022) * 0.02 * hold) - thrust * 0.05);
-  pm.rotation.x = -swell * 0.34 * (1 - thrust) + tEnv * 0.42;
-  pm.position.y += swell * 0.05 * (1 - thrust) - thrust * 0.04;
-  pm.rotation.z = Math.sin(now * 0.03) * 0.025 * hold;
+  const plant = Math.min(1, prog / 0.18);
+  const charge = Math.min(1, prog / 0.55);
+  const swell = Math.sin(charge * Math.PI * 0.5);
+  const wind = Math.sin(Math.min(1, prog / 0.45) * Math.PI * 0.5); // arms-back wind-up
+  const hold = prog > 0.22 && prog < 0.7 ? 1 : Math.max(0, 1 - Math.abs(prog - 0.46) / 0.46);
+  const thrust = prog > 0.7 ? (prog - 0.7) / 0.3 : 0;
+  const tEnv = Math.sin(Math.min(1, thrust) * Math.PI);
+  const tSnap = thrust > 0 ? Math.sin(Math.min(1, thrust / 0.45) * Math.PI * 0.5) : 0; // fast fling-out
+  // chest swells big, recoils punchy on the roar
+  pm.scale.setScalar(1 + swell * (0.18 + Math.sin(now * 0.024) * 0.03 * hold) - thrust * 0.07 + tEnv * 0.05);
+  // defiant lean BACK during charge, snap UPRIGHT/forward on roar
+  pm.rotation.x = -swell * 0.46 * (1 - thrust) + tEnv * 0.5;
+  pm.position.y += swell * 0.07 * (1 - thrust) - thrust * 0.06 + tEnv * 0.04;
+  pm.rotation.z = Math.sin(now * 0.032) * 0.035 * hold;
   if (ud.arms && ud.arms.length >= 2) {
-    const back = -2.0 * swell * (1 - thrust) - thrust * 0.3;
-    const out = 1.15 * swell * (1 - thrust * 0.6);
+    // wind-up: arms flung hard BACK and slightly out
+    const back = -2.45 * wind * (1 - thrust);
+    const out = 1.05 * wind * (1 - thrust);
     ud.arms[0].rotation.x = back; ud.arms[1].rotation.x = back;
     ud.arms[0].rotation.z = out; ud.arms[1].rotation.z = -out;
-    if (thrust > 0) { ud.arms[0].rotation.x = -0.4 + tEnv * 1.2; ud.arms[1].rotation.x = -0.4 + tEnv * 1.2; ud.arms[0].rotation.z = 0.5 * (1 - tEnv); ud.arms[1].rotation.z = -0.5 * (1 - tEnv); }
+    if (thrust > 0) {
+      // release: arms SNAP wide-open and forward (defiant flex-out)
+      const fx = -0.3 + tSnap * 0.9;
+      const fz = 0.2 + tSnap * 1.55;
+      ud.arms[0].rotation.x = fx; ud.arms[1].rotation.x = fx;
+      ud.arms[0].rotation.z = fz; ud.arms[1].rotation.z = -fz;
+    }
   }
   if (ud.legs && ud.legs.length >= 2) {
-    ud.legs[0].rotation.x = 0.28 * plant; ud.legs[1].rotation.x = -0.28 * plant;
-    ud.legs[0].rotation.z = 0.12 * plant; ud.legs[1].rotation.z = -0.12 * plant;
+    // hard wide stomp plant, deepens on the roar
+    const st = 0.34 * plant + thrust * 0.12;
+    ud.legs[0].rotation.x = st; ud.legs[1].rotation.x = -st;
+    ud.legs[0].rotation.z = 0.16 * plant; ud.legs[1].rotation.z = -0.16 * plant;
+  }
+  if (ud.weaponMount) {
+    // weapon thrust skyward on charge, then punched out on roar
+    ud.weaponMount.rotation.x = -swell * 0.6 * (1 - thrust) + tEnv * 0.4;
+    ud.weaponMount.rotation.z = swell * 0.25 * (1 - thrust);
   }
 },
-  shieldwall: (prog, pm, ud) => {
-  const set = Math.min(prog / 0.18, 1);
-  const release = prog > 0.86 ? (prog - 0.86) / 0.14 : 0;
-  const brace = set * (1 - release);
-  const tremble = Math.sin(prog * Math.PI * 22) * 0.012 * (brace > 0.4 ? 1 : 0);
-  pm.position.y -= brace * 0.26;
-  pm.rotation.x = -brace * 0.2;
+  shieldwall: (prog, pm, ud, now, moving) => {
+  const set = Math.min(prog / 0.14, 1);
+  const ease = set * set * (3 - 2 * set);
+  const release = prog > 0.82 ? (prog - 0.82) / 0.18 : 0;
+  const snap = release > 0 ? Math.sin(release * Math.PI) : 0;
+  const brace = ease * (1 - release * 0.65);
+  const tremble = Math.sin(prog * Math.PI * 26) * 0.018 * (brace > 0.35 ? 1 : 0);
+  pm.position.y -= brace * 0.34 - snap * 0.08;
+  pm.rotation.x = -brace * 0.30 + snap * 0.10;
   pm.rotation.z = tremble;
+  pm.scale.y = 1 - brace * 0.06 + snap * 0.05;
   if (ud.legs && ud.legs.length >= 2) {
-    ud.legs[0].rotation.x = brace * 0.34; ud.legs[0].rotation.z = brace * 0.26;
-    ud.legs[1].rotation.x = -brace * 0.30; ud.legs[1].rotation.z = -brace * 0.26;
+    ud.legs[0].rotation.x = brace * 0.46; ud.legs[0].rotation.z = brace * 0.34;
+    ud.legs[1].rotation.x = -brace * 0.40; ud.legs[1].rotation.z = -brace * 0.34;
   }
   if (ud.arms && ud.arms.length >= 2) {
-    ud.arms[0].rotation.x = -brace * 1.35;
-    ud.arms[0].rotation.z = -brace * 0.55 + tremble * 3;
-    ud.arms[0].rotation.y = brace * 0.45;
-    ud.arms[1].rotation.x = brace * 0.55;
-    ud.arms[1].rotation.z = -brace * 0.18;
+    ud.arms[0].rotation.x = -brace * 1.6 + snap * 0.35;
+    ud.arms[0].rotation.z = -brace * 0.7 + tremble * 3;
+    ud.arms[0].rotation.y = brace * 0.55;
+    ud.arms[1].rotation.x = brace * 0.7;
+    ud.arms[1].rotation.z = -brace * 0.24;
   }
-  ud.weaponMount.rotation.x = brace * 0.9;
-  ud.weaponMount.rotation.z = -brace * 0.5;
-  ud.weaponMount.position.y = -brace * 0.12;
+  ud.weaponMount.rotation.x = brace * 1.1 - snap * 0.4;
+  ud.weaponMount.rotation.z = -brace * 0.6;
+  ud.weaponMount.position.y = -brace * 0.14;
+  ud.weaponMount.position.z = brace * 0.1 + snap * 0.12;
 },
   frostnova: (prog, pm, ud) => {
-  const raise = Math.min(1, prog / 0.45);
-  const ease = raise * raise * (3 - 2 * raise);
-  const snap = prog < 0.45 ? 0 : Math.min(1, (prog - 0.45) / 0.12);
-  const settle = prog < 0.57 ? 0 : (prog - 0.57) / 0.43;
-  const recoil = Math.sin(snap * Math.PI) * (1 - settle * 0.6);
-  pm.rotation.x = -ease * 0.18 + recoil * 0.42;
-  pm.position.y += -recoil * 0.22 - ease * 0.04;
-  const burst = snap < 1 ? snap : Math.max(0, 1 - (prog - 0.57) / 0.18);
-  pm.scale.setScalar(1 + burst * 0.07);
+  // STRENGTHENED: deeper rise→crouch wind-up, harder ground slam, arms sweep WIDE out + recoil bounce
+  const rise = Math.min(1, prog / 0.4);                 // wind-up: lift up onto toes, arms overhead
+  const er = rise * rise * (3 - 2 * rise);
+  const snap = prog < 0.4 ? 0 : Math.min(1, (prog - 0.4) / 0.1); // the slam
+  const es = snap * snap * (3 - 2 * snap);
+  const settle = prog < 0.5 ? 0 : (prog - 0.5) / 0.5;   // recovery back to neutral
+  const recoil = Math.sin(snap * Math.PI) * (1 - settle * 0.5);
+  // crouch: rise UP during windup, then SLAM down hard, then bob back up
+  pm.position.y += er * 0.18 - es * 0.5 * (1 - settle) - recoil * 0.06;
+  pm.rotation.x = -er * 0.22 + es * 0.5 * (1 - settle * 0.7);  // lean back, then pitch forward into slam
+  pm.scale.setScalar(1 + recoil * 0.09 - es * 0.04 * (1 - settle));
   if (ud.arms && ud.arms.length >= 2) {
-    const up = -ease * 2.0;
-    const slam = snap * 2.7;
-    const ax = up + slam;
+    // windup: arms raise overhead. slam: arms whip DOWN then sweep WIDE out to the sides
+    const ax = -er * 2.3 + es * 3.0;
     ud.arms[0].rotation.x = ax;
     ud.arms[1].rotation.x = ax;
-    const spread = ease * 0.5 + snap * 0.55 - settle * 0.4;
+    const spread = er * 0.35 + es * 1.15 - settle * 0.95;  // big wide sweep on release
     ud.arms[0].rotation.z = spread;
     ud.arms[1].rotation.z = -spread;
   }
-},
-  chainlightning: (prog, pm, ud, now, moving) => {
-  const coil = Math.min(prog / 0.35, 1);
-  const thrust = prog < 0.35 ? 0 : Math.min((prog - 0.35) / 0.25, 1);
-  const cEase = coil * coil;
-  const tEase = thrust < 0.5 ? 2 * thrust * thrust : 1 - Math.pow(-2 * thrust + 2, 2) / 2;
-  const jolt = prog > 0.6 ? Math.sin((prog - 0.6) / 0.4 * Math.PI * 9) * Math.pow(1 - (prog - 0.6) / 0.4, 2) : 0;
-  pm.rotation.x = -cEase * 0.32 * (1 - thrust) + tEase * 0.28 + jolt * 0.05;
-  pm.rotation.y += cEase * 0.5 - tEase * 0.7 + (tEase > 0.85 ? (tEase - 0.85) * 1.2 : 0) + jolt * 0.08;
-  pm.rotation.z = cEase * 0.12 * (1 - thrust) - jolt * 0.04;
-  pm.position.y += -cEase * 0.05 * (1 - thrust) + tEase * 0.03;
-  if (ud.arms && ud.arms.length >= 2) {
-    ud.arms[1].rotation.x = -cEase * 0.5 * (1 - thrust) - tEase * 2.6 + jolt * 0.12;
-    ud.arms[1].rotation.z = -cEase * 0.7 * (1 - thrust) + tEase * 0.5;
-    ud.arms[1].rotation.y = tEase * 0.3;
-    ud.arms[0].rotation.z = cEase * 0.55 * (1 - thrust) - tEase * 0.45;
-    ud.arms[0].rotation.x = -tEase * 0.25;
+  if (ud.legs && ud.legs.length >= 2) {
+    const tuck = es * 0.7 * (1 - settle * 0.8);  // legs bend into the crouch on impact
+    ud.legs[0].rotation.x = tuck;
+    ud.legs[1].rotation.x = tuck;
   }
 },
-  meteor: (prog, pm, ud) => {
-  const gather = Math.min(prog / 0.75, 1);
-  const gEase = gather * gather * (3 - 2 * gather);
-  const snap = prog > 0.75 ? (prog - 0.75) / 0.25 : 0;
-  const sEase = snap * snap;
-  pm.rotation.x = -gEase * 0.42 + sEase * 0.95;
-  pm.position.y += gEase * 0.1 - sEase * 0.14;
-  pm.rotation.z = Math.sin(gather * Math.PI * 4) * 0.03 * gEase * (1 - snap);
+  chainlightning: (prog, pm, ud, now, moving) => {
+  // STRENGTHENED: tighter coil-back then a violent forward arm-snap + lunge, sharper electric jolt-shudder on release.
+  const coil = Math.min(prog / 0.32, 1);
+  const cEase = coil * coil;
+  const snap = prog < 0.32 ? 0 : Math.min((prog - 0.32) / 0.18, 1);
+  const sEase = snap < 0.5 ? 4 * snap * snap * snap : 1 - Math.pow(-2 * snap + 2, 3) / 2;
+  const rel = prog > 0.5 ? (prog - 0.5) / 0.5 : 0;
+  const jolt = rel > 0 ? Math.sin(rel * Math.PI * 11) * Math.pow(1 - rel, 2) : 0;
+  const settle = 1 - sEase * rel * 0.55;
+  // lean back on coil, then drive the torso forward into the throw
+  pm.rotation.x = -cEase * 0.30 * (1 - snap) + sEase * 0.34 * settle + jolt * 0.06;
+  pm.rotation.y += cEase * 0.42 * (1 - snap) - sEase * 0.78 * settle + jolt * 0.10;
+  pm.rotation.z = cEase * 0.14 * (1 - snap) - sEase * 0.10 * settle - jolt * 0.05;
+  pm.position.y += -cEase * 0.06 * (1 - snap) + sEase * 0.05 * (1 - rel);
   if (ud.arms && ud.arms.length >= 2) {
-    const up = -gEase * 2.7 + sEase * 4.2;
-    const tremor = Math.sin(prog * 55) * 0.05 * gEase * (1 - snap);
+    // throwing arm (1): cocked high/back, then hurled straight forward
+    ud.arms[1].rotation.x = -cEase * 1.4 * (1 - snap) - sEase * 2.9 * settle + jolt * 0.18;
+    ud.arms[1].rotation.z = -cEase * 0.9 * (1 - snap) + sEase * 0.55 * settle;
+    ud.arms[1].rotation.y = -cEase * 0.4 * (1 - snap) + sEase * 0.42;
+    // off arm (0): flares back for counterbalance
+    ud.arms[0].rotation.z = cEase * 0.7 * (1 - snap) - sEase * 0.6 * settle;
+    ud.arms[0].rotation.x = cEase * 0.35 * (1 - snap) - sEase * 0.4;
+    ud.arms[0].rotation.y = sEase * 0.25;
+  }
+  if (ud.legs && ud.legs.length >= 2) {
+    ud.legs[0].rotation.x = sEase * 0.4 * (1 - rel * 0.5);
+    ud.legs[1].rotation.x = -sEase * 0.3 * (1 - rel * 0.5);
+  }
+  if (ud.weaponMount) ud.weaponMount.rotation.x = -cEase * 0.5 * (1 - snap) - sEase * 1.2 * settle;
+},
+  meteor: (prog, pm, ud, now, moving) => {
+  const gather = Math.min(prog / 0.62, 1);
+  const gEase = gather * gather * (3 - 2 * gather);
+  const snap = prog > 0.62 ? (prog - 0.62) / 0.20 : 0;
+  const sEase = snap < 1 ? snap * snap : 1;
+  const land = prog > 0.82 ? (prog - 0.82) / 0.18 : 0;
+  const lEase = land * land * (3 - 2 * land);
+  // point UP (lean back, rise) -> DRIVE DOWN (hard forward pitch, drop) -> crouch recover
+  pm.rotation.x = -gEase * 0.55 + sEase * 1.25 - lEase * 0.35;
+  pm.position.y += gEase * 0.16 - sEase * 0.22 - lEase * 0.18;
+  pm.rotation.z = Math.sin(gather * Math.PI * 4) * 0.04 * gEase * (1 - snap);
+  if (ud.arms && ud.arms.length >= 2) {
+    // both arms punch overhead together, then slam straight down past the body
+    const up = -gEase * 3.2 + sEase * 5.4 - lEase * 1.2;
+    const tremor = Math.sin(prog * 64) * 0.07 * gEase * (1 - snap);
     ud.arms[0].rotation.x = up + tremor;
     ud.arms[1].rotation.x = up - tremor;
-    ud.arms[0].rotation.z = gEase * 0.22 - sEase * 0.18;
-    ud.arms[1].rotation.z = -gEase * 0.22 + sEase * 0.18;
+    ud.arms[0].rotation.z = gEase * 0.30 - sEase * 0.34;
+    ud.arms[1].rotation.z = -gEase * 0.30 + sEase * 0.34;
+  }
+  if (ud.legs && ud.legs.length >= 2) {
+    // brace on the slam, deep crouch on landing
+    ud.legs[0].rotation.x = sEase * 0.35 - lEase * 0.9;
+    ud.legs[1].rotation.x = -sEase * 0.35 + lEase * 0.9;
   }
 },
   blinkstrike: (prog, pm, ud, now, moving) => {
-  if (prog < 0.32) {
-    const t = prog / 0.32;
-    const e = t * t;
-    pm.scale.setScalar(1 - e * 0.62);
-    pm.position.y += -e * 0.28;
-    pm.rotation.x = -e * 0.18;
+  if (prog < 0.3) {
+    // BLINK-OUT: implode hard and fast, pull arms in tight
+    const t = prog / 0.3;
+    const e = t * t * t;
+    pm.scale.setScalar(1 - e * 0.78);
+    pm.position.y += -e * 0.34;
+    pm.rotation.x = -e * 0.22;
+    pm.rotation.z = Math.sin(t * Math.PI) * 0.25 * (1 - e); // shiver
     if (ud.arms && ud.arms.length >= 2) {
-      ud.arms[0].rotation.x = e * 0.5; ud.arms[1].rotation.x = e * 0.5;
-      ud.arms[0].rotation.z = e * 0.3; ud.arms[1].rotation.z = -e * 0.3;
+      ud.arms[0].rotation.x = e * 0.7; ud.arms[1].rotation.x = e * 0.7;
+      ud.arms[0].rotation.z = e * 0.45; ud.arms[1].rotation.z = -e * 0.45;
     }
   } else {
-    const t = (prog - 0.32) / 0.68;
-    const burst = 1 - Math.pow(1 - t, 3);
-    const flick = 1 + Math.sin(prog * 90) * 0.04 * (1 - t);
-    pm.scale.setScalar((0.38 + burst * 0.62) * flick);
-    pm.position.y += -0.28 * (1 - burst) + Math.sin(t * Math.PI) * 0.1;
-    const lunge = Math.sin(Math.min(t * 1.4, 1) * Math.PI);
-    pm.rotation.x = -0.18 - lunge * 0.42;
+    // ARRIVAL STRIKE: snap to full size, hard z-flicker, violent lunge + recovery
+    const t = (prog - 0.3) / 0.7;
+    const burst = 1 - Math.pow(1 - t, 4);
+    const flick = 1 + Math.sin(prog * 120) * 0.07 * Math.max(0, 1 - t * 2.2);
+    const overshoot = 1 + Math.sin(Math.min(t * 1.6, 1) * Math.PI) * 0.14;
+    pm.scale.setScalar((0.22 + burst * 0.78) * flick * overshoot);
+    pm.position.y += -0.34 * (1 - burst) + Math.sin(t * Math.PI) * 0.14;
+    // quick re-materialize flicker on the roll axis, settling to 0
+    pm.rotation.z = Math.sin(prog * 140) * 0.12 * Math.max(0, 1 - t * 3);
+    const lunge = Math.sin(Math.min(t * 1.5, 1) * Math.PI);
+    pm.rotation.x = -0.22 - lunge * 0.55;
     if (ud.arms && ud.arms.length >= 2) {
-      ud.arms[1].rotation.x = -1.5 - lunge * 0.6;
-      ud.arms[1].rotation.z = -0.1;
-      ud.arms[0].rotation.x = 0.6 - lunge * 0.4;
-      ud.arms[0].rotation.z = 0.35;
+      ud.arms[1].rotation.x = -1.6 - lunge * 0.9;
+      ud.arms[1].rotation.z = -0.08;
+      ud.arms[0].rotation.x = 0.7 - lunge * 0.55;
+      ud.arms[0].rotation.z = 0.4;
     }
-    ud.weaponMount.rotation.x = -1.7 - lunge * 0.5;
-    ud.weaponMount.position.z = lunge * 0.45;
-    ud.weaponMount.position.y = lunge * 0.2;
+    ud.weaponMount.rotation.x = -1.8 - lunge * 0.7;
+    ud.weaponMount.rotation.z = -lunge * 0.4; // slash cant
+    ud.weaponMount.position.z = lunge * 0.6;
+    ud.weaponMount.position.y = lunge * 0.26;
   }
 },
-  multishot: (prog, pm, ud) => {
-  const draw = Math.min(1, prog / 0.62);
+  multishot: (prog, pm, ud, now, moving) => {
+  const draw = Math.min(1, prog / 0.6);
   const drawE = draw * draw * (3 - 2 * draw);
-  const released = prog > 0.62;
-  const rel = released ? (prog - 0.62) / 0.38 : 0;
-  const snap = released ? Math.sin(Math.min(1, rel * 1.6) * Math.PI) * (1 - rel * 0.4) : 0;
-  pm.rotation.y += -0.5 * drawE + snap * 0.22;
-  pm.rotation.z = drawE * 0.05 - snap * 0.04;
-  pm.rotation.x = -drawE * 0.05 + snap * 0.12;
-  pm.position.y += -drawE * 0.03 + snap * 0.02;
+  const released = prog > 0.6;
+  const rel = released ? (prog - 0.6) / 0.4 : 0;
+  const snap = released ? Math.sin(Math.min(1, rel * 1.7) * Math.PI) * (1 - rel * 0.35) : 0;
+  const settle = released ? Math.sin(Math.min(1, rel) * Math.PI) * 0.5 : 0;
+  // turn into the draw, then whip forward on loose
+  pm.rotation.y += -0.62 * drawE + snap * 0.34;
+  pm.rotation.z = drawE * 0.07 - snap * 0.06;
+  pm.rotation.x = -drawE * 0.07 + snap * 0.18 - settle * 0.05;
+  pm.position.y += -drawE * 0.05 + snap * 0.035;
+  // small forward lunge as the volley releases
+  pm.position.z += snap * 0.12;
   if (ud.arms && ud.arms.length >= 2) {
-    ud.arms[0].rotation.x = -1.45 * drawE;
-    ud.arms[0].rotation.z = 0.12 * drawE;
-    ud.arms[0].rotation.y = -0.25 * drawE;
-    const drawBack = 0.9 + 0.55 * drawE;
-    const fwd = released ? snap * 1.7 : 0;
+    // bow arm punches out and steadies, recoiling on loose
+    ud.arms[0].rotation.x = -1.6 * drawE - snap * 0.15;
+    ud.arms[0].rotation.z = 0.16 * drawE;
+    ud.arms[0].rotation.y = -0.3 * drawE;
+    // string hand hauls back hard, then snaps fully forward
+    const drawBack = 0.95 + 0.7 * drawE;
+    const fwd = released ? snap * 2.1 : 0;
     ud.arms[1].rotation.x = -drawBack + fwd;
-    ud.arms[1].rotation.z = -0.55 * drawE + snap * 0.3;
-    ud.arms[1].rotation.y = 0.35 * drawE - snap * 0.4;
+    ud.arms[1].rotation.z = -0.62 * drawE + snap * 0.4;
+    ud.arms[1].rotation.y = 0.42 * drawE - snap * 0.5;
   }
   if (ud.legs && ud.legs.length >= 2) {
-    ud.legs[0].rotation.x = 0.25 * drawE;
-    ud.legs[1].rotation.x = -0.3 * drawE;
+    // brace stance widens on draw, drives forward on loose
+    ud.legs[0].rotation.x = 0.3 * drawE - snap * 0.25;
+    ud.legs[1].rotation.x = -0.38 * drawE + snap * 0.2;
   }
-  ud.weaponMount.rotation.z = 1.5 * drawE;
-  ud.weaponMount.rotation.x = -0.15 * drawE - snap * 0.2;
-  ud.weaponMount.position.x = 0.1 * drawE;
+  // bow held across body, tips on release
+  ud.weaponMount.rotation.z = 1.55 * drawE;
+  ud.weaponMount.rotation.x = -0.18 * drawE - snap * 0.28;
+  ud.weaponMount.position.x = 0.12 * drawE;
 },
   poisontrap: (prog, pm, ud) => {
-  const k = Math.sin(prog * Math.PI);                 // 0->1->0 kneel envelope
-  const down = Math.sin(Math.min(prog, 0.85) / 0.85 * Math.PI); // hold low through middle
-  pm.position.y -= k * 0.42;                           // dip notably into a kneel
-  pm.rotation.x = -k * 0.42;                           // lean forward over the trap
-  pm.rotation.z = k * 0.05;                            // tiny weight shift
-  if (ud.legs && ud.legs.length >= 2) {                // bend both legs to crouch/kneel
-    ud.legs[0].rotation.x = k * 1.25;                  // front knee deep
-    ud.legs[1].rotation.x = -k * 0.55;                 // back leg trails
-    ud.legs[0].rotation.z = k * 0.18;
-  }
+  // phases: wind-up (load low/back) -> release whip -> recovery
+  const wind = Math.min(1, prog / 0.5);
+  const windE = wind * wind * (3 - 2 * wind);            // smooth load
+  const released = prog > 0.5;
+  const rel = released ? (prog - 0.5) / 0.5 : 0;
+  const whip = released ? Math.sin(Math.min(1, rel * 1.5) * Math.PI) * (1 - rel * 0.35) : 0; // snappy forward burst
+  // body coils forward over the load, then unwinds with a small hop on release
+  pm.rotation.x = -windE * 0.30 + whip * 0.34;           // lean in, then kick chest up as it lobs
+  pm.rotation.z = windE * 0.10 - whip * 0.06;            // weight onto throwing side
+  pm.position.y += -windE * 0.20 + whip * 0.14;          // dip to load, pop on the toss
+  pm.rotation.y += windE * 0.18 - whip * 0.22;           // slight torso wind then unwind
   if (ud.arms && ud.arms.length >= 2) {
-    const pat = 0.12 * Math.sin(prog * Math.PI * 6) * down; // small pat at the bottom
-    ud.arms[0].rotation.x = down * 2.05 + pat;         // planting hand swings to ground
-    ud.arms[0].rotation.z = down * 0.32;               // cross slightly inward
-    ud.arms[1].rotation.x = down * 0.55;               // other arm braces on knee
-    ud.arms[1].rotation.z = -down * 0.12;
+    // arm[0] = throwing arm: swings LOW and BACK to load, then whips forward-and-up underhand
+    ud.arms[0].rotation.x = 0.95 * windE - whip * 2.35;  // back-low -> forward-up release
+    ud.arms[0].rotation.z = 0.30 * windE - whip * 0.35;  // flares out across the body on release
+    ud.arms[0].rotation.y = -0.20 * windE + whip * 0.30;
+    // arm[1] = off arm counterbalances back, then forward
+    ud.arms[1].rotation.x = -0.45 * windE + whip * 0.55;
+    ud.arms[1].rotation.z = -0.18 * windE;
+  }
+  if (ud.legs && ud.legs.length >= 2) {                  // ranger has legs: brace + drive
+    ud.legs[0].rotation.x = 0.55 * windE - whip * 0.30;  // lead leg loads then extends
+    ud.legs[0].rotation.z = windE * 0.12;
+    ud.legs[1].rotation.x = -0.35 * windE + whip * 0.25; // back leg drives the toss
   }
 },
   piercingshot: (prog, pm, ud) => {
@@ -7872,284 +7960,556 @@ export const CAST_ANIMS = {
   const draw = prog < 0.55 ? le : 1;
   const release = prog > 0.6 ? Math.min(1, (prog - 0.6) / 0.4) : 0;
   const re = release * release * (3 - 2 * release);
-  pm.rotation.x = -0.6 * le + re * 0.12;
-  pm.position.y += -0.2 * le + re * 0.05;
-  pm.rotation.z = 0.05 * le * (1 - re);
+  // a short violent snap right at loose for the whip-crack
+  const snap = Math.max(0, Math.sin(Math.min(1, Math.max(0, (prog - 0.6) / 0.22)) * Math.PI));
+  // heavy charged tremble during the held draw
+  const tremble = draw * (1 - re) * Math.sin(prog * 140) * 0.04;
+  pm.rotation.x = -0.78 * le + re * 0.18 - snap * 0.1;
+  pm.position.y += -0.28 * le + re * 0.08 + snap * 0.04;
+  pm.rotation.z = 0.07 * le * (1 - re) + tremble;
+  pm.scale.y = 1 - 0.05 * draw * (1 - re) + snap * 0.06;
   if (ud.legs && ud.legs.length >= 2) {
-    ud.legs[0].rotation.x = 1.05 * le + re * 0.2;
-    ud.legs[1].rotation.x = -0.9 * le;
+    ud.legs[0].rotation.x = 1.25 * le + re * 0.3;
+    ud.legs[1].rotation.x = -1.05 * le - snap * 0.15;
+    ud.legs[0].rotation.z = 0.12 * le;
   }
   if (ud.arms && ud.arms.length >= 2) {
-    const tension = draw * (1 - re);
-    ud.arms[0].rotation.x = -1.35 - 0.3 * tension + re * 0.35;
-    ud.arms[0].rotation.z = 0.45 * draw - re * 0.45;
-    ud.arms[1].rotation.x = -0.9 + 0.55 * tension - 0.6 * re;
-    ud.arms[1].rotation.z = -0.55 * draw + re * 1.0;
+    const tension = draw * (1 - re) + tremble;
+    // bow arm punches forward and locks
+    ud.arms[0].rotation.x = -1.5 - 0.45 * tension + re * 0.45;
+    ud.arms[0].rotation.z = 0.6 * draw - re * 0.6 - snap * 0.12;
+    // draw arm hauls back hard, then snaps open on loose
+    ud.arms[1].rotation.x = -0.95 + 0.75 * tension - 0.8 * re;
+    ud.arms[1].rotation.z = -0.7 * draw + re * 1.25 + snap * 0.4;
+  }
+  if (ud.weaponMount) {
+    ud.weaponMount.rotation.z = 0.5 * draw - re * 0.55;
+    ud.weaponMount.rotation.x = -0.15 * draw;
   }
 },
-  volley: (prog, pm, ud) => {
-  const draw = Math.min(prog / 0.6, 1);
+  volley: (prog, pm, ud, now, moving) => {
+  const draw = Math.min(prog / 0.55, 1);
   const drawE = draw * draw * (3 - 2 * draw);
-  const rel = prog > 0.6 ? (prog - 0.6) / 0.4 : 0;
-  const relE = rel * rel * (3 - 2 * rel);
-  const lean = -0.6 * drawE + 0.85 * relE;
+  const rel = prog > 0.55 ? (prog - 0.55) / 0.45 : 0;
+  // snap loose: fast attack, settle back
+  const relE = rel < 0.35 ? (rel / 0.35) : 1 - 0.55 * ((rel - 0.35) / 0.65);
+  const twang = rel > 0 && rel < 0.4 ? Math.sin(rel / 0.4 * Math.PI) * Math.sin(now * 0.05) * 0.06 : 0;
+  // arc the bow skyward: lean back hard on draw, punch up on loose
+  const lean = -0.85 * drawE + 1.05 * relE;
   pm.rotation.x = lean;
-  pm.position.y += -0.06 * drawE + 0.03 * relE;
-  pm.rotation.z = 0.07 * Math.sin(prog * Math.PI);
+  pm.rotation.z = 0.09 * Math.sin(prog * Math.PI) + twang;
+  pm.position.y += -0.09 * drawE + 0.14 * relE;
   if (ud.arms && ud.arms.length >= 2) {
-    const raise = -2.4 * drawE + 2.2 * relE;
+    // both arms raise overhead, aiming the bow up
+    const raise = -2.7 * drawE + 2.5 * relE;
     ud.arms[0].rotation.x = raise;
     ud.arms[1].rotation.x = raise;
-    ud.arms[0].rotation.z = 0.4 * drawE - 0.3 * relE;
-    ud.arms[1].rotation.z = -0.4 * drawE + 0.3 * relE;
-    const drawPull = -0.55 * drawE * (1 - rel);
-    ud.arms[1].rotation.x += drawPull;
+    ud.arms[0].rotation.z = 0.5 * drawE - 0.35 * relE;
+    ud.arms[1].rotation.z = -0.5 * drawE + 0.35 * relE;
+    // draw-hand pulls the string back, then snaps forward on release
+    const drawPull = -0.7 * drawE * (1 - rel);
+    ud.arms[1].rotation.x += drawPull - twang * 2;
   }
   if (ud.legs && ud.legs.length >= 2) {
-    ud.legs[0].rotation.x = 0.32 * drawE - 0.25 * relE;
-    ud.legs[1].rotation.x = -0.32 * drawE + 0.4 * relE;
+    // brace stance: front leg plants, back leg drives
+    ud.legs[0].rotation.x = 0.4 * drawE - 0.3 * relE;
+    ud.legs[1].rotation.x = -0.42 * drawE + 0.5 * relE;
   }
-  ud.weaponMount.rotation.x = -2.3 * drawE + 1.7 * relE;
-  ud.weaponMount.rotation.z = 0.28 * drawE - 0.15 * relE;
+  // bow arcs from drawn-low to loosed-skyward
+  ud.weaponMount.rotation.x = -2.6 * drawE + 2.0 * relE;
+  ud.weaponMount.rotation.z = 0.32 * drawE - 0.18 * relE + twang;
 },
   raisedead: (prog, pm, ud) => {
-  const env = Math.sin(prog * Math.PI);                 // 0->1->0 channel envelope
-  const rise = prog * prog;                              // hands climb, peak at climax
-  const sway = Math.sin(prog * Math.PI * 4);            // body sways with channeled power
-  pm.rotation.z = env * 0.14 * sway;                    // ritual sway side to side
-  pm.rotation.x = -env * 0.10;                          // lean back, gaze upward
-  pm.position.y += env * 0.05;                          // subtle channel lift
+  const TAU = Math.PI * 2;
+  // wind-up: hunch low over the grave, then HEAVE the dead up
+  const gather = Math.min(prog / 0.40, 1);
+  const ge = Math.sin(gather * Math.PI / 2);            // ease-in crouch
+  const heave = prog > 0.40 ? Math.min((prog - 0.40) / 0.30, 1) : 0;
+  const he = Math.sin(heave * Math.PI / 2);             // ease-out rise
+  const peak = Math.max(0, 1 - Math.abs(prog - 0.62) / 0.16); // summon climax
+  const climax = peak * peak;
+  const recover = prog > 0.78 ? (prog - 0.78) / 0.22 : 0;
+  // body: hunch forward over the earth, then arch back as the dead burst forth
+  pm.rotation.x = ge * 0.34 - he * 0.40 - climax * 0.14;
+  pm.position.y += -ge * 0.14 + he * 0.10 + climax * 0.06;
+  // violent ritual shudder at the climax + steady ritual sway
+  const shudder = climax > 0.15 ? Math.sin(prog * 95) * climax * 0.07 : 0;
+  pm.rotation.z = Math.sin(prog * TAU * 2.5) * (ge * 0.10 + he * 0.06) + shudder;
+  pm.position.y += shudder * 0.6;
   if (ud.arms && ud.arms.length >= 2) {
-    const spread = 0.45 + env * 0.95;                   // spread WIDE
-    const lift = -(0.25 + rise * env * 1.55);          // raise, palms up, higher at climax
-    ud.arms[0].rotation.z = spread; ud.arms[1].rotation.z = -spread;
-    ud.arms[0].rotation.x = lift; ud.arms[1].rotation.x = lift;
-    ud.arms[0].rotation.y = -env * 0.25; ud.arms[1].rotation.y = env * 0.25;
+    // crouch: arms reach DOWN to claw the earth -> HEAVE wide+overhead to drag the dead up
+    const down = ge * 1.0;                              // dig toward the grave
+    const up = he * 2.9 + climax * 0.5;                 // wrench skyward
+    const ax = down - up;                               // arms.x: down (+) then far up (-)
+    ud.arms[0].rotation.x = ax;
+    ud.arms[1].rotation.x = ax;
+    const spread = 0.30 + he * 1.05 + climax * 0.25;    // throw WIDE at release
+    ud.arms[0].rotation.z = spread;
+    ud.arms[1].rotation.z = -spread;
+    // claw inward low, splay outward high
+    ud.arms[0].rotation.y = ge * 0.35 - he * 0.40;
+    ud.arms[1].rotation.y = -ge * 0.35 + he * 0.40;
+    // recovery: let arms settle
+    ud.arms[0].rotation.x += recover * 0.6;
+    ud.arms[1].rotation.x += recover * 0.6;
   }
 },
   souldrain: (prog, pm, ud) => {
-  const pull = 0.5 - 0.5 * Math.cos(prog * Math.PI * 2);
-  const reel = (Math.sin(prog * Math.PI * 5) * 0.5 + 0.5) * (1 - prog * 0.3);
-  const draw = prog;
-  pm.rotation.x = (-0.18 * (1 - draw)) + (0.22 * draw) + reel * 0.04;
-  pm.rotation.z = 0.05 * Math.sin(prog * Math.PI * 3);
-  pm.position.y += draw * -0.05 + reel * 0.02;
+  const reach = Math.min(1, prog * 1.8);
+  const drink = Math.max(0, (prog - 0.45) / 0.55);
+  const drinkE = drink * drink * (3 - 2 * drink);
+  const reel = Math.sin(prog * Math.PI * 6) * (1 - prog * 0.35);
+  const grab = 0.5 - 0.5 * Math.cos(prog * Math.PI * 8);
+  pm.rotation.x = -0.42 * reach + 0.46 * drinkE + reel * 0.07;
+  pm.rotation.z = 0.09 * Math.sin(prog * Math.PI * 4) - 0.05 * grab;
+  pm.position.y += -0.07 * reach - 0.12 * drinkE + reel * 0.025;
+  pm.scale.x = pm.scale.z = 1 + 0.07 * drinkE * Math.sin(prog * Math.PI * 10);
   if (ud.arms && ud.arms.length >= 2) {
-    const reach = -1.55 * (1 - draw) - 0.55 * draw;
-    const claw = reel * 0.18;
-    ud.arms[0].rotation.x = reach + claw;
-    ud.arms[0].rotation.z = -0.35 - 0.5 * draw;
-    ud.arms[0].rotation.y = 0.25 * draw;
-    ud.arms[1].rotation.x = -0.25 - 0.2 * pull;
-    ud.arms[1].rotation.z = 0.4;
+    const out = -1.95 * (1 - reach) - 0.45 * reach;
+    const claw = grab * 0.3;
+    ud.arms[0].rotation.x = out + claw - 0.7 * drinkE;
+    ud.arms[0].rotation.z = -0.4 - 0.55 * reach + 0.2 * drinkE;
+    ud.arms[0].rotation.y = 0.32 * reach;
+    ud.arms[1].rotation.x = out * 0.85 + claw - 0.7 * drinkE;
+    ud.arms[1].rotation.z = 0.4 + 0.55 * reach - 0.2 * drinkE;
+    ud.arms[1].rotation.y = -0.32 * reach;
   }
 },
   corpseexplosion: (prog, pm, ud) => {
   const TAU = Math.PI * 2;
-  const gather = Math.min(prog / 0.45, 1);
+  // clench: pull in & crouch over first 42%
+  const gather = Math.min(prog / 0.42, 1);
   const ge = Math.sin(gather * Math.PI / 2);
-  const d = Math.max(0, 1 - Math.abs(prog - 0.5) / 0.12);
+  const ge2 = ge * ge;
+  // snap window around the throw-down
+  const d = Math.max(0, 1 - Math.abs(prog - 0.5) / 0.10);
   const snap = d * d * d;
   const recoil = prog > 0.55 ? Math.max(0, 1 - (prog - 0.55) / 0.45) : 0;
-  const rb = Math.sin(recoil * Math.PI) * 0.5;
-  pm.rotation.x = -ge * 0.35 + snap * 0.85 - rb * 0.12;
-  pm.position.y += ge * 0.08 - snap * 0.22;
-  pm.rotation.z = Math.sin(prog * TAU * 1.5) * snap * 0.06;
-  const tremble = (snap > 0.2) ? Math.sin(prog * 90) * snap * 0.04 : 0;
+  const rb = Math.sin(recoil * Math.PI);
+  // body: hunch forward during clench, drive DOWN hard on slam, settle
+  pm.rotation.x = -ge2 * 0.30 + snap * 1.05 - rb * 0.16;
+  pm.position.y += ge2 * 0.06 - snap * 0.32 - rb * 0.05;
+  pm.rotation.z = Math.sin(prog * TAU * 1.5) * snap * 0.07;
+  // hard tremble at the detonation, fading shudder after
+  const tremble = (snap > 0.15 ? Math.sin(prog * 120) * snap * 0.06 : 0) + rb * Math.sin(prog * 70) * 0.025;
   pm.position.y += tremble;
+  pm.scale.setScalar(1 + snap * 0.10 - ge * 0.03);
   if (ud.arms && ud.arms.length >= 2) {
-    const upBack = -ge * 2.4;
-    const slam = snap * 3.4;
-    const ax = upBack + slam - rb * 0.4;
+    // CLENCH: arms hauled UP and IN tight across the chest (fists balled at center)
+    const clenchUp = -ge * 2.2;        // raised, drawn back
+    const clenchIn = ge * 1.0;         // pulled inward across chest
+    // THROW-DOWN: drive both arms violently down past the body
+    const slam = snap * 3.8;
+    const ax = clenchUp + slam - rb * 0.5;
     ud.arms[0].rotation.x = ax;
     ud.arms[1].rotation.x = ax;
-    const flare = ge * 0.9 - snap * 0.7;
-    ud.arms[0].rotation.z = flare;
-    ud.arms[1].rotation.z = -flare;
-    ud.arms[0].rotation.y = -ge * 0.3 + snap * 0.4;
-    ud.arms[1].rotation.y = ge * 0.3 - snap * 0.4;
+    ud.arms[0].rotation.z = clenchIn - snap * 0.5;
+    ud.arms[1].rotation.z = -clenchIn + snap * 0.5;
+    ud.arms[0].rotation.y = -clenchIn * 0.6 + snap * 0.5;
+    ud.arms[1].rotation.y = clenchIn * 0.6 - snap * 0.5;
+  }
+  if (ud.legs && ud.legs.length >= 2) {
+    // brace: legs spread/dig in on the slam
+    const brace = snap * 0.35 + ge * 0.12;
+    ud.legs[0].rotation.z = brace;
+    ud.legs[1].rotation.z = -brace;
+    ud.legs[0].rotation.x = -ge * 0.25 + snap * 0.2;
+    ud.legs[1].rotation.x = ge * 0.25 - snap * 0.2;
   }
 },
   boneprison: (prog, pm, ud, now) => {
-  const press = prog < 0.25 ? (prog / 0.25) : 1;
-  const release = prog > 0.85 ? (1 - (prog - 0.85) / 0.15) : 1;
-  const lock = press * release;
-  pm.position.y -= lock * 0.18;
-  pm.rotation.x = lock * 0.20;
-  const tremor = (prog > 0.25 && prog < 0.85) ? Math.sin(now * 0.045) * 0.012 * release : 0;
+  // BOLDER: big horizontal sweep-summon (cross-body wind-up -> outward fling) + crouch-anchor stomp on release.
+  const wind = prog < 0.40 ? (prog / 0.40) : 1;          // 0->1 wind-up
+  const fling = prog >= 0.40 ? Math.min(1, (prog - 0.40) / 0.30) : 0; // 0->1 outward sweep
+  const settle = prog > 0.78 ? (1 - (prog - 0.78) / 0.22) : 1;        // ease-out
+  const windE = Math.sin(wind * Math.PI * 0.5);
+  const flingE = Math.sin(fling * Math.PI * 0.5);
+  // crouch + forward lean as the cage erupts ahead
+  pm.position.y -= (windE * 0.10 + flingE * 0.16) * settle;
+  pm.rotation.x = (windE * 0.10 + flingE * 0.26) * settle;
+  // body twists into the sweep: load to one side, snap to the other
+  pm.rotation.y += (-windE * 0.45 + flingE * 0.70) * settle;
+  // grind tremor while the bones rise
+  const tremor = (prog > 0.45 && prog < 0.85) ? Math.sin(now * 0.06) * 0.018 * settle : 0;
   pm.rotation.z = tremor;
   if (ud.arms && ud.arms.length >= 2) {
-    ud.arms[0].rotation.x = 0.55 + lock * 0.85;
-    ud.arms[1].rotation.x = 0.55 + lock * 0.85;
-    ud.arms[0].rotation.z = lock * 0.95;
-    ud.arms[1].rotation.z = -lock * 0.95;
-    const slam = press < 1 ? Math.sin(press * Math.PI) * 0.25 : 0;
-    ud.arms[0].rotation.x += slam;
-    ud.arms[1].rotation.x += slam;
+    // wind-up: both arms drawn across to one side, low
+    // fling: arms sweep wide and out, palms casting the ring forward
+    ud.arms[0].rotation.x = 0.30 + windE * 0.55 + flingE * 0.95;
+    ud.arms[1].rotation.x = 0.30 + windE * 0.55 + flingE * 0.95;
+    ud.arms[0].rotation.z = (windE * 0.85) - (flingE * 1.55);   // lead arm flings wide
+    ud.arms[1].rotation.z = (-windE * 0.20) + (flingE * 1.35);  // trailing arm opens
+    ud.arms[0].rotation.y = flingE * 0.5;
+    ud.arms[1].rotation.y = -flingE * 0.5;
+  }
+  if (ud.legs && ud.legs.length >= 2) {
+    // braced stance: legs spread on the fling/stomp
+    ud.legs[0].rotation.z = flingE * 0.22;
+    ud.legs[1].rotation.z = -flingE * 0.22;
+    ud.legs[0].rotation.x = -flingE * 0.18;
+    ud.legs[1].rotation.x = flingE * 0.18;
+  }
+  if (ud.weaponMount) {
+    ud.weaponMount.rotation.z = (windE * 0.6) - (flingE * 1.1);
   }
 },
   demonslash: (prog, pm, ud) => {
-  const wind = Math.min(1, prog / 0.28);
-  const swing = prog < 0.28 ? 0 : Math.min(1, (prog - 0.28) / 0.52);
-  const recover = prog < 0.8 ? 0 : (prog - 0.8) / 0.2;
-  const ease = swing < 1 ? swing * swing * (3 - 2 * swing) : 1;
+  const wind = Math.min(1, prog / 0.26);
+  const swing = prog < 0.26 ? 0 : Math.min(1, (prog - 0.26) / 0.46);
+  const recover = prog < 0.72 ? 0 : (prog - 0.72) / 0.28;
+  // snappy ease-out so the release cracks, plus a slight overshoot
+  const ease = swing < 1 ? 1 - Math.pow(1 - swing, 3) : 1;
+  const over = Math.sin(swing * Math.PI) * (1 - swing);
   const swingEnv = Math.sin(swing * Math.PI);
-  pm.rotation.y += -0.7 * wind * (1 - swing) + 1.6 * ease - 0.5 * recover;
-  pm.rotation.z = -0.28 * wind * (1 - swing) + 0.4 * swingEnv - 0.12 * recover;
-  pm.rotation.x = -0.18 * swingEnv;
-  pm.position.y += -0.05 * wind * (1 - swing) + 0.04 * swingEnv;
-  pm.scale.setScalar(1 + 0.05 * swingEnv);
+  const coil = wind * (1 - swing);
+  // body: coil away then whip across and over the lead shoulder
+  pm.rotation.y += -0.95 * coil + 2.1 * ease + 0.35 * over - 0.6 * recover;
+  pm.rotation.z = -0.4 * coil + 0.55 * swingEnv - 0.16 * recover;
+  // diagonal: pitch DOWN hard through the swing to drive the descending slash
+  pm.rotation.x = 0.16 * coil - 0.5 * ease + 0.34 * swingEnv;
+  pm.position.y += -0.1 * coil - 0.22 * ease * (1 - recover) + 0.05 * swingEnv;
+  pm.scale.setScalar(1 + 0.09 * swingEnv);
   if (ud.arms && ud.arms.length >= 2) {
-    ud.arms[1].rotation.x = -0.5 - 1.1 * wind * (1 - swing) + 0.9 * ease;
-    ud.arms[1].rotation.z = -0.4 - 0.9 * wind * (1 - swing) + 1.3 * ease;
-    ud.arms[1].rotation.y = -0.6 * wind * (1 - swing) + 0.7 * ease;
-    ud.arms[0].rotation.z = 0.5 * swingEnv;
-    ud.arms[0].rotation.x = 0.2 * swingEnv;
+    ud.arms[1].rotation.x = -0.6 - 1.5 * coil + 1.5 * ease;
+    ud.arms[1].rotation.z = -0.45 - 1.2 * coil + 1.7 * ease;
+    ud.arms[1].rotation.y = -0.85 * coil + 1.0 * ease;
+    ud.arms[0].rotation.z = 0.7 * swingEnv - 0.55 * coil;
+    ud.arms[0].rotation.x = 0.35 * swingEnv;
   }
   if (ud.legs && ud.legs.length >= 2) {
-    ud.legs[0].rotation.x = 0.4 * wind * (1 - swing) + 0.3 * ease;
-    ud.legs[1].rotation.x = -0.3 * wind * (1 - swing) - 0.2 * ease;
+    ud.legs[0].rotation.x = 0.55 * coil + 0.55 * ease;
+    ud.legs[1].rotation.x = -0.45 * coil - 0.45 * ease;
   }
   if (ud.weaponMount) {
-    ud.weaponMount.rotation.z = -1.5 + 1.1 * wind * (1 - swing) + 2.6 * ease;
-    ud.weaponMount.rotation.y = 1.2 * wind * (1 - swing) - 2.4 * ease;
-    ud.weaponMount.rotation.x = 0.3 * swingEnv - 0.3 * recover;
+    // raise high-and-back on wind-up, then carve a fast diagonal down-across
+    ud.weaponMount.rotation.z = -1.9 + 1.5 * coil + 3.5 * ease + 0.4 * over;
+    ud.weaponMount.rotation.y = 1.5 * coil - 3.0 * ease;
+    ud.weaponMount.rotation.x = -0.5 * coil + 0.9 * ease - 0.35 * recover;
   }
 },
   starfall: (prog, pm, ud) => {
-      const rise = Math.sin(Math.min(prog, 0.7) / 0.7 * Math.PI * 0.5);
+      // Stronger overhead conjure: deeper wind-up, snappier release, 3 downward "meteor-call" pulses to match the 3 stars
+      const rise = Math.sin(Math.min(prog, 0.62) / 0.62 * Math.PI * 0.5);
       const arch = rise;
-      const strike = prog > 0.7 ? (prog - 0.7) / 0.3 : 0;
-      const ease = strike * strike * (3 - 2 * strike);
-      pm.rotation.x = -arch * 0.42 + ease * 0.6;
-      pm.position.y += rise * 0.14 - ease * 0.12;
+      const strike = prog > 0.62 ? (prog - 0.62) / 0.38 : 0;
+      const e = strike * strike * (3 - 2 * strike);
+      const pulse = strike > 0 ? Math.abs(Math.sin(strike * Math.PI * 3)) * (1 - strike) : 0;
+      pm.rotation.x = -arch * 0.5 + e * 0.72 - pulse * 0.12;
+      pm.position.y += rise * 0.18 - e * 0.16 + pulse * 0.05;
       if (ud.arms && ud.arms.length >= 2) {
-        const up = -2.7;
-        const lx = up * (1 - ease) + ease * 0.45;
+        const up = -2.95;
+        const lx = up * (1 - e) + e * 0.7 - pulse * 0.3;
         ud.arms[0].rotation.x = lx; ud.arms[1].rotation.x = lx;
-        ud.arms[0].rotation.z = (0.55 * (1 - ease)) - ease * 0.15;
-        ud.arms[1].rotation.z = (-0.55 * (1 - ease)) + ease * 0.15;
+        ud.arms[0].rotation.z = (0.7 * (1 - e)) - e * 0.2;
+        ud.arms[1].rotation.z = (-0.7 * (1 - e)) + e * 0.2;
       }
       if (ud.legs && ud.legs.length >= 2) {
-        ud.legs[0].rotation.x = -ease * 0.25; ud.legs[1].rotation.x = ease * 0.25;
+        ud.legs[0].rotation.x = -e * 0.3; ud.legs[1].rotation.x = e * 0.3;
       }
-      if (ud.weaponMount) { ud.weaponMount.rotation.z = -arch * 0.5 + ease * 0.3; }
+      if (ud.weaponMount) { ud.weaponMount.rotation.z = -arch * 0.6 + e * 0.4; }
     },
-  typhoonshot: (prog, pm, ud) => { const coil = Math.min(prog / 0.5, 1); const rel = Math.max((prog - 0.5) / 0.5, 0); const ease = (1 - Math.cos(coil * Math.PI)) / 2; const relEase = Math.sin(Math.min(rel, 1) * Math.PI * 0.5); const env = Math.sin(prog * Math.PI); pm.rotation.y += -0.8 * (1 - ease) * coil + 2.0 * relEase - 0.8 * relEase * relEase; pm.rotation.z = -0.28 * ease * (1 - rel) + 0.18 * relEase * (1 - relEase) * 2; pm.rotation.x = -0.18 * relEase * (1 - relEase) * 2; pm.position.y += env * 0.07 - 0.05 * ease * (1 - rel); const draw = ease * (1 - rel); if (ud.arms && ud.arms.length >= 2) { ud.arms[0].rotation.x = -0.5 - 0.9 * draw + 0.4 * relEase; ud.arms[1].rotation.x = -0.5 - 0.9 * draw + 0.4 * relEase; ud.arms[0].rotation.z = 0.4 + 0.9 * draw - 1.5 * relEase; ud.arms[1].rotation.z = -0.4 - 0.9 * draw + 1.5 * relEase; ud.arms[0].rotation.y = 0.7 * draw - 0.5 * relEase; ud.arms[1].rotation.y = -0.7 * draw + 0.5 * relEase; } if (ud.legs && ud.legs.length >= 2) { ud.legs[0].rotation.x = 0.25 * ease * (1 - rel) - 0.3 * relEase; ud.legs[1].rotation.x = -0.25 * ease * (1 - rel) + 0.3 * relEase; } if (ud.weaponMount) { ud.weaponMount.rotation.z = -0.8 - 0.6 * draw + 1.0 * relEase; ud.weaponMount.rotation.x = -0.3 * draw + 0.5 * relEase; ud.weaponMount.rotation.y = 0.6 * draw - 0.9 * relEase; } },
+  typhoonshot: (prog, pm, ud) => { /* STRENGTHENED: deeper wound-up coil (full body twist + crouch) then explosive whip-release with snappier overshoot, brighter pose */ const coil = Math.min(prog / 0.5, 1); const rel = Math.max((prog - 0.5) / 0.5, 0); const ease = (1 - Math.cos(coil * Math.PI)) / 2; const relEase = Math.sin(Math.min(rel, 1) * Math.PI * 0.5); const snap = Math.sin(Math.min(rel, 1) * Math.PI); const env = Math.sin(prog * Math.PI); pm.rotation.y += -1.15 * ease * (1 - rel) + 2.7 * relEase - 1.05 * relEase * relEase; pm.rotation.z = -0.38 * ease * (1 - rel) + 0.26 * snap; pm.rotation.x = -0.30 * ease * (1 - rel) + 0.34 * snap; pm.position.y += env * 0.06 - 0.13 * ease * (1 - rel) + 0.09 * snap; pm.scale.setScalar(1 + 0.06 * snap - 0.04 * ease * (1 - rel)); const draw = ease * (1 - rel); if (ud.arms && ud.arms.length >= 2) { ud.arms[0].rotation.x = -0.5 - 1.2 * draw + 0.6 * relEase; ud.arms[1].rotation.x = -0.5 - 1.2 * draw + 0.6 * relEase; ud.arms[0].rotation.z = 0.45 + 1.2 * draw - 2.0 * relEase; ud.arms[1].rotation.z = -0.45 - 1.2 * draw + 2.0 * relEase; ud.arms[0].rotation.y = 0.95 * draw - 0.7 * relEase; ud.arms[1].rotation.y = -0.95 * draw + 0.7 * relEase; } if (ud.legs && ud.legs.length >= 2) { ud.legs[0].rotation.x = 0.4 * draw - 0.5 * relEase; ud.legs[1].rotation.x = -0.4 * draw + 0.5 * relEase; ud.legs[0].rotation.z = 0.12 * draw; ud.legs[1].rotation.z = -0.12 * draw; } if (ud.weaponMount) { ud.weaponMount.rotation.z = -0.85 - 0.85 * draw + 1.4 * relEase; ud.weaponMount.rotation.x = -0.45 * draw + 0.7 * snap; ud.weaponMount.rotation.y = 0.8 * draw - 1.2 * relEase; } },
   soulharvest: (prog, pm, ud, now, moving) => {
-  const reap = Math.min(prog / 0.62, 1);
-  const draw = Math.max((prog - 0.62) / 0.38, 0);
+  const reap = Math.min(prog / 0.58, 1);
+  const draw = Math.max((prog - 0.58) / 0.42, 0);
   const reapE = Math.sin(reap * Math.PI * 0.5);
   const drawE = draw * draw * (3 - 2 * draw);
-  pm.rotation.y += reapE * 1.0 * (1 - drawE * 0.35);
-  pm.rotation.z = reapE * 0.12 * (1 - drawE);
-  pm.rotation.x = -drawE * 0.14 + reapE * 0.05 * (1 - drawE);
-  pm.position.y += drawE * 0.13 - reapE * 0.03 * (1 - drawE);
-  const pulse = 1 + drawE * 0.07 * Math.sin(now * 0.02);
+  // snap: a quick spike right as the pull fires, then settle
+  const snap = Math.sin(Math.min(draw / 0.3, 1) * Math.PI) * (1 - draw * 0.5);
+  pm.rotation.y += reapE * 1.15 * (1 - drawE * 0.4);
+  pm.rotation.z = reapE * 0.16 * (1 - drawE) - snap * 0.05;
+  pm.rotation.x = -drawE * 0.2 + reapE * 0.06 * (1 - drawE) + snap * 0.12;
+  // crouch as souls slam in, then a small upward heave from the nova
+  pm.position.y += -reapE * 0.05 * (1 - drawE) - snap * 0.1 + drawE * 0.18;
+  const pulse = 1 + drawE * 0.05 + snap * 0.09;
   pm.scale.setScalar(pulse);
   if (ud.arms && ud.arms.length >= 2) {
-    const out = reapE * 1.45 * (1 - drawE);
-    ud.arms[0].rotation.z = out - drawE * 0.55;
-    ud.arms[1].rotation.z = -out + drawE * 0.55;
-    const lift = reapE * 0.55 * (1 - drawE);
-    ud.arms[0].rotation.x = -lift - drawE * 1.25;
-    ud.arms[1].rotation.x = -lift - drawE * 1.25;
-    ud.arms[0].rotation.y = reapE * 0.45 * (1 - drawE);
-    ud.arms[1].rotation.y = -reapE * 0.45 * (1 - drawE);
+    const out = reapE * 1.7 * (1 - drawE);
+    const clutch = drawE * 0.75 + snap * 0.25;
+    ud.arms[0].rotation.z = out - clutch;
+    ud.arms[1].rotation.z = -out + clutch;
+    const lift = reapE * 0.7 * (1 - drawE);
+    ud.arms[0].rotation.x = -lift - drawE * 1.55 - snap * 0.4;
+    ud.arms[1].rotation.x = -lift - drawE * 1.55 - snap * 0.4;
+    ud.arms[0].rotation.y = reapE * 0.55 * (1 - drawE);
+    ud.arms[1].rotation.y = -reapE * 0.55 * (1 - drawE);
   }
   if (ud.legs && ud.legs.length >= 2) {
-    ud.legs[0].rotation.x = reapE * 0.18 * (1 - drawE);
-    ud.legs[1].rotation.x = -reapE * 0.18 * (1 - drawE);
+    const stance = reapE * 0.24 * (1 - drawE) + drawE * 0.3;
+    ud.legs[0].rotation.x = stance;
+    ud.legs[1].rotation.x = -stance;
   }
-  if (ud.weaponMount) { ud.weaponMount.rotation.z = -0.7 - reapE * 0.5; ud.weaponMount.rotation.x = 0.2; }
+  if (ud.weaponMount) {
+    ud.weaponMount.rotation.z = -0.7 - reapE * 0.6 + snap * 0.5;
+    ud.weaponMount.rotation.x = 0.2 - snap * 0.4;
+  }
 },
+  seismicrupture: (prog, pm, ud, now, moving) => {
+    // seismicrupture body: BOLD overhead two-hand slam — high wind-up, hard drive-down at ~0.45, sharp recoil/recovery.
+    const wind = Math.min(prog / 0.45, 1);                 // 0→1 raise phase
+    const wEase = wind * wind;                              // accel into the top
+    const slam = prog > 0.45 ? Math.min((prog - 0.45) / 0.18, 1) : 0; // 0→1 drive down
+    const sEase = slam * slam * (3 - 2 * slam);
+    const rec = prog > 0.63 ? (prog - 0.63) / 0.37 : 0;     // recoil / settle
+    const recEase = Math.sin(Math.min(rec, 1) * Math.PI) * (1 - Math.min(rec, 1) * 0.4);
+    // torso: arch back on wind-up, pitch hard forward on the slam, small bounce-back recoil
+    pm.rotation.x = -wEase * 0.55 + sEase * 0.95 - recEase * 0.25;
+    // rise on toes during wind-up, drop & crouch on impact (ADD to existing bob)
+    pm.position.y += wEase * 0.14 * (1 - slam) - sEase * 0.22 + recEase * 0.04;
+    // weapon: hauled WAY overhead (behind head), then chopped straight down past front
+    const wpnX = -2.5 + wEase * 0.6 - sEase * 3.2 + recEase * 0.5;
+    ud.weaponMount.rotation.x = wpnX;
+    ud.weaponMount.rotation.z = Math.sin(prog * Math.PI) * 0.05;
+    if (ud.arms && ud.arms.length >= 2) {
+      // both arms reach overhead (negative x = up/back), then drive down together
+      const armX = -2.3 * wEase + sEase * 2.9 - recEase * 0.3;
+      ud.arms[0].rotation.x = armX; ud.arms[1].rotation.x = armX;
+      // hands close together for a two-hand grip
+      ud.arms[0].rotation.z = -0.32 + sEase * 0.10;
+      ud.arms[1].rotation.z = 0.32 - sEase * 0.10;
+    }
+    if (ud.legs && ud.legs.length >= 2) {
+      // brace stance: legs splay and bend on the slam to absorb the impact
+      const brace = sEase * (1 - recEase * 0.5);
+      ud.legs[0].rotation.x = -brace * 0.55 - recEase * 0.15;
+      ud.legs[1].rotation.x = brace * 0.55 + recEase * 0.15;
+      ud.legs[0].rotation.z = -brace * 0.12;
+      ud.legs[1].rotation.z = brace * 0.12;
+    }
+  },
+  singularity: (prog, pm, ud) => {
+    const reach = Math.sin(Math.min(prog / 0.4, 1) * Math.PI * 0.5);   // arms thrust forward 0->1
+    const rel = prog > 0.72 ? (prog - 0.72) / 0.28 : 0;                // final shove on implosion
+    const env = Math.sin(prog * Math.PI);
+    pm.rotation.x = 0.14 * reach + 0.16 * rel;                          // lean into the cast
+    pm.position.y += env * 0.05;
+    if (ud.arms && ud.arms.length >= 2) {
+      ud.arms[0].rotation.x = -1.5 * reach - 0.35 * rel; ud.arms[1].rotation.x = -1.5 * reach - 0.35 * rel;
+      ud.arms[0].rotation.z = 0.28 - 0.2 * reach; ud.arms[1].rotation.z = -0.28 + 0.2 * reach;   // palms drawn together, forward
+    }
+    if (ud.weaponMount) { ud.weaponMount.rotation.x = -1.2 * reach; }
+  },
+  explosiveshot: (prog, pm, ud, now, moving) => {
+  // phases: draw (0..0.55) → loose snap (0.55..0.72) → recovery (0.72..1)
+  const draw = Math.min(prog / 0.55, 1);
+  const dEase = draw * draw * (3 - 2 * draw);
+  const loose = prog > 0.55 ? Math.min((prog - 0.55) / 0.17, 1) : 0;
+  const recov = prog > 0.72 ? (prog - 0.72) / 0.28 : 0;
+  // lean back while drawing, then punch forward on release, settle on recovery
+  pm.rotation.x = -0.22 * dEase + loose * 0.34 - recov * 0.10;
+  pm.rotation.z = 0.10 * dEase;                    // bracing side-lean
+  pm.position.y += Math.sin(prog * Math.PI) * 0.03; // slight rise
+  if (ud.arms && ud.arms.length >= 2) {
+    // arm[0] = bow arm thrust forward+up; arm[1] = string hand drawn back hard then snaps fwd
+    ud.arms[0].rotation.x = -1.15 - dEase * 0.25 + loose * 0.20;
+    ud.arms[0].rotation.z = 0.18;
+    const back = dEase * 1.0;                       // pull string back
+    const snap = loose * 1.5;                       // release fling forward
+    ud.arms[1].rotation.x = -0.55 - back + snap;
+    ud.arms[1].rotation.z = -0.45 - dEase * 0.35 + loose * 0.30;
+  }
+  if (ud.legs && ud.legs.length >= 2) {
+    // staggered archer's stance: lead leg fwd, rear leg braced back, dig in on loose
+    ud.legs[0].rotation.x = 0.34 + loose * 0.10;
+    ud.legs[1].rotation.x = -0.30 - dEase * 0.10;
+    ud.legs[0].rotation.z = 0.05; ud.legs[1].rotation.z = -0.07;
+  }
+  if (ud.weaponMount) {                             // bow held level, kicks on release
+    ud.weaponMount.rotation.z = 1.55;
+    ud.weaponMount.rotation.x = -0.10 + loose * 0.22 - recov * 0.10;
+  }
+},
+  gravegrasp: (prog, pm, ud, now, moving) => {
+    const wind = Math.min(prog / 0.34, 1);                 // reach up
+    const wEase = wind * wind * (3 - 2 * wind);
+    const slam = prog > 0.34 ? (prog - 0.34) / 0.40 : 0;   // sweep down
+    const sEase = slam * slam * (3 - 2 * slam);
+    const settle = prog > 0.74 ? (prog - 0.74) / 0.26 : 0;
+    // body: rise on wind-up, pitch forward + sink hard on the down-claw, ease back on settle
+    pm.position.y += wEase * 0.10 - sEase * 0.16 + settle * 0.05;
+    pm.rotation.x = -wEase * 0.12 + sEase * 0.42 - settle * 0.30;   // lean back, then drive forward
+    pm.rotation.z = (slam > 0 && settle === 0) ? Math.sin(prog * 60) * 0.05 : 0; // summon shudder
+    if (ud.arms && ud.arms.length >= 2) {
+      const base = -2.3 * wEase;                           // raised overhead during wind-up
+      const armX = base + (1.3 - base) * sEase;            // then sweep down hard past the body
+      ud.arms[0].rotation.x = armX; ud.arms[1].rotation.x = armX;
+      ud.arms[0].rotation.z = 0.35 + sEase * 0.25;         // claw hands inward
+      ud.arms[1].rotation.z = -0.35 - sEase * 0.25;
+    }
+    if (ud.legs && ud.legs.length >= 2) {                  // guard: mage/summoner have no legs
+      ud.legs[0].rotation.x = -sEase * 0.20; ud.legs[1].rotation.x = sEase * 0.20;
+    }
+    if (ud.weaponMount) { ud.weaponMount.rotation.x = sEase * 0.5; }
+  },
 };
 
 // WARRIOR — Whirlwind flourish: a spinning translucent blade-disc + streaks at waist height.
+// STRENGTHENED: dual counter-rotating blade rings + long trailing arcs + rising spark motes; brighter additive, scales/fades with cast
 export function buildCastFx_whirlwind(opts) {
   const c = (opts && opts.color) || '#ff4d6d';
   const g = new T.Group();
-  const fxMat = new T.MeshBasicMaterial({ color: c, fog: false, transparent: true, opacity: 0.55, blending: T.AdditiveBlending, depthWrite: false });
-  const disc = m(geo('cfxWwDisc', () => new T.RingGeometry(1.2, 2.1, 28)), fxMat);
-  disc.rotation.x = -Math.PI / 2; disc.position.y = 0.6; g.add(disc);
+  const newMat = (op) => new T.MeshBasicMaterial({ color: c, fog: false, transparent: true, opacity: op, blending: T.AdditiveBlending, depthWrite: false });
+  const ringMatLo = newMat(0.7);
+  const ringLo = m(geo('whirlwindRingLo', () => new T.RingGeometry(1.1, 2.3, 40)), ringMatLo);
+  ringLo.rotation.x = -Math.PI / 2; ringLo.position.y = 0.45; g.add(ringLo);
+  const ringMatHi = newMat(0.5);
+  const ringHi = m(geo('whirlwindRingHi', () => new T.RingGeometry(0.7, 1.7, 40)), ringMatHi);
+  ringHi.rotation.x = -Math.PI / 2; ringHi.position.y = 0.85; g.add(ringHi);
+  const arcMat = newMat(0.85);
+  const arcGeo = geo('whirlwindArc', () => new T.RingGeometry(1.7, 2.15, 24, 1, 0, Math.PI * 0.55));
+  const arcs = [];
+  for (let i = 0; i < 4; i++) {
+    const a = m(arcGeo, arcMat);
+    a.rotation.x = -Math.PI / 2;
+    a.userData.a = (i / 4) * _TAU;
+    a.position.y = 0.5 + i * 0.05;
+    g.add(a); arcs.push(a);
+  }
+  const streakMat = newMat(0.8);
   const streaks = [];
-  for (let i = 0; i < 5; i++) {
-    const s = m(box(1.8, 0.05, 0.14), fxMat);
-    s.position.y = 0.55 + i * 0.06;
-    s.userData.a = (i / 5) * _TAU;
+  for (let i = 0; i < 6; i++) {
+    const s = m(box(4.2, 0.06, 0.16), streakMat);
+    s.position.y = 0.5 + i * 0.05;
+    s.userData.a = (i / 6) * _TAU;
     g.add(s); streaks.push(s);
+  }
+  const moteMat = newMat(0.9);
+  const moteGeo = geo('whirlwindMote', () => new T.SphereGeometry(0.09, 6, 6));
+  const motes = [];
+  for (let i = 0; i < 8; i++) {
+    const mt = m(moteGeo, moteMat);
+    mt.userData.a = (i / 8) * _TAU;
+    mt.userData.r = 1.6 + (i % 3) * 0.35;
+    g.add(mt); motes.push(mt);
   }
   g.userData.castAnim = (grp, prog) => {
     const env = Math.sin(prog * Math.PI);
-    fxMat.opacity = 0.6 * env;
-    disc.scale.setScalar(0.5 + prog * 0.7);
-    for (let i = 0; i < streaks.length; i++) streaks[i].rotation.y = streaks[i].userData.a + prog * _TAU * 5;
+    const spin = prog * _TAU;
+    ringMatLo.opacity = 0.85 * env;
+    ringMatHi.opacity = 0.6 * env;
+    arcMat.opacity = 0.95 * env;
+    streakMat.opacity = 0.8 * env;
+    moteMat.opacity = env;
+    ringLo.scale.setScalar(0.6 + prog * 1.0);
+    ringLo.rotation.z = spin * 6;
+    ringHi.scale.setScalar(0.5 + env * 0.8);
+    ringHi.rotation.z = -spin * 8;
+    for (let i = 0; i < arcs.length; i++) {
+      arcs[i].rotation.z = arcs[i].userData.a + spin * 7;
+      arcs[i].scale.setScalar(0.7 + prog * 0.6);
+    }
+    for (let i = 0; i < streaks.length; i++) {
+      streaks[i].rotation.y = streaks[i].userData.a + spin * 7;
+      streaks[i].scale.setScalar(0.5 + prog * 0.7);
+    }
+    for (let i = 0; i < motes.length; i++) {
+      const ang = motes[i].userData.a + spin * 7;
+      const r = motes[i].userData.r * (0.5 + prog * 0.9);
+      motes[i].position.set(Math.cos(ang) * r, 0.4 + env * 1.1 + (i % 3) * 0.2, Math.sin(ang) * r);
+      motes[i].scale.setScalar(0.6 + env * 0.8);
+    }
   };
   return g;
 }
 
+// leapslam fx: brighter falling streak, white-hot core impact burst, bolder dual shockwave rings + radial crack-spikes + rising sparks on landing
 export function buildCastFx_leapslam(opts) {
   const c = (opts && opts.color) || "#ffc857";
   const g = new T.Group();
 
-  const ringMat = new T.MeshBasicMaterial({ color: c, fog:false, transparent:true, opacity:0.0, blending:T.AdditiveBlending, depthWrite:false });
-  const ring2Mat = new T.MeshBasicMaterial({ color: c, fog:false, transparent:true, opacity:0.0, blending:T.AdditiveBlending, depthWrite:false });
-  const dustMat = new T.MeshBasicMaterial({ color: c, fog:false, transparent:true, opacity:0.0, blending:T.AdditiveBlending, depthWrite:false });
-  const lineMat = new T.MeshBasicMaterial({ color: c, fog:false, transparent:true, opacity:0.0, blending:T.AdditiveBlending, depthWrite:false });
-  const flashMat = new T.MeshBasicMaterial({ color: c, fog:false, transparent:true, opacity:0.0, blending:T.AdditiveBlending, depthWrite:false });
+  const mk = (col) => new T.MeshBasicMaterial({ color: col, fog:false, transparent:true, opacity:0.0, blending:T.AdditiveBlending, depthWrite:false });
+  const ringMat = mk(c);
+  const ring2Mat = mk(c);
+  const dustMat = mk(c);
+  const lineMat = mk("#ffffff");
+  const flashMat = mk("#ffffff");
+  const coreMat = mk(c);
+  const sparkMat = mk(c);
 
-  const ring = m(geo("cfxLeapslamRing", () => new T.RingGeometry(0.55, 1.0, 36)), ringMat);
+  const ring = m(geo("cfxLeapslamRing", () => new T.RingGeometry(0.5, 1.05, 40)), ringMat);
   ring.rotation.x = -Math.PI / 2; ring.position.y = 0.04; g.add(ring);
 
-  const ring2 = m(geo("cfxLeapslamRing2", () => new T.RingGeometry(0.2, 0.45, 28)), ring2Mat);
+  const ring2 = m(geo("cfxLeapslamRing2", () => new T.RingGeometry(0.18, 0.5, 32)), ring2Mat);
   ring2.rotation.x = -Math.PI / 2; ring2.position.y = 0.05; g.add(ring2);
 
-  const flash = m(geo("cfxLeapslamFlash", () => new T.CircleGeometry(0.6, 24)), flashMat);
+  const flash = m(geo("cfxLeapslamFlash", () => new T.CircleGeometry(0.7, 28)), flashMat);
   flash.rotation.x = -Math.PI / 2; flash.position.y = 0.06; g.add(flash);
 
+  const core = m(geo("cfxLeapslamCore", () => new T.SphereGeometry(0.32, 14, 10)), coreMat);
+  core.position.y = 0.1; g.add(core);
+
   const spikes = [];
-  for (let i = 0; i < 8; i++) {
-    const s = m(box(0.85, 0.05, 0.12), dustMat);
-    const a = (i / 8) * Math.PI * 2;
+  for (let i = 0; i < 10; i++) {
+    const s = m(geo("cfxLeapslamSpike", () => new T.BoxGeometry(0.95, 0.06, 0.14)), dustMat);
+    const a = (i / 10) * Math.PI * 2;
     s.userData.a = a;
     s.position.y = 0.07;
     g.add(s); spikes.push(s);
   }
 
-  const streak = m(box(0.1, 1.8, 0.1), lineMat);
+  const sparks = [];
+  for (let i = 0; i < 8; i++) {
+    const sp = m(geo("cfxLeapslamSpark", () => new T.BoxGeometry(0.07, 0.5, 0.07)), sparkMat);
+    const a = (i / 8) * Math.PI * 2 + 0.3;
+    sp.userData.a = a;
+    g.add(sp); sparks.push(sp);
+  }
+
+  const streak = m(geo("cfxLeapslamStreak", () => new T.BoxGeometry(0.14, 2.0, 0.14)), lineMat);
   streak.position.y = 1.0; g.add(streak);
 
   g.userData.castAnim = (grp, prog) => {
-    if (prog < 0.6) {
-      lineMat.opacity = 0.0;
-      ringMat.opacity = 0.0; ring2Mat.opacity = 0.0; dustMat.opacity = 0.0; flashMat.opacity = 0.0;
-    } else if (prog < 0.8) {
-      const t = (prog - 0.6) / 0.2;
-      lineMat.opacity = 0.5 * (1 - Math.abs(t - 0.5) * 2);
-      streak.scale.y = 1.0;
-      streak.position.y = 1.4 - 1.1 * t;
-      ringMat.opacity = 0.0; ring2Mat.opacity = 0.0; dustMat.opacity = 0.0;
-      const b = Math.max(0, (t - 0.7) / 0.3);
-      flashMat.opacity = 0.9 * b;
-      flash.scale.setScalar(0.4 + 0.8 * b);
+    if (prog < 0.58) {
+      lineMat.opacity = 0.0; ringMat.opacity = 0.0; ring2Mat.opacity = 0.0;
+      dustMat.opacity = 0.0; flashMat.opacity = 0.0; coreMat.opacity = 0.0; sparkMat.opacity = 0.0;
+    } else if (prog < 0.76) {
+      const t = (prog - 0.58) / 0.18;
+      lineMat.opacity = 0.85 * (1 - Math.abs(t - 0.5) * 1.6);
+      streak.scale.y = 1.0 + 0.6 * t;
+      streak.position.y = 1.7 - 1.4 * t;
+      ringMat.opacity = 0.0; ring2Mat.opacity = 0.0; dustMat.opacity = 0.0; sparkMat.opacity = 0.0;
+      const b = Math.max(0, (t - 0.6) / 0.4);
+      flashMat.opacity = 1.0 * b;
+      flash.scale.setScalar(0.4 + 1.0 * b);
+      coreMat.opacity = 1.0 * b;
+      core.scale.setScalar(0.5 + 1.0 * b);
     } else {
-      const t = (prog - 0.8) / 0.2;
+      const t = (prog - 0.76) / 0.24;
       const fade = 1 - t;
+      const ef = fade * fade;
       lineMat.opacity = 0.0;
-      ringMat.opacity = 0.75 * fade;
-      ring.scale.setScalar(0.5 + 2.6 * t);
-      ring2Mat.opacity = 0.6 * fade;
-      ring2.scale.setScalar(0.4 + 1.8 * Math.min(t * 1.4, 1));
-      flashMat.opacity = 0.9 * Math.max(0, 1 - t * 2.2);
-      flash.scale.setScalar(1.2 + 1.4 * t);
-      dustMat.opacity = 0.7 * fade;
-      const reach = 0.4 + 2.2 * t;
+
+      ringMat.opacity = 0.85 * ef;
+      ring.scale.setScalar(0.5 + 3.4 * t);
+
+      ring2Mat.opacity = 0.7 * ef;
+      ring2.scale.setScalar(0.4 + 2.4 * Math.min(t * 1.4, 1));
+
+      flashMat.opacity = 1.0 * Math.max(0, 1 - t * 2.6);
+      flash.scale.setScalar(1.3 + 1.8 * t);
+
+      coreMat.opacity = 0.9 * Math.max(0, 1 - t * 2.2);
+      core.scale.setScalar(1.5 + 2.0 * t);
+
+      dustMat.opacity = 0.8 * fade;
+      const reach = 0.4 + 2.8 * t;
       for (let i = 0; i < spikes.length; i++) {
         const s = spikes[i];
         s.rotation.y = s.userData.a;
         s.position.x = Math.cos(s.userData.a) * reach;
         s.position.z = Math.sin(s.userData.a) * reach;
-        s.scale.x = 0.6 + 1.4 * t;
+        s.scale.x = 0.6 + 1.6 * t;
+      }
+
+      sparkMat.opacity = 0.85 * ef;
+      const srad = 0.3 + 1.4 * t;
+      const sy = 0.1 + 1.8 * t * (1 - 0.4 * t);
+      for (let i = 0; i < sparks.length; i++) {
+        const sp = sparks[i];
+        sp.position.x = Math.cos(sp.userData.a) * srad;
+        sp.position.z = Math.sin(sp.userData.a) * srad;
+        sp.position.y = sy;
+        sp.scale.y = 1.0 - 0.5 * t;
       }
     }
   };
@@ -8157,990 +8517,1935 @@ export function buildCastFx_leapslam(opts) {
   return g;
 }
 
+// warcry: brighter triple shockwave + punchier roar burst, taller pulsing aura column, brighter rising embers + ground flash
 export function buildCastFx_warcry(opts) {
   const c = (opts && opts.color) || "#ffb44a";
   const g = new T.Group();
+  const RM = () => new T.MeshBasicMaterial({ color: c, fog:false, transparent:true, opacity:0, blending:T.AdditiveBlending, depthWrite:false });
 
-  // Expanding shockwave ring on the ground (released near the end)
-  const waveMat = new T.MeshBasicMaterial({ color: c, fog:false, transparent:true, opacity:0, blending:T.AdditiveBlending, depthWrite:false });
-  const wave = m(geo("cfxWarcryWave", () => new T.RingGeometry(0.55, 0.95, 36)), waveMat);
-  wave.rotation.x = -Math.PI / 2; wave.position.y = 0.05; g.add(wave);
+  // Three stacked shockwave rings blasting outward on the roar
+  const waves = [];
+  const ringDefs = [
+    ["cfxWarcryWaveA", 0.5, 0.95, 40, 3.8, 0.85],
+    ["cfxWarcryWaveB", 0.38, 0.66, 34, 2.6, 0.6],
+    ["cfxWarcryWaveC", 0.28, 0.46, 28, 1.7, 0.42],
+  ];
+  for (const d of ringDefs) {
+    const mat = RM();
+    const ring = m(geo(d[0], () => new T.RingGeometry(d[1], d[2], d[3])), mat);
+    ring.rotation.x = -Math.PI / 2; ring.position.y = 0.05;
+    ring.userData = { mat: mat, grow: d[4], peak: d[5] };
+    g.add(ring); waves.push(ring);
+  }
 
-  // Second trailing wave for depth
-  const wave2Mat = new T.MeshBasicMaterial({ color: c, fog:false, transparent:true, opacity:0, blending:T.AdditiveBlending, depthWrite:false });
-  const wave2 = m(geo("cfxWarcryWave2", () => new T.RingGeometry(0.4, 0.62, 30)), wave2Mat);
-  wave2.rotation.x = -Math.PI / 2; wave2.position.y = 0.05; g.add(wave2);
+  // Bright ground flash disc under the feet at the moment of the roar
+  const flashMat = RM();
+  const flash = m(geo("cfxWarcryFlash", () => new T.CircleGeometry(0.9, 32)), flashMat);
+  flash.rotation.x = -Math.PI / 2; flash.position.y = 0.04; g.add(flash);
 
-  // Roar cone bursting out the front (from chest height)
-  const roarMat = new T.MeshBasicMaterial({ color: c, fog:false, transparent:true, opacity:0, blending:T.AdditiveBlending, depthWrite:false });
-  const roar = m(cone(0.6, 1.0, 18), roarMat);
+  // Roar cone bursting out the front from chest height
+  const roarMat = RM();
+  const roar = m(cone(0.62, 1.05, 20), roarMat);
   roar.rotation.x = Math.PI / 2; roar.position.set(0, 1.05, 0.5); g.add(roar);
 
-  // Vertical fury column swelling at the chest during the held roar
-  const colMat = new T.MeshBasicMaterial({ color: c, fog:false, transparent:true, opacity:0, blending:T.AdditiveBlending, depthWrite:false });
-  const col = m(cyl(0.32, 0.5, 1.3, 16), colMat);
-  col.position.y = 0.95; g.add(col);
+  // Tall fury aura column swelling at the chest through the held roar
+  const colMat = RM();
+  const col = m(cyl(0.34, 0.56, 1.55, 18), colMat);
+  col.position.y = 1.0; g.add(col);
 
-  // Rising fury embers around the body
+  // Bright crown ring lifting off the shoulders as the buff lands
+  const crownMat = RM();
+  const crown = m(geo("cfxWarcryCrown", () => new T.RingGeometry(0.34, 0.5, 28)), crownMat);
+  crown.rotation.x = -Math.PI / 2; crown.position.y = 1.1; g.add(crown);
+
+  // Rising fury embers spiraling around the body
   const embers = [];
-  for (let i = 0; i < 6; i++) {
-    const eMat = new T.MeshBasicMaterial({ color: c, fog:false, transparent:true, opacity:0, blending:T.AdditiveBlending, depthWrite:false });
-    const e = m(box(0.1, 0.22, 0.1), eMat);
-    const a = (i / 6) * Math.PI * 2;
-    e.userData.a = a; e.userData.r = 0.42 + (i % 2) * 0.18; e.userData.ph = i * 0.16;
-    e.userData.mat = eMat;
+  for (let i = 0; i < 8; i++) {
+    const eMat = RM();
+    const e = m(box(0.11, 0.26, 0.11), eMat);
+    const a = (i / 8) * Math.PI * 2;
+    e.userData = { a: a, r: 0.44 + (i % 2) * 0.2, ph: i * 0.13, mat: eMat };
     g.add(e); embers.push(e);
   }
 
   g.userData.castAnim = (grp, prog, now) => {
-    const swell = Math.sin(Math.min(1, prog / 0.6) * Math.PI * 0.5);
-    const hold = prog > 0.25 && prog < 0.72 ? 1 : Math.max(0, 1 - Math.abs(prog - 0.48) / 0.5);
-    const rel = prog > 0.72 ? (prog - 0.72) / 0.28 : 0;
-    const relEnv = Math.sin(rel * Math.PI);
+    const charge = Math.min(1, prog / 0.55);
+    const swell = Math.sin(charge * Math.PI * 0.5);
+    const hold = prog > 0.22 && prog < 0.7 ? 1 : Math.max(0, 1 - Math.abs(prog - 0.46) / 0.5);
+    const rel = prog > 0.7 ? (prog - 0.7) / 0.3 : 0;
+    const relEnv = Math.sin(Math.min(1, rel) * Math.PI);
+    const relSnap = rel > 0 ? Math.sin(Math.min(1, rel / 0.4) * Math.PI * 0.5) : 0;
 
-    // Shockwaves blast outward on release
-    waveMat.opacity = 0.7 * relEnv;
-    wave.scale.setScalar(0.3 + rel * 3.4);
-    wave2Mat.opacity = 0.5 * relEnv;
-    wave2.scale.setScalar(0.3 + rel * 2.2);
+    // Shockwaves blast outward, brighter and faster
+    for (const w of waves) {
+      w.userData.mat.opacity = w.userData.peak * relEnv;
+      w.scale.setScalar(0.28 + relSnap * w.userData.grow);
+    }
+
+    // Ground flash pops hard then fades
+    flashMat.opacity = 0.8 * relEnv * (1 - rel * 0.4);
+    flash.scale.setScalar(0.5 + relSnap * 1.4);
 
     // Roar cone punches forward
-    roarMat.opacity = 0.6 * relEnv;
-    roar.scale.set(0.5 + rel * 1.3, 0.5 + rel * 2.2, 0.5 + rel * 1.3);
-    roar.position.z = 0.5 + rel * 0.7;
+    roarMat.opacity = 0.7 * relEnv;
+    roar.scale.set(0.5 + relSnap * 1.5, 0.5 + relSnap * 2.5, 0.5 + relSnap * 1.5);
+    roar.position.z = 0.5 + relSnap * 0.8;
 
-    // Fury column pulses during the held roar, then collapses
-    colMat.opacity = 0.45 * hold * (1 - rel);
-    const pulse = 1 + Math.sin(now * 0.02) * 0.12 * hold;
-    col.scale.set((0.6 + swell * 0.6) * pulse, 0.7 + swell * 0.7, (0.6 + swell * 0.6) * pulse);
+    // Fury column pulses during the held charge, collapses on release
+    colMat.opacity = 0.55 * hold * (1 - rel);
+    const pulse = 1 + Math.sin(now * 0.024) * 0.16 * hold;
+    col.scale.set((0.6 + swell * 0.65) * pulse, 0.7 + swell * 0.8, (0.6 + swell * 0.65) * pulse);
+
+    // Crown ring rises and brightens as the buff lands
+    crownMat.opacity = (0.4 * swell + 0.5 * relEnv);
+    crown.scale.setScalar(0.7 + swell * 0.6 + relSnap * 1.0);
+    crown.position.y = 1.1 + swell * 0.2 + rel * 0.3;
 
     // Embers rise and intensify with the build
     for (let i = 0; i < embers.length; i++) {
       const e = embers[i];
-      const t = ((now * 0.0009 + e.userData.ph) % 1);
-      e.position.x = Math.cos(e.userData.a) * e.userData.r;
-      e.position.z = Math.sin(e.userData.a) * e.userData.r;
-      e.position.y = 0.2 + t * 1.6;
-      e.userData.mat.opacity = (0.55 * swell) * (1 - t) * (1 - rel * 0.7);
+      const t = ((now * 0.0011 + e.userData.ph) % 1);
+      const spin = now * 0.0012;
+      e.position.x = Math.cos(e.userData.a + spin) * e.userData.r;
+      e.position.z = Math.sin(e.userData.a + spin) * e.userData.r;
+      e.position.y = 0.2 + t * 1.8;
+      e.userData.mat.opacity = (0.7 * swell) * (1 - t) * (1 - rel * 0.5);
     }
   };
 
   return g;
 }
 
+// shieldwall fx: swapped the dim dome for a BOLD hexagonal barrier raised in front — bright hex border + lit honeycomb cells that slam up into place, edge spark, ground brace
 export function buildCastFx_shieldwall(opts) {
   const c = (opts && opts.color) || "#8fb7ff";
   const g = new T.Group();
-  const dome = new T.Group();
-  dome.position.set(0, 0.0, 0.85);
-  g.add(dome);
 
-  const shellMat = new T.MeshBasicMaterial({ color: c, fog:false, transparent:true, opacity:0.18, blending:T.AdditiveBlending, depthWrite:false, wireframe:true });
-  const shell = m(geo("cfxSwDome", () => new T.SphereGeometry(0.95, 6, 4, 0, Math.PI*2, 0, Math.PI/2)), shellMat);
-  shell.scale.set(1, 1.0, 0.55);
-  dome.add(shell);
+  // wall pivots up from its base, planted in front of the player
+  const wall = new T.Group();
+  wall.position.set(0, 0.05, 0.92);
+  g.add(wall);
 
-  const skinMat = new T.MeshBasicMaterial({ color: c, fog:false, transparent:true, opacity:0.07, blending:T.AdditiveBlending, depthWrite:false });
-  const skin = m(geo("cfxSwSkin", () => new T.SphereGeometry(0.9, 12, 8, 0, Math.PI*2, 0, Math.PI/2)), skinMat);
-  skin.scale.set(1, 1.0, 0.55);
-  dome.add(skin);
+  const R = 0.9; // hex radius
 
-  const rings = [];
-  for (let i = 0; i < 3; i++) {
-    const rMat = new T.MeshBasicMaterial({ color: c, fog:false, transparent:true, opacity:0.4, blending:T.AdditiveBlending, depthWrite:false });
-    const r = m(geo("cfxSwRing" + i, () => new T.TorusGeometry(0.4 + i*0.22, 0.025, 6, 24)), rMat);
-    r.rotation.x = Math.PI/2;
-    r.position.y = 0.05 + i*0.18;
-    r.scale.z = 0.55;
-    r.userData.mat = rMat; r.userData.base = 0.42 - i*0.06;
-    dome.add(r); rings.push(r);
+  // bright outer hex ring (the barrier border)
+  const borderMat = new T.MeshBasicMaterial({ color: c, fog:false, transparent:true, opacity:0.0, blending:T.AdditiveBlending, depthWrite:false });
+  const border = m(geo("cfxSwBorder", () => new T.RingGeometry(R * 0.86, R, 6, 1)), borderMat);
+  border.rotation.z = Math.PI / 2; // point-up hexagon
+  border.position.y = R;
+  wall.add(border);
+
+  // translucent face glow filling the hex
+  const faceMat = new T.MeshBasicMaterial({ color: c, fog:false, transparent:true, opacity:0.0, blending:T.AdditiveBlending, depthWrite:false });
+  const face = m(geo("cfxSwFace", () => new T.CircleGeometry(R * 0.92, 6)), faceMat);
+  face.rotation.z = Math.PI / 2;
+  face.position.y = R; face.position.z = -0.01;
+  wall.add(face);
+
+  // honeycomb cells — small hexes that light up across the barrier
+  const cells = [];
+  const cr = R * 0.26; // cell radius
+  const offs = [
+    [0, 0], [0, 1], [0, -1],
+    [0.87, 0.5], [0.87, -0.5], [-0.87, 0.5], [-0.87, -0.5]
+  ];
+  for (let i = 0; i < offs.length; i++) {
+    const cMat = new T.MeshBasicMaterial({ color: c, fog:false, transparent:true, opacity:0.0, blending:T.AdditiveBlending, depthWrite:false });
+    const cell = m(geo("cfxSwCell" + i, () => new T.RingGeometry(cr * 0.62, cr * 0.78, 6, 1)), cMat);
+    cell.rotation.z = Math.PI / 2;
+    cell.position.x = offs[i][0] * cr * 1.55;
+    cell.position.y = R + offs[i][1] * cr * 1.7;
+    cell.position.z = 0.005;
+    cell.userData.mat = cMat;
+    cell.userData.ph = i * 0.9;
+    wall.add(cell); cells.push(cell);
   }
 
-  const base = new T.MeshBasicMaterial({ color: c, fog:false, transparent:true, opacity:0.5, blending:T.AdditiveBlending, depthWrite:false });
-  const ground = m(geo("cfxSwGround", () => new T.RingGeometry(0.55, 0.95, 6)), base);
-  ground.rotation.x = -Math.PI/2; ground.position.y = 0.02; ground.scale.z = 0.6;
-  dome.add(ground);
+  // top edge spark bar — bright line that runs along the barrier crest on slam
+  const sparkMat = new T.MeshBasicMaterial({ color: c, fog:false, transparent:true, opacity:0.0, blending:T.AdditiveBlending, depthWrite:false });
+  const spark = m(box(R * 1.7, 0.06, 0.06), sparkMat);
+  spark.position.y = R * 1.9;
+  wall.add(spark);
+
+  // ground brace ring at the player's feet
+  const baseMat = new T.MeshBasicMaterial({ color: c, fog:false, transparent:true, opacity:0.0, blending:T.AdditiveBlending, depthWrite:false });
+  const ground = m(geo("cfxSwGround", () => new T.RingGeometry(0.5, 0.92, 6)), baseMat);
+  ground.rotation.x = -Math.PI / 2; ground.position.set(0, 0.02, 0.92); ground.scale.z = 0.6;
+  g.add(ground);
 
   g.userData.castAnim = (grp, prog, now) => {
-    const set = Math.min(prog / 0.18, 1);
-    const rel = prog > 0.86 ? 1 - (prog - 0.86) / 0.14 : 1;
-    const up = set * rel;
-    const pulse = 0.5 + 0.5 * Math.sin(now * 0.006);
-    shellMat.opacity = (0.1 + 0.14 * pulse) * up;
-    skinMat.opacity = (0.04 + 0.06 * pulse) * up;
-    base.opacity = (0.3 + 0.3 * pulse) * up;
-    dome.scale.setScalar(0.85 + 0.15 * set + 0.04 * pulse);
-    for (let i = 0; i < rings.length; i++) {
-      const m2 = rings[i].userData.mat;
-      m2.opacity = (rings[i].userData.base * (0.6 + 0.6 * (0.5 + 0.5 * Math.sin(now * 0.005 + i)))) * up;
-      rings[i].rotation.z = now * 0.0008 * (i + 1) * (i % 2 ? -1 : 1);
+    // raise: hex rotates up from the ground (0..0.18), hold, then snap-flare on release
+    const raise = Math.min(prog / 0.18, 1);
+    const er = raise * raise * (3 - 2 * raise);
+    const rel = prog > 0.82 ? (prog - 0.82) / 0.18 : 0;
+    const snap = rel > 0 ? Math.sin(rel * Math.PI) : 0;
+    const live = 1 - rel * 0.5;
+    const pulse = 0.5 + 0.5 * Math.sin(now * 0.007);
+
+    // tilt the whole wall up into place
+    wall.rotation.x = (1 - er) * 1.25;
+    wall.scale.setScalar(0.6 + 0.4 * er + 0.06 * snap);
+
+    borderMat.opacity = (0.55 + 0.35 * pulse) * er * live + 0.6 * snap;
+    faceMat.opacity = (0.16 + 0.12 * pulse) * er * live + 0.2 * snap;
+    baseMat.opacity = (0.4 + 0.25 * pulse) * er * live;
+
+    // cells light up in a sweep as the wall settles
+    for (let i = 0; i < cells.length; i++) {
+      const m2 = cells[i].userData.mat;
+      const tw = 0.5 + 0.5 * Math.sin(now * 0.006 + cells[i].userData.ph);
+      m2.opacity = (0.35 + 0.45 * tw) * er * live + 0.5 * snap;
     }
+
+    // edge spark fires on the slam-into-place
+    sparkMat.opacity = 0.95 * snap;
+    spark.scale.x = 0.6 + 0.6 * snap;
   };
+
   return g;
 }
 
 export function buildCastFx_frostnova(opts) {
+  // STRENGTHENED: brighter double shockwave ring + leading rim, hotter impact flash, 12 jagged shards that punch up+out, frost motes
   const c = (opts && opts.color) || "#6df1ff";
   const g = new T.Group();
-  const ringMat = new T.MeshBasicMaterial({ color: c, fog:false, transparent:true, opacity:0.0, blending:T.AdditiveBlending, depthWrite:false });
-  const innerMat = new T.MeshBasicMaterial({ color: c, fog:false, transparent:true, opacity:0.0, blending:T.AdditiveBlending, depthWrite:false });
-  const shardMat = new T.MeshBasicMaterial({ color: c, fog:false, transparent:true, opacity:0.0, blending:T.AdditiveBlending, depthWrite:false });
-  const flashMat = new T.MeshBasicMaterial({ color: c, fog:false, transparent:true, opacity:0.0, blending:T.AdditiveBlending, depthWrite:false });
+  const mk = (o) => new T.MeshBasicMaterial({ color: c, fog:false, transparent:true, opacity:0.0, blending:T.AdditiveBlending, depthWrite:false });
+  const ringMat = mk(), rimMat = mk(), innerMat = mk(), flashMat = mk(), shardMat = mk(), moteMat = mk();
 
-  const ring = m(geo("cfxFnRing", () => new T.RingGeometry(0.82, 1.0, 40)), ringMat);
+  // main expanding shockwave ring
+  const ring = m(geo("cfxFnRing", () => new T.RingGeometry(0.78, 1.0, 48)), ringMat);
   ring.rotation.x = -Math.PI / 2; ring.position.y = 0.04; g.add(ring);
 
-  const inner = m(geo("cfxFnInner", () => new T.RingGeometry(0.5, 0.62, 32)), innerMat);
+  // bright thin leading rim that races ahead of the ring
+  const rim = m(geo("cfxFnRim", () => new T.RingGeometry(0.95, 1.02, 48)), rimMat);
+  rim.rotation.x = -Math.PI / 2; rim.position.y = 0.05; g.add(rim);
+
+  // inner secondary ring
+  const inner = m(geo("cfxFnInner", () => new T.RingGeometry(0.45, 0.6, 36)), innerMat);
   inner.rotation.x = -Math.PI / 2; inner.position.y = 0.03; g.add(inner);
 
-  const flash = m(geo("cfxFnFlash", () => new T.CircleGeometry(0.6, 24)), flashMat);
+  // ground impact flash
+  const flash = m(geo("cfxFnFlash", () => new T.CircleGeometry(0.62, 28)), flashMat);
   flash.rotation.x = -Math.PI / 2; flash.position.y = 0.02; g.add(flash);
 
+  // jagged ice shards radiating out (tall thin pyramids)
   const shards = [];
-  const N = 8;
+  const N = 12;
   for (let i = 0; i < N; i++) {
-    const sh = m(geo("cfxFnShard", () => new T.ConeGeometry(0.12, 0.6, 4)), shardMat);
+    const sh = m(geo("cfxFnShard", () => new T.ConeGeometry(0.13, 0.85, 4)), shardMat);
     const a = (i / N) * Math.PI * 2;
     sh.userData.a = a;
-    sh.rotation.x = Math.PI / 2;
-    sh.rotation.z = -a;
     sh.position.y = 0.06;
     g.add(sh);
     shards.push(sh);
   }
 
+  // sparkling frost motes that burst upward
+  const motes = [];
+  const M = 10;
+  for (let i = 0; i < M; i++) {
+    const mo = m(geo("cfxFnMote", () => new T.OctahedronGeometry(0.07)), moteMat);
+    const a = (i / M) * Math.PI * 2 + 0.3;
+    mo.userData.a = a;
+    mo.userData.r = 0.6 + (i % 3) * 0.5;
+    mo.userData.h = 0.5 + (i % 4) * 0.25;
+    g.add(mo);
+    motes.push(mo);
+  }
+
   g.userData.castAnim = (grp, prog) => {
-    const snap = prog < 0.45 ? 0 : Math.min(1, (prog - 0.45) / 0.1);
-    const wave = prog < 0.45 ? 0 : (prog - 0.45) / 0.55;
+    const snap = prog < 0.4 ? 0 : Math.min(1, (prog - 0.4) / 0.08);
+    const wave = prog < 0.4 ? 0 : (prog - 0.4) / 0.6;
     const fade = Math.max(0, 1 - wave);
+    const fade2 = fade * fade;
 
-    const r = 0.2 + wave * 3.5;
+    // shockwave ring
+    const r = 0.25 + wave * 4.2;
     ring.scale.set(r, r, r);
-    ring.rotation.z = wave * 0.6;
-    ringMat.opacity = 0.75 * fade * snap;
+    ring.rotation.z = wave * 0.5;
+    ringMat.opacity = 0.85 * fade * snap;
 
-    const ri = 0.2 + wave * 2.4;
+    // leading rim races slightly faster, brighter, thinner
+    const rr = 0.25 + wave * 4.8;
+    rim.scale.set(rr, rr, rr);
+    rimMat.opacity = 0.95 * fade2 * snap;
+
+    // inner ring
+    const ri = 0.25 + wave * 2.7;
     inner.scale.set(ri, ri, ri);
-    innerMat.opacity = 0.5 * fade * snap;
+    inner.rotation.z = -wave * 0.7;
+    innerMat.opacity = 0.55 * fade * snap;
 
-    flashMat.opacity = 0.9 * Math.sin(snap * Math.PI);
-    const fs = 0.5 + snap * 1.2;
+    // hot impact flash on the slam, fast falloff
+    const fp = Math.sin(snap * Math.PI);
+    flashMat.opacity = 1.0 * fp * (1 - wave * 0.5);
+    const fs = 0.5 + snap * 1.6;
     flash.scale.set(fs, fs, fs);
 
-    shardMat.opacity = 0.8 * fade * snap;
-    const reach = 0.4 + wave * 2.9;
+    // shards: punch up and outward, leaning out from center
+    shardMat.opacity = 0.9 * fade * snap;
+    const reach = 0.45 + wave * 3.4;
+    const grow = 0.4 + snap * 1.2;
     for (let i = 0; i < shards.length; i++) {
       const sh = shards[i];
       const a = sh.userData.a;
       sh.position.x = Math.cos(a) * reach;
       sh.position.z = Math.sin(a) * reach;
-      const sc = 0.4 + snap * 1.1;
-      sh.scale.set(sc, 1 + wave * 0.8, sc);
+      sh.position.y = 0.06 + 0.18 * (grow - 0.4);
+      // lean outward: tilt the upright cone away from center
+      sh.rotation.set(0, 0, 0);
+      sh.rotation.z = -Math.cos(a) * 0.5;
+      sh.rotation.x = Math.sin(a) * 0.5;
+      sh.scale.set(grow * (0.7 + wave * 0.6), 0.9 + wave * 1.3, grow * (0.7 + wave * 0.6));
+    }
+
+    // frost motes burst up and out, twinkling
+    moteMat.opacity = 0.85 * Math.max(0, 1 - wave * 1.2) * snap;
+    const mr = 0.4 + wave * 2.8;
+    for (let i = 0; i < motes.length; i++) {
+      const mo = motes[i];
+      const a = mo.userData.a;
+      mo.position.x = Math.cos(a) * mr * (0.6 + mo.userData.r * 0.3);
+      mo.position.z = Math.sin(a) * mr * (0.6 + mo.userData.r * 0.3);
+      mo.position.y = 0.1 + mo.userData.h * Math.sin(Math.min(wave * 1.6, 1) * Math.PI);
+      const tw = 0.5 + 0.5 * Math.sin(prog * 40 + i);
+      const ms = (0.6 + wave * 0.8) * tw;
+      mo.scale.set(ms, ms, ms);
     }
   };
 
   return g;
 }
 
+// STRENGTHENED: brighter white-hot cores (layered core+halo bolt), more violent multi-fork arcs, a hard flash-reveal + electric flicker, punchier muzzle burst and travelling tip spark.
 export function buildCastFx_chainlightning(opts) {
   const c = (opts && opts.color) || "#bff0ff";
   const g = new T.Group();
-  const boltMat = new T.MeshBasicMaterial({ color: c, fog:false, transparent:true, opacity:0, blending:T.AdditiveBlending, depthWrite:false });
+  const coreMat = new T.MeshBasicMaterial({ color: "#ffffff", fog:false, transparent:true, opacity:0, blending:T.AdditiveBlending, depthWrite:false });
+  const glowMat = new T.MeshBasicMaterial({ color: c, fog:false, transparent:true, opacity:0, blending:T.AdditiveBlending, depthWrite:false });
   const hx = 0.32, hy = 0.92;
   const pts = [
-    [hx, hy, 0.1], [hx+0.18, hy+0.16, 0.6], [hx-0.05, hy-0.05, 1.1],
-    [hx+0.12, hy+0.1, 1.7], [hx-0.1, hy-0.12, 2.3], [hx+0.06, hy+0.05, 3.0]
+    [hx, hy, 0.1], [hx+0.22, hy+0.20, 0.6], [hx-0.10, hy-0.08, 1.15],
+    [hx+0.16, hy+0.14, 1.75], [hx-0.14, hy-0.16, 2.35], [hx+0.08, hy+0.06, 3.05]
   ];
   const segs = [];
   for (let i = 0; i < pts.length - 1; i++) {
     const a = pts[i], b = pts[i+1];
     const dx = b[0]-a[0], dy = b[1]-a[1], dz = b[2]-a[2];
     const len = Math.sqrt(dx*dx+dy*dy+dz*dz);
-    const s = m(box(0.07, 0.07, 1), boltMat);
-    s.scale.z = len;
-    s.position.set((a[0]+b[0])/2, (a[1]+b[1])/2, (a[2]+b[2])/2);
-    s.lookAt(new T.Vector3(b[0], b[1], b[2]));
-    s.userData.t0 = i / (pts.length - 1);
-    s.userData.len = len;
-    g.add(s); segs.push(s);
+    const cx = (a[0]+b[0])/2, cy = (a[1]+b[1])/2, cz = (a[2]+b[2])/2;
+    const target = new T.Vector3(b[0], b[1], b[2]);
+    // outer colored glow
+    const sg = m(box(0.13, 0.13, 1), glowMat);
+    sg.scale.z = len; sg.position.set(cx, cy, cz); sg.lookAt(target);
+    sg.userData.t0 = i / (pts.length - 1); sg.userData.len = len; sg.userData.bw = 0.13;
+    g.add(sg); segs.push(sg);
+    // white-hot inner core
+    const sc = m(box(0.05, 0.05, 1), coreMat);
+    sc.scale.z = len; sc.position.set(cx, cy, cz); sc.lookAt(target);
+    sc.userData.t0 = i / (pts.length - 1); sc.userData.len = len; sc.userData.bw = 0.05;
+    g.add(sc); segs.push(sc);
   }
   const forks = [];
-  const fbase = [[pts[2], 0.5, 0.4], [pts[3], -0.55, 0.3], [pts[4], 0.45, -0.35]];
+  const fbase = [[2,0.7,0.5],[3,-0.8,0.35],[4,0.6,-0.5],[2,-0.5,-0.4],[3,0.85,0.2]];
   for (let i = 0; i < fbase.length; i++) {
-    const o = fbase[i][0];
-    const f = m(box(0.05, 0.05, 1), boltMat);
-    f.scale.z = 0.55;
-    f.position.set(o[0] + fbase[i][1]*0.25, o[1] + (i%2?-0.2:0.25), o[2] + fbase[i][2]*0.5);
-    f.rotation.z = fbase[i][1]; f.rotation.y = fbase[i][2];
-    f.userData.t0 = 0.4 + i*0.18;
+    const o = pts[fbase[i][0]];
+    const f = m(box(0.07, 0.07, 1), glowMat);
+    const flen = 0.5 + (i % 3) * 0.22;
+    f.scale.z = flen;
+    f.position.set(o[0] + fbase[i][1]*0.28, o[1] + fbase[i][2]*0.5, o[2] + (i%2?0.18:-0.18));
+    f.rotation.z = fbase[i][1]; f.rotation.y = fbase[i][2] * 1.3;
+    f.userData.t0 = 0.35 + i*0.12; f.userData.flen = flen;
     g.add(f); forks.push(f);
+    const fc = m(box(0.03, 0.03, 1), coreMat);
+    fc.scale.z = flen; fc.position.copy(f.position); fc.rotation.copy(f.rotation);
+    fc.userData.t0 = f.userData.t0; fc.userData.flen = flen;
+    g.add(fc); forks.push(fc);
   }
-  const burst = m(geo("cfxClBurst", () => new T.SphereGeometry(0.22, 8, 8)), boltMat);
-  burst.position.set(hx, hy, 0.1); g.add(burst);
-  const tip = m(geo("cfxClTip", () => new T.SphereGeometry(0.14, 6, 6)), boltMat);
-  tip.position.set(hx+0.06, hy+0.05, 3.0); g.add(tip);
+  const burstGlow = m(geo("cfxClBurstG", () => new T.SphereGeometry(0.26, 10, 10)), glowMat);
+  burstGlow.position.set(hx, hy, 0.1); g.add(burstGlow);
+  const burstCore = m(geo("cfxClBurstC", () => new T.SphereGeometry(0.15, 8, 8)), coreMat);
+  burstCore.position.set(hx, hy, 0.1); g.add(burstCore);
+  const tipGlow = m(geo("cfxClTipG", () => new T.SphereGeometry(0.20, 8, 8)), glowMat);
+  tipGlow.position.set(hx+0.08, hy+0.06, 3.05); g.add(tipGlow);
+  const tipCore = m(geo("cfxClTipC", () => new T.SphereGeometry(0.11, 6, 6)), coreMat);
+  tipCore.position.copy(tipGlow.position); g.add(tipCore);
   g.userData.castAnim = (grp, prog, now) => {
-    const fire = prog < 0.45 ? 0 : (prog - 0.45) / 0.55;
-    const flick = 0.6 + 0.4 * Math.sin(now * 0.06);
-    const fade = 1 - Math.max(0, (prog - 0.9) / 0.1) * 0.5;
-    boltMat.opacity = fire > 0 ? 0.9 * flick * fade : 0;
+    const fire = prog < 0.40 ? 0 : (prog - 0.40) / 0.60;
+    const flick = 0.55 + 0.45 * Math.sin(now * 0.085) + 0.18 * Math.sin(now * 0.21);
+    const flash = fire > 0 && fire < 0.16 ? (1 - fire / 0.16) : 0; // hard reveal pop
+    const fade = 1 - Math.max(0, (prog - 0.88) / 0.12) * 0.85;
+    const gOp = fire > 0 ? (0.95 * flick + flash * 1.2) * fade : 0;
+    const cOp = fire > 0 ? (1.0 * (0.7 + 0.3 * flick) + flash * 1.5) * fade : 0;
+    glowMat.opacity = Math.max(0, gOp);
+    coreMat.opacity = Math.max(0, cOp);
     for (let i = 0; i < segs.length; i++) {
       const s = segs[i];
       s.visible = fire > s.userData.t0;
-      s.scale.x = 0.07 * flick + 0.02;
-      s.scale.y = 0.07 * flick + 0.02;
-      s.scale.z = s.userData.len;
+      const w = s.userData.bw * (0.7 + 0.5 * flick) + flash * 0.05;
+      s.scale.x = w; s.scale.y = w; s.scale.z = s.userData.len;
     }
-    for (let i = 0; i < forks.length; i++) forks[i].visible = fire > forks[i].userData.t0;
-    burst.visible = fire > 0 && fire < 0.5;
-    burst.scale.setScalar(fire < 0.5 ? (0.5 + fire * 2) : 0.001);
-    tip.visible = fire > 0.85;
-    tip.scale.setScalar(0.8 + Math.sin(now * 0.1) * 0.5);
+    for (let i = 0; i < forks.length; i++) {
+      const f = forks[i];
+      f.visible = fire > f.userData.t0;
+      f.scale.z = f.userData.flen * (0.8 + 0.5 * Math.sin(now * 0.13 + i));
+    }
+    const muzzle = fire > 0 && fire < 0.55;
+    burstGlow.visible = muzzle; burstCore.visible = muzzle;
+    const bs = fire < 0.55 ? (0.6 + fire * 2.4) : 0.001;
+    burstGlow.scale.setScalar(bs); burstCore.scale.setScalar(bs * 0.7);
+    const arrived = fire > 0.8;
+    tipGlow.visible = arrived; tipCore.visible = arrived;
+    const ts = 0.9 + Math.sin(now * 0.12) * 0.6;
+    tipGlow.scale.setScalar(ts); tipCore.scale.setScalar(ts * 0.8);
   };
   return g;
 }
 
+// STRENGTHENED: bolt now streaks from FAR overhead (long bright core + tapered tail) and the impact spawns a hard ground flare RING + shockwave + ejecta spikes — brighter, longer streak, clearer "meteor hits here" beat.
 export function buildCastFx_meteor(opts) {
   const c = (opts && opts.color) || "#ff7a3c";
   const g = new T.Group();
-  const orbMat = new T.MeshBasicMaterial({ color: c, fog:false, transparent:true, opacity:0.0, blending:T.AdditiveBlending, depthWrite:false });
-  const haloMat = new T.MeshBasicMaterial({ color: c, fog:false, transparent:true, opacity:0.0, blending:T.AdditiveBlending, depthWrite:false });
-  const trailMat = new T.MeshBasicMaterial({ color: c, fog:false, transparent:true, opacity:0.0, blending:T.AdditiveBlending, depthWrite:false });
-  const orb = m(geo("cfxMeteorOrb", () => new T.SphereGeometry(0.26, 16, 12)), orbMat);
-  orb.position.set(0, 1.95, 0.45); g.add(orb);
-  const halo = m(geo("cfxMeteorHalo", () => new T.RingGeometry(0.3, 0.55, 24)), haloMat);
-  halo.position.set(0, 1.95, 0.45); g.add(halo);
+  const HI = 3.6, Z = 0.55;            // bolt start height / forward offset
+  const newMat = (o) => new T.MeshBasicMaterial({ color: c, fog:false, transparent:true, opacity:o, blending:T.AdditiveBlending, depthWrite:false });
+  const orbMat = newMat(0), coreMat = newMat(0), tailMat = newMat(0), haloMat = newMat(0);
+  const ringMat = newMat(0), waveMat = newMat(0), flashMat = newMat(0);
+
+  // gathering orb high overhead
+  const orb = m(geo("meteorOrb", () => new T.SphereGeometry(0.26, 16, 12)), orbMat);
+  orb.position.set(0, HI, Z); g.add(orb);
+  const halo = m(geo("meteorHalo", () => new T.RingGeometry(0.3, 0.6, 28)), haloMat);
+  halo.position.set(0, HI, Z); g.add(halo);
   const shards = [];
   for (let i = 0; i < 5; i++) {
-    const s = m(box(0.05, 0.05, 0.5), orbMat);
-    const a = (i / 5) * Math.PI * 2;
-    s.userData.a = a; s.userData.r = 0.42;
+    const s = m(geo("meteorShard", () => new T.BoxGeometry(0.05, 0.05, 0.55)), orbMat);
+    s.userData.a = (i / 5) * Math.PI * 2; s.userData.r = 0.45;
     g.add(s); shards.push(s);
   }
-  const trail = m(cyl(0.04, 0.2, 1.0, 8), trailMat);
-  trail.position.set(0, 1.95, 0.45); g.add(trail);
+  // streaking bolt: bright core + long tapered tail
+  const core = m(geo("meteorCore", () => new T.CylinderGeometry(0.14, 0.05, 1.0, 10)), coreMat);
+  g.add(core);
+  const tail = m(geo("meteorTail", () => new T.CylinderGeometry(0.02, 0.30, 1.0, 12)), tailMat);
+  g.add(tail);
+  // impact on the ground
+  const flash = m(geo("meteorFlash", () => new T.SphereGeometry(0.4, 14, 10)), flashMat);
+  flash.position.set(0, 0.05, Z); g.add(flash);
+  const ring = m(geo("meteorRing", () => new T.RingGeometry(0.55, 0.95, 40)), ringMat);
+  ring.rotation.x = -Math.PI / 2; ring.position.set(0, 0.04, Z); g.add(ring);
+  const wave = m(geo("meteorWave", () => new T.RingGeometry(0.2, 0.35, 40)), waveMat);
+  wave.rotation.x = -Math.PI / 2; wave.position.set(0, 0.03, Z); g.add(wave);
+  const ejecta = [];
+  for (let i = 0; i < 8; i++) {
+    const e = m(geo("meteorEjecta", () => new T.ConeGeometry(0.07, 0.5, 6)), ringMat);
+    e.userData.a = (i / 8) * Math.PI * 2;
+    g.add(e); ejecta.push(e);
+  }
+
   g.userData.castAnim = (grp, prog) => {
-    const gather = Math.min(prog / 0.75, 1);
+    const gather = Math.min(prog / 0.62, 1);
     const gEase = gather * gather * (3 - 2 * gather);
-    const snap = prog > 0.75 ? (prog - 0.75) / 0.25 : 0;
-    const pulse = 1 + Math.sin(prog * 30) * 0.12 * (1 - snap);
-    orbMat.opacity = (0.4 + 0.5 * gEase) * (1 - snap * 0.3);
-    const grow = 0.4 + gEase * 0.8;
+    const drive = prog > 0.62 ? Math.min((prog - 0.62) / 0.20, 1) : 0;
+    const dEase = drive * drive;                 // accelerating fall
+    const burst = prog > 0.82 ? (prog - 0.82) / 0.18 : 0; // ground impact
+    const pulse = 1 + Math.sin(prog * 30) * 0.14 * (1 - drive);
+
+    // --- charge phase: orb + halo + orbiting shards overhead ---
+    const charging = 1 - drive;
+    const grow = 0.45 + gEase * 0.95;
+    orbMat.opacity = (0.5 + 0.5 * gEase) * charging;
     orb.scale.setScalar(grow * pulse);
-    haloMat.opacity = gEase * 0.5 * (1 - snap);
-    halo.scale.setScalar(0.6 + gEase * 1.0 + Math.sin(prog * 18) * 0.1);
-    halo.rotation.z = prog * 3.0;
+    orb.position.set(0, HI, Z);
+    haloMat.opacity = gEase * 0.6 * charging;
+    halo.scale.setScalar(0.7 + gEase * 1.2 + Math.sin(prog * 18) * 0.12);
+    halo.rotation.z = prog * 3.2;
     for (let i = 0; i < shards.length; i++) {
       const s = shards[i];
-      const spin = prog * 6.0 + s.userData.a;
+      const spin = prog * 6.5 + s.userData.a;
       const r = s.userData.r * grow;
-      s.position.set(Math.cos(spin) * r, 1.95 + Math.sin(prog * 12 + i) * 0.05, 0.45 + Math.sin(spin) * r);
-      s.lookAt(0, 1.95, 0.45);
-      s.scale.setScalar(0.5 + gEase * 0.8);
+      s.position.set(Math.cos(spin) * r, HI + Math.sin(prog * 12 + i) * 0.06, Z + Math.sin(spin) * r);
+      s.lookAt(0, HI, Z);
+      s.scale.setScalar((0.5 + gEase * 0.9) * charging);
     }
-    if (snap > 0) {
-      const drop = snap * snap;
-      const y = 1.95 - drop * 1.7;
-      const z = 0.45 + drop * 1.6;
-      orb.position.set(0, y, z);
-      orb.scale.setScalar(grow * (1 + drop * 0.5));
-      orbMat.opacity = 0.9 * (1 - drop * 0.4);
-      trailMat.opacity = drop * 0.7 * (1 - drop * 0.5);
-      trail.position.set(0, (1.95 + y) / 2, (0.45 + z) / 2);
-      trail.scale.set(1, 1.0 + drop * 3.0, 1);
-      trail.lookAt(0, y, z);
-      for (let i = 0; i < shards.length; i++) { shards[i].position.set(0, y, z); shards[i].scale.setScalar(0.001); }
-      haloMat.opacity = 0;
+
+    // --- streak phase: bright bolt drives down from HI to the ground ---
+    if (drive > 0) {
+      const y = HI - dEase * (HI - 0.25);
+      const len = 1.4 + dEase * 1.6;             // streak lengthens as it falls
+      const bright = 1 - burst * 0.5;
+      coreMat.opacity = 1.0 * bright;
+      core.position.set(0, y, Z);
+      core.scale.set(1.0 + Math.sin(prog * 40) * 0.1, len, 1.0 + Math.sin(prog * 40) * 0.1);
+      tailMat.opacity = 0.8 * (1 - burst * 0.7);
+      tail.position.set(0, y + len * 0.55, Z);   // tail trails above the head
+      tail.scale.set(1, len * 1.6, 1);
+      orbMat.opacity = 0; haloMat.opacity = 0;
+      for (let i = 0; i < shards.length; i++) shards[i].scale.setScalar(0.001);
     } else {
-      orb.position.set(0, 1.95, 0.45);
-      trailMat.opacity = 0;
+      coreMat.opacity = 0; tailMat.opacity = 0;
+    }
+
+    // --- impact: white flash + expanding flare ring + shockwave + ejecta spikes ---
+    if (burst > 0) {
+      const b = burst;
+      const eo = 1 - b;
+      flashMat.opacity = (1 - b) * 1.0;
+      flash.scale.setScalar(0.6 + b * 2.2);
+      ringMat.opacity = (1 - b) * 0.95;
+      ring.scale.setScalar(0.4 + b * 3.4);
+      waveMat.opacity = (1 - b * 1.1 < 0 ? 0 : 1 - b * 1.1) * 0.8;
+      wave.scale.setScalar(0.5 + b * 5.0);
+      for (let i = 0; i < ejecta.length; i++) {
+        const e = ejecta[i];
+        const r = b * 1.7;
+        e.position.set(Math.cos(e.userData.a) * r, 0.05 + Math.sin(b * Math.PI) * 0.9, Z + Math.sin(e.userData.a) * r);
+        e.rotation.set(Math.PI, e.userData.a, 0);
+        e.scale.setScalar(eo * 1.1);
+      }
+      ringMat.opacity = Math.max(ringMat.opacity, 0);
+    } else {
+      flashMat.opacity = 0; ringMat.opacity = 0; waveMat.opacity = 0;
+      for (let i = 0; i < ejecta.length; i++) ejecta[i].scale.setScalar(0.001);
     }
   };
   return g;
 }
 
+// STRENGTHENED: added a bright collapsing implosion ring on blink-out, a brighter arrival shockwave + double ring, more/longer sparks, and a real sweeping slash-arc on arrival.
 export function buildCastFx_blinkstrike(opts) {
   const c = (opts && opts.color) || "#c489ff";
   const g = new T.Group();
-  const shellMat = new T.MeshBasicMaterial({ color: c, fog: false, transparent: true, opacity: 0.5, blending: T.AdditiveBlending, depthWrite: false });
-  const sparkMat = new T.MeshBasicMaterial({ color: c, fog: false, transparent: true, opacity: 0.9, blending: T.AdditiveBlending, depthWrite: false });
-  const ringMat = new T.MeshBasicMaterial({ color: c, fog: false, transparent: true, opacity: 0.7, blending: T.AdditiveBlending, depthWrite: false });
+  const M = (op) => new T.MeshBasicMaterial({ color: c, fog: false, transparent: true, opacity: op, blending: T.AdditiveBlending, depthWrite: false });
 
-  const shell = m(cyl(0.34, 0.34, 1.5, 10), shellMat);
-  shell.position.y = 0.75; g.add(shell);
+  const shellMat = M(0.55);
+  const implodeMat = M(0.0);
+  const ringMat = M(0.7);
+  const ring2Mat = M(0.0);
+  const sparkMat = M(0.0);
+  const lanceMat = M(0.0);
+  const arcMat = M(0.0);
 
-  const ring = m(geo("cfxBlinkRing", () => new T.RingGeometry(0.5, 0.75, 24)), ringMat);
+  // vertical light column (blink-out core)
+  const shell = m(cyl(0.34, 0.34, 1.6, 12), shellMat);
+  shell.position.y = 0.8; g.add(shell);
+
+  // collapsing implosion ring (sucks inward on blink-out)
+  const implode = m(geo("blinkstrikeImplode", () => new T.RingGeometry(0.55, 0.9, 28)), implodeMat);
+  implode.rotation.x = -Math.PI / 2; implode.position.y = 0.7; g.add(implode);
+
+  // arrival ground shockwaves (two staggered rings)
+  const ring = m(geo("blinkstrikeRing", () => new T.RingGeometry(0.5, 0.78, 28)), ringMat);
   ring.rotation.x = -Math.PI / 2; ring.position.y = 0.05; g.add(ring);
+  const ring2 = m(geo("blinkstrikeRing2", () => new T.RingGeometry(0.5, 0.66, 28)), ring2Mat);
+  ring2.rotation.x = -Math.PI / 2; ring2.position.y = 0.06; g.add(ring2);
 
+  // radial arrival sparks
   const sparks = [];
-  for (let i = 0; i < 7; i++) {
-    const s = m(box(0.07, 0.07, 0.5), sparkMat);
-    const a = (i / 7) * Math.PI * 2;
-    s.userData.a = a; s.userData.h = 0.5 + (i % 3) * 0.4;
+  for (let i = 0; i < 10; i++) {
+    const s = m(box(0.07, 0.07, 0.55), sparkMat);
+    const a = (i / 10) * Math.PI * 2;
+    s.userData.a = a; s.userData.h = 0.45 + (i % 3) * 0.45;
     s.position.y = 0.8; g.add(s); sparks.push(s);
   }
 
-  const lance = m(box(0.1, 0.1, 1.4), sparkMat);
+  // forward strike lance
+  const lance = m(box(0.11, 0.11, 1.5), lanceMat);
   lance.position.set(0, 0.85, 0.7); g.add(lance);
 
+  // sweeping slash arc on arrival
+  const arc = m(geo("blinkstrikeArc", () => new T.RingGeometry(0.7, 1.05, 32, 1, -0.7, 1.7)), arcMat);
+  arc.position.set(0, 0.85, 0.55); g.add(arc);
+
   g.userData.castAnim = (grp, prog) => {
-    if (prog < 0.32) {
-      const t = prog / 0.32;
-      shellMat.opacity = 0.55 * (1 - t);
-      shell.scale.set(1 - t * 0.4, 1 - t * 0.5, 1 - t * 0.4);
+    if (prog < 0.3) {
+      // BLINK-OUT
+      const t = prog / 0.3;
+      shellMat.opacity = 0.6 * (1 - t);
+      shell.scale.set(1 - t * 0.5, 1 - t * 0.55, 1 - t * 0.5);
+      // implosion ring rushes inward and brightens then snuffs
+      implodeMat.opacity = 0.9 * Math.sin(t * Math.PI);
+      implode.scale.setScalar(1.6 - t * 1.35);
       ringMat.opacity = 0.6 * (1 - t);
-      ring.scale.setScalar(1 - t * 0.6);
-      sparkMat.opacity = 0;
+      ring.scale.setScalar(1 - t * 0.7);
+      ring2Mat.opacity = 0; sparkMat.opacity = 0; lanceMat.opacity = 0; arcMat.opacity = 0;
       lance.scale.z = 0; lance.scale.x = 0;
     } else {
-      const t = (prog - 0.32) / 0.68;
-      const burst = 1 - Math.pow(1 - t, 3);
-      shellMat.opacity = 0.6 * (1 - t);
-      shell.scale.set(1 + burst * 2.5, 1 + burst * 0.6, 1 + burst * 2.5);
-      ringMat.opacity = 0.7 * (1 - t);
-      ring.scale.setScalar(0.4 + burst * 2.2);
+      // ARRIVAL BURST + SLASH
+      const t = (prog - 0.3) / 0.7;
+      const burst = 1 - Math.pow(1 - t, 4);
       const fade = Math.sin(t * Math.PI);
-      sparkMat.opacity = 0.95 * fade;
+      implodeMat.opacity = 0;
+      shellMat.opacity = 0.7 * Math.max(0, 1 - t * 1.6);
+      shell.scale.set(1 + burst * 3.0, 1 + burst * 0.7, 1 + burst * 3.0);
+      // double expanding shockwave
+      ringMat.opacity = 0.85 * (1 - t);
+      ring.scale.setScalar(0.4 + burst * 2.8);
+      ring2Mat.opacity = 0.7 * Math.max(0, 1 - t * 1.4);
+      ring2.scale.setScalar(0.4 + burst * 1.9);
+      // sparks fly out
+      sparkMat.opacity = 1.0 * fade;
       for (let i = 0; i < sparks.length; i++) {
         const s = sparks[i];
-        const r = burst * 1.1;
+        const r = burst * 1.35;
         s.position.x = Math.cos(s.userData.a) * r;
         s.position.z = Math.sin(s.userData.a) * r;
-        s.position.y = s.userData.h + burst * 0.3;
+        s.position.y = s.userData.h + burst * 0.35;
         s.rotation.y = s.userData.a;
-        s.scale.z = 0.4 + burst * 1.2;
+        s.scale.z = 0.5 + burst * 1.5;
       }
-      const lp = Math.sin(Math.min(t * 1.4, 1) * Math.PI);
-      lance.scale.z = 0.3 + lp * 1.2;
-      lance.scale.x = 0.5 + lp;
-      lance.position.z = 0.4 + lp * 0.7;
+      // forward lance thrust
+      const lp = Math.sin(Math.min(t * 1.5, 1) * Math.PI);
+      lanceMat.opacity = 0.95 * lp;
+      lance.scale.z = 0.4 + lp * 1.5;
+      lance.scale.x = 0.6 + lp;
+      lance.position.z = 0.45 + lp * 0.85;
+      // quick slash arc sweeps and fades
+      const sp = Math.min(t * 1.7, 1);
+      arcMat.opacity = 0.9 * Math.max(0, 1 - sp) * (t < 0.6 ? 1 : 0) + 0.9 * Math.sin(Math.min(t, 0.55) / 0.55 * Math.PI);
+      arc.rotation.z = -1.3 + sp * 2.6;
+      arc.scale.setScalar(0.7 + sp * 0.7);
     }
   };
   return g;
 }
 
+// STRENGTHENED: 7 arrows (was 5) with bright glowing trail tails, a charging nock-glow during the draw, a wider/faster forward fan, a bigger release flash + radiating spark motes.
 export function buildCastFx_multishot(opts) {
   const c = (opts && opts.color) || "#7dffb0";
   const g = new T.Group();
   const fan = [];
-  const N = 5;
+  const N = 7;
   for (let i = 0; i < N; i++) {
-    const ang = (i - (N - 1) / 2) * 0.32;
-    const arrowMat = new T.MeshBasicMaterial({ color: c, fog: false, transparent: true, opacity: 0, blending: T.AdditiveBlending, depthWrite: false });
-    const shaft = m(box(0.06, 0.06, 1.5), arrowMat);
-    shaft.position.z = 0.75;
-    const head = m(cone(0.12, 0.28, 6), arrowMat);
-    head.rotation.x = Math.PI / 2;
-    head.position.z = 1.5;
+    const ang = (i - (N - 1) / 2) * 0.3;
     const arrow = new T.Group();
-    arrow.add(shaft); arrow.add(head);
+    // bright core shaft
+    const coreMat = new T.MeshBasicMaterial({ color: c, fog: false, transparent: true, opacity: 0, blending: T.AdditiveBlending, depthWrite: false });
+    const shaft = m(box(0.05, 0.05, 1.6), coreMat);
+    shaft.position.z = 0.8;
+    // glowing trailing streak behind the head
+    const tailMat = new T.MeshBasicMaterial({ color: c, fog: false, transparent: true, opacity: 0, blending: T.AdditiveBlending, depthWrite: false });
+    const tail = m(box(0.14, 0.14, 2.0), tailMat);
+    tail.position.z = -0.1;
+    const headMat = new T.MeshBasicMaterial({ color: c, fog: false, transparent: true, opacity: 0, blending: T.AdditiveBlending, depthWrite: false });
+    const head = m(cone(0.13, 0.32, 6), headMat);
+    head.rotation.x = Math.PI / 2;
+    head.position.z = 1.6;
+    arrow.add(tail); arrow.add(shaft); arrow.add(head);
     arrow.position.y = 0.85;
     arrow.rotation.y = ang;
     arrow.userData.ang = ang;
-    arrow.userData.mat = arrowMat;
+    arrow.userData.core = coreMat;
+    arrow.userData.tail = tailMat;
+    arrow.userData.head = headMat;
     g.add(arrow);
     fan.push(arrow);
   }
+  // charging nock glow at the draw point
+  const nockMat = new T.MeshBasicMaterial({ color: c, fog: false, transparent: true, opacity: 0, blending: T.AdditiveBlending, depthWrite: false });
+  const nock = m(geo("cfxMsNock", () => new T.SphereGeometry(0.16, 10, 10)), nockMat);
+  nock.position.set(0, 0.85, 0.15);
+  g.add(nock);
+  // release flash ring
   const flashMat = new T.MeshBasicMaterial({ color: c, fog: false, transparent: true, opacity: 0, blending: T.AdditiveBlending, depthWrite: false });
-  const flash = m(geo("cfxMsFlash", () => new T.RingGeometry(0.1, 0.45, 16)), flashMat);
+  const flash = m(geo("cfxMsFlash", () => new T.RingGeometry(0.1, 0.55, 18)), flashMat);
   flash.position.set(0, 0.85, 0.2);
   g.add(flash);
+  // radiating spark motes on loose
+  const sparks = [];
+  for (let i = 0; i < 6; i++) {
+    const sMat = new T.MeshBasicMaterial({ color: c, fog: false, transparent: true, opacity: 0, blending: T.AdditiveBlending, depthWrite: false });
+    const s = m(geo("cfxMsSpark", () => new T.SphereGeometry(0.07, 6, 6)), sMat);
+    s.position.set(0, 0.85, 0.2);
+    const a = (i / 6) * Math.PI * 2;
+    s.userData.dx = Math.cos(a);
+    s.userData.dy = Math.sin(a);
+    s.userData.mat = sMat;
+    g.add(s);
+    sparks.push(s);
+  }
   g.userData.castAnim = (grp, prog) => {
-    const released = prog > 0.62;
-    const rel = released ? (prog - 0.62) / 0.38 : 0;
+    const released = prog > 0.6;
+    const draw = Math.min(1, prog / 0.6);
+    const rel = released ? (prog - 0.6) / 0.4 : 0;
+    // nock charges up bright during the draw, pops out on release
+    const ch = released ? Math.max(0, 1 - rel * 3) : draw;
+    nockMat.opacity = 0.9 * ch;
+    nock.scale.setScalar(0.5 + draw * 0.7 + (released ? rel * 0.6 : 0));
     for (let i = 0; i < fan.length; i++) {
       const a = fan[i];
       const reach = released ? rel : 0;
-      a.position.z = reach * (2.6 + Math.abs(a.userData.ang) * 1.5);
-      a.userData.mat.opacity = released ? (0.85 * (1 - rel)) : 0;
-      const sc = 0.6 + reach * 0.6;
+      const spread = 1 + Math.abs(a.userData.ang) * 1.6;
+      a.position.z = reach * (3.0 * spread);
+      const fade = released ? Math.max(0, 1 - rel) : 0;
+      a.userData.core.opacity = 0.95 * fade;
+      a.userData.head.opacity = 1.0 * fade;
+      a.userData.tail.opacity = 0.5 * fade;
+      const sc = 0.6 + reach * 0.7;
       a.scale.set(1, 1, sc);
     }
     const fl = released ? Math.sin(Math.min(1, rel * 3) * Math.PI) : 0;
-    flashMat.opacity = 0.7 * fl;
-    flash.scale.setScalar(0.6 + fl * 1.4);
-  };
-  return g;
-}
-
-export function buildCastFx_poisontrap(opts) {
-  const c = (opts && opts.color) || "#9be57c";
-  const g = new T.Group();
-  // Bubbling pod core at the feet (fresh material -> opacity animated)
-  const podMat = new T.MeshBasicMaterial({ color: c, fog:false, transparent:true, opacity:0.0, blending:T.AdditiveBlending, depthWrite:false });
-  const pod = m(geo("cfxPtPod", () => new T.SphereGeometry(0.5, 16, 12)), podMat);
-  pod.position.y = 0.18; pod.scale.set(0.2, 0.12, 0.2); g.add(pod);
-  // Toxic ground ring marking the trap (fresh material)
-  const ringMat = new T.MeshBasicMaterial({ color: c, fog:false, transparent:true, opacity:0.0, blending:T.AdditiveBlending, depthWrite:false });
-  const ring = m(geo("cfxPtRing", () => new T.RingGeometry(0.55, 0.95, 30)), ringMat);
-  ring.rotation.x = -Math.PI/2; ring.position.y = 0.03; g.add(ring);
-  // Rising bubbles that roil up out of the pod -- each gets its OWN fresh material so fade is independent
-  const bubbles = [];
-  for (let i = 0; i < 7; i++) {
-    const bMat = new T.MeshBasicMaterial({ color: c, fog:false, transparent:true, opacity:0.0, blending:T.AdditiveBlending, depthWrite:false });
-    const b = m(geo("cfxPtBub", () => new T.SphereGeometry(0.12, 8, 6)), bMat);
-    const a = (i / 7) * Math.PI * 2;
-    b.userData.a = a; b.userData.r = 0.18 + (i % 3) * 0.12; b.userData.ph = i * 0.6; b.userData.mat = bMat;
-    b.position.set(Math.cos(a) * b.userData.r, 0.18, Math.sin(a) * b.userData.r);
-    g.add(b); bubbles.push(b);
-  }
-  g.userData.castAnim = (grp, prog, now) => {
-    const env = Math.sin(prog * Math.PI);
-    const grow = Math.min(prog / 0.7, 1);
-    const t = (now || 0) * 0.004;
-    // pod swells and roils with a wobble
-    podMat.opacity = 0.6 * env;
-    const sw = 0.2 + grow * 0.85;
-    pod.scale.set(sw * (1 + 0.12 * Math.sin(t * 3)), sw * 0.7 * (1 + 0.15 * Math.sin(t * 4 + 1)), sw * (1 + 0.12 * Math.sin(t * 3 + 2)));
-    pod.position.y = 0.18 + 0.04 * Math.sin(t * 2);
-    // ring expands and pulses
-    ringMat.opacity = 0.5 * env;
-    ring.scale.setScalar(0.6 + grow * 0.9 + 0.06 * Math.sin(t * 3));
-    ring.rotation.z = prog * 1.6;
-    // bubbles drift up and out, popping back down (roil) -- independent per-bubble fade
-    for (let i = 0; i < bubbles.length; i++) {
-      const b = bubbles[i];
-      const up = ((t + b.userData.ph) % 1.0);
-      const rr = b.userData.r + up * 0.35;
-      b.position.set(Math.cos(b.userData.a) * rr, 0.12 + up * 0.7, Math.sin(b.userData.a) * rr);
-      const fade = (1 - up);
-      b.scale.setScalar((0.5 + 0.6 * Math.sin(up * Math.PI)) * grow);
-      b.userData.mat.opacity = 0.55 * env * fade;
+    flashMat.opacity = 0.85 * fl;
+    flash.scale.setScalar(0.6 + fl * 1.8);
+    for (let i = 0; i < sparks.length; i++) {
+      const s = sparks[i];
+      const d = released ? rel : 0;
+      s.position.x = s.userData.dx * d * 1.1;
+      s.position.y = 0.85 + s.userData.dy * d * 1.1;
+      s.position.z = 0.2 + d * 0.6;
+      s.userData.mat.opacity = 0.8 * fl;
     }
   };
   return g;
 }
 
+// Strengthened: brighter, punchier bloom — added an arcing thrown-flask bolt that lobs in and SHATTERS into a flash, a fast expanding spore shockring, a billowing dome of spore puffs that swell+rise, plus drifting up-motes. Bigger scales, hotter peak opacities, clearer arc->impact->bloom beat.
+export function buildCastFx_poisontrap(opts) {
+  const c = (opts && opts.color) || "#9be57c";
+  const g = new T.Group();
+
+  // --- Thrown flask: a bright bolt that arcs in underhand and lands at the feet ---
+  const flaskMat = new T.MeshBasicMaterial({ color: c, fog:false, transparent:true, opacity:0.0, blending:T.AdditiveBlending, depthWrite:false });
+  const flask = m(geo("cfxPtFlask", () => new T.SphereGeometry(0.16, 10, 8)), flaskMat);
+  g.add(flask);
+  // little trailing glow behind the flask
+  const trailMat = new T.MeshBasicMaterial({ color: c, fog:false, transparent:true, opacity:0.0, blending:T.AdditiveBlending, depthWrite:false });
+  const trail = m(geo("cfxPtTrail", () => new T.SphereGeometry(0.11, 8, 6)), trailMat);
+  g.add(trail);
+
+  // --- Impact flash on shatter ---
+  const flashMat = new T.MeshBasicMaterial({ color: "#eaffd6", fog:false, transparent:true, opacity:0.0, blending:T.AdditiveBlending, depthWrite:false });
+  const flash = m(geo("cfxPtFlash", () => new T.CircleGeometry(0.7, 24)), flashMat);
+  flash.rotation.x = -Math.PI/2; flash.position.y = 0.05; g.add(flash);
+
+  // --- Fast expanding spore shock-ring on the ground ---
+  const ringMat = new T.MeshBasicMaterial({ color: c, fog:false, transparent:true, opacity:0.0, blending:T.AdditiveBlending, depthWrite:false });
+  const ring = m(geo("cfxPtRing", () => new T.RingGeometry(0.45, 0.9, 32)), ringMat);
+  ring.rotation.x = -Math.PI/2; ring.position.y = 0.035; g.add(ring);
+
+  // --- Bubbling pod core that swells at the feet ---
+  const podMat = new T.MeshBasicMaterial({ color: c, fog:false, transparent:true, opacity:0.0, blending:T.AdditiveBlending, depthWrite:false });
+  const pod = m(geo("cfxPtPod", () => new T.SphereGeometry(0.5, 16, 12)), podMat);
+  pod.position.y = 0.2; pod.scale.set(0.2, 0.12, 0.2); g.add(pod);
+
+  // --- Billowing dome of spore puffs (the bloom) -- each own fresh material ---
+  const puffs = [];
+  for (let i = 0; i < 10; i++) {
+    const pMat = new T.MeshBasicMaterial({ color: c, fog:false, transparent:true, opacity:0.0, blending:T.AdditiveBlending, depthWrite:false });
+    const p = m(geo("cfxPtPuff", () => new T.SphereGeometry(0.22, 8, 6)), pMat);
+    const a = (i / 10) * Math.PI * 2 + (i % 2) * 0.3;
+    p.userData.a = a;
+    p.userData.r = 0.3 + (i % 3) * 0.22;
+    p.userData.ph = (i * 0.37) % 1;
+    p.userData.hi = 0.25 + (i % 4) * 0.16;   // how high this puff billows
+    p.userData.mat = pMat;
+    g.add(p); puffs.push(p);
+  }
+
+  // --- Drifting up-motes (spores rising) -- own fresh material ---
+  const motes = [];
+  for (let i = 0; i < 6; i++) {
+    const mMat = new T.MeshBasicMaterial({ color: "#d4ffb0", fog:false, transparent:true, opacity:0.0, blending:T.AdditiveBlending, depthWrite:false });
+    const mo = m(geo("cfxPtMote", () => new T.SphereGeometry(0.06, 6, 5)), mMat);
+    mo.userData.a = (i / 6) * Math.PI * 2;
+    mo.userData.r = 0.25 + (i % 2) * 0.2;
+    mo.userData.ph = i * 0.5;
+    mo.userData.mat = mMat;
+    g.add(mo); motes.push(mo);
+  }
+
+  g.userData.castAnim = (grp, prog, now) => {
+    const t = (now || 0) * 0.004;
+    const land = 0.45;                       // flask lands here
+
+    if (prog < land) {
+      // ---- arc the flask in (underhand lob): starts up-and-behind, lands at feet ----
+      const u = prog / land;                 // 0..1 along the arc
+      flaskMat.opacity = 0.95;
+      const ax = 0.5 * (1 - u);               // come from forward-right of body
+      const az = 0.5 * (1 - u);
+      const ay = 0.3 + 1.4 * Math.sin(u * Math.PI) * (1 - u * 0.3); // lob hump
+      flask.position.set(ax, Math.max(0.1, ay), az);
+      flask.scale.setScalar(1 + 0.3 * Math.sin(t * 6));
+      trailMat.opacity = 0.55;
+      trail.position.set(ax + 0.08 * (1 - u), Math.max(0.1, ay) + 0.12, az + 0.08 * (1 - u));
+      trail.scale.setScalar(0.9);
+      // everything else dormant
+      flashMat.opacity = 0; ringMat.opacity = 0; podMat.opacity = 0;
+      for (let i = 0; i < puffs.length; i++) puffs[i].userData.mat.opacity = 0;
+      for (let i = 0; i < motes.length; i++) motes[i].userData.mat.opacity = 0;
+    } else {
+      // ---- shatter + bloom ----
+      const b = (prog - land) / (1 - land);  // 0..1 after impact
+      const fade = 1 - b;
+      const grow = Math.min(b / 0.5, 1);
+
+      flaskMat.opacity = 0; trailMat.opacity = 0;
+
+      // impact flash: hot, instant, gone fast
+      flashMat.opacity = 1.0 * Math.max(0, 1 - b * 3.2);
+      flash.scale.setScalar(0.5 + 2.0 * Math.min(b * 3, 1));
+
+      // shock-ring rips outward
+      ringMat.opacity = 0.85 * fade;
+      ring.scale.setScalar(0.5 + 2.4 * grow + 0.05 * Math.sin(t * 4));
+
+      // pod core swells and roils
+      podMat.opacity = 0.8 * (fade * 0.6 + 0.4 * Math.sin(b * Math.PI));
+      const sw = 0.3 + grow * 1.0;
+      pod.scale.set(sw * (1 + 0.14 * Math.sin(t * 3)), sw * 0.75 * (1 + 0.16 * Math.sin(t * 4 + 1)), sw * (1 + 0.14 * Math.sin(t * 3 + 2)));
+      pod.position.y = 0.2 + 0.05 * Math.sin(t * 2);
+
+      // billowing dome of puffs: swell up-and-out, then thin
+      for (let i = 0; i < puffs.length; i++) {
+        const p = puffs[i];
+        const rr = p.userData.r + grow * 0.55;
+        const lift = p.userData.hi + grow * 0.6 + 0.06 * Math.sin(t * 3 + i);
+        p.position.set(Math.cos(p.userData.a) * rr, 0.15 + lift, Math.sin(p.userData.a) * rr);
+        p.scale.setScalar((0.5 + 1.1 * grow) * (1 + 0.18 * Math.sin(t * 5 + p.userData.ph * 6)));
+        p.userData.mat.opacity = 0.7 * (0.4 + 0.6 * grow) * fade;
+      }
+
+      // up-motes spiral up out of the cloud, popping back
+      for (let i = 0; i < motes.length; i++) {
+        const mo = motes[i];
+        const up = ((t * 0.7 + mo.userData.ph) % 1.0);
+        const rr = mo.userData.r + up * 0.35;
+        mo.position.set(Math.cos(mo.userData.a + up * 1.5) * rr, 0.15 + up * 1.3, Math.sin(mo.userData.a + up * 1.5) * rr);
+        mo.scale.setScalar(0.7 + 0.5 * Math.sin(up * Math.PI));
+        mo.userData.mat.opacity = 0.7 * (1 - up) * fade;
+      }
+    }
+  };
+
+  return g;
+}
+
+// Strengthened: brighter/longer lance with a hot white-cored shaft + leading spear-tip flare, a sharp loose-flash muzzle burst, and trailing speed rings that rip forward with the bolt.
 export function buildCastFx_piercingshot(opts) {
   const c = (opts && opts.color) || "#caa15a";
   const g = new T.Group();
-  const boltMat = new T.MeshBasicMaterial({ color: c, fog:false, transparent:true, opacity:0.0, blending:T.AdditiveBlending, depthWrite:false });
-  const tipMat = new T.MeshBasicMaterial({ color: c, fog:false, transparent:true, opacity:0.0, blending:T.AdditiveBlending, depthWrite:false });
-  const ringMat = new T.MeshBasicMaterial({ color: c, fog:false, transparent:true, opacity:0.0, blending:T.AdditiveBlending, depthWrite:false });
-  const muzMat = new T.MeshBasicMaterial({ color: c, fog:false, transparent:true, opacity:0.0, blending:T.AdditiveBlending, depthWrite:false });
+  const mk = () => new T.MeshBasicMaterial({ color: c, fog:false, transparent:true, opacity:0.0, blending:T.AdditiveBlending, depthWrite:false });
+  const mkW = () => new T.MeshBasicMaterial({ color:"#ffffff", fog:false, transparent:true, opacity:0.0, blending:T.AdditiveBlending, depthWrite:false });
+  const boltMat = mk();
+  const glowMat = mk();
+  const coreMat = mkW();
+  const tipMat = mk();
+  const tipHotMat = mkW();
+  const ringMat = mk();
+  const muzMat = mk();
+  const muzHotMat = mkW();
 
-  const bolt = m(cyl(0.035, 0.035, 1, 6), boltMat);
+  const Y = 0.9;
+
+  // bright outer shaft
+  const bolt = m(cyl(0.05, 0.05, 1, 8), boltMat);
   bolt.rotation.x = Math.PI/2;
-  bolt.position.set(0, 0.9, 0.5);
+  bolt.position.set(0, Y, 0.5);
   g.add(bolt);
 
-  const glow = m(box(0.16, 0.16, 1.0), boltMat);
-  glow.position.set(0, 0.9, 0.5);
+  // soft box glow halo around the shaft
+  const glow = m(box(0.22, 0.22, 1.0), glowMat);
+  glow.position.set(0, Y, 0.5);
   g.add(glow);
 
-  const tip = m(cone(0.12, 0.45, 8), tipMat);
-  tip.rotation.x = Math.PI/2;
-  tip.position.set(0, 0.9, 1.0);
-  g.add(tip);
+  // hot white inner core for brightness
+  const core = m(cyl(0.02, 0.02, 1, 6), coreMat);
+  core.rotation.x = Math.PI/2;
+  core.position.set(0, Y, 0.5);
+  g.add(core);
 
+  // leading spear tip (themed) + hot white tip
+  const tip = m(cone(0.15, 0.6, 10), tipMat);
+  tip.rotation.x = Math.PI/2;
+  tip.position.set(0, Y, 1.0);
+  g.add(tip);
+  const tipHot = m(cone(0.07, 0.34, 8), tipHotMat);
+  tipHot.rotation.x = Math.PI/2;
+  tipHot.position.set(0, Y, 1.05);
+  g.add(tipHot);
+
+  // speed rings ripping forward along the bolt
   const rings = [];
-  for (let i = 0; i < 3; i++) {
-    const r = m(geo("cfxPsRing" + i, () => new T.RingGeometry(0.18, 0.34, 18)), ringMat);
-    r.position.set(0, 0.9, 0.2);
-    r.userData.off = i / 3;
+  for (let i = 0; i < 4; i++) {
+    const r = m(geo("cfxPsRing" + i, () => new T.RingGeometry(0.16, 0.30, 20)), ringMat);
+    r.position.set(0, Y, 0.2);
+    r.userData.off = i / 4;
     g.add(r);
     rings.push(r);
   }
 
-  const muzzle = m(geo("cfxPsMuzzle", () => new T.RingGeometry(0.05, 0.4, 16)), muzMat);
-  muzzle.position.set(0, 0.9, 0.05);
+  // muzzle loose-flash burst
+  const muzzle = m(geo("cfxPsMuzzle", () => new T.RingGeometry(0.05, 0.42, 18)), muzMat);
+  muzzle.position.set(0, Y, 0.05);
   g.add(muzzle);
+  const muzHot = m(geo("cfxPsMuzHot", () => new T.RingGeometry(0.02, 0.22, 16)), muzHotMat);
+  muzHot.position.set(0, Y, 0.06);
+  g.add(muzHot);
+
+  // charge sparkle before loose
+  const charge = m(geo("cfxPsCharge", () => new T.SphereGeometry(0.13, 10, 10)), mkW());
+  charge.position.set(0, Y, 0.1);
+  g.add(charge);
+  const chargeMat = charge.material;
 
   g.userData.castAnim = (grp, prog) => {
+    // pre-loose charge build
+    const ch = prog < 0.6 ? Math.min(1, prog / 0.6) : 0;
+    chargeMat.opacity = 0.85 * ch * ch;
+    charge.scale.setScalar(0.4 + 0.7 * ch + 0.25 * Math.sin(prog * 90));
+
     const fire = prog > 0.6 ? (prog - 0.6) / 0.4 : 0;
     const env = Math.sin(Math.min(1, fire) * Math.PI);
-    const reach = 0.1 + fire * 5.5;
-    boltMat.opacity = 0.7 * env;
-    tipMat.opacity = 0.85 * env;
-    ringMat.opacity = 0.6 * env;
+    // ease-out so the bolt LEAPS forward fast then settles
+    const fe = fire * (2 - fire);
+    const reach = 0.1 + fe * 7.0;
+
+    boltMat.opacity = 0.85 * env;
+    glowMat.opacity = 0.5 * env;
+    coreMat.opacity = 0.95 * env;
+    tipMat.opacity = 0.9 * env;
+    tipHotMat.opacity = 1.0 * env;
+    ringMat.opacity = 0.65 * env;
 
     const len = reach;
-    bolt.scale.y = len;
-    bolt.position.z = 0.1 + len * 0.5;
-    glow.scale.z = len;
-    glow.position.z = 0.1 + len * 0.5;
-    tip.position.z = 0.1 + len + 0.2;
-    tip.scale.setScalar(1 + 0.4 * env);
+    const midZ = 0.1 + len * 0.5;
+    bolt.scale.y = len; bolt.position.z = midZ;
+    glow.scale.z = len; glow.position.z = midZ;
+    core.scale.y = len; core.position.z = midZ;
+    tip.position.z = 0.1 + len + 0.25;
+    tip.scale.setScalar(1 + 0.5 * env);
+    tipHot.position.z = 0.1 + len + 0.28;
+    tipHot.scale.setScalar(1 + 0.6 * env);
 
     for (let i = 0; i < rings.length; i++) {
       const r = rings[i];
-      const t = (fire + r.userData.off) % 1;
+      const t = (fire * 1.4 + r.userData.off) % 1;
       r.position.z = 0.1 + t * reach;
-      r.scale.setScalar(1 + t * 0.6);
+      r.scale.setScalar(0.9 + t * 0.8);
     }
 
-    const flash = prog < 0.62 ? 0 : Math.max(0, 1 - (prog - 0.6) / 0.18);
-    muzMat.opacity = 0.9 * flash;
-    muzzle.scale.setScalar(0.6 + flash * 2.2);
+    // sharp loose flash
+    const flash = prog < 0.6 ? 0 : Math.max(0, 1 - (prog - 0.6) / 0.16);
+    muzMat.opacity = 0.95 * flash;
+    muzHotMat.opacity = 1.0 * flash;
+    muzzle.scale.setScalar(0.6 + flash * 2.8);
+    muzHot.scale.setScalar(0.5 + flash * 2.0);
   };
   return g;
 }
 
+// Strengthened: brighter ringed volley that launches up THEN rains arrow-streaks down over a wide area, with a target-zone flare + ground impact ring.
 export function buildCastFx_volley(opts) {
   const c = (opts && opts.color) || "#7dffb0";
   const g = new T.Group();
-  const arrowMat = new T.MeshBasicMaterial({ color: c, fog:false, transparent:true, opacity:0.0, blending:T.AdditiveBlending, depthWrite:false });
-  const N = 8;
+
+  // ---- rising volley arrows (launch up off the bow) ----
+  const N = 9;
   const arrows = [];
   for (let i = 0; i < N; i++) {
-    const a = m(box(0.06, 0.06, 0.7), arrowMat);
-    const head = m(cone(0.12, 0.28, 4), arrowMat);
-    head.position.z = 0.5; head.rotation.x = Math.PI / 2; a.add(head);
+    const aMat = new T.MeshBasicMaterial({ color: c, fog:false, transparent:true, opacity:0.0, blending:T.AdditiveBlending, depthWrite:false });
+    const a = m(geo("cfxVolleyShaft", () => box(0.05, 0.05, 0.85)), aMat);
+    const head = m(geo("cfxVolleyHead", () => cone(0.13, 0.32, 4)), aMat);
+    head.position.z = 0.6; head.rotation.x = Math.PI / 2; a.add(head);
+    a.userData.mat = aMat;
     a.userData.ang = (i / N) * Math.PI * 2;
-    a.userData.spread = 1.5 + (i % 3) * 0.55;
+    a.userData.spread = 1.4 + (i % 3) * 0.6;
     g.add(a); arrows.push(a);
   }
+
+  // ---- raining streaks falling onto the target area ----
+  const M = 12;
+  const rain = [];
+  const RZ = 3.4; // forward reach of the rain zone
+  for (let i = 0; i < M; i++) {
+    const rMat = new T.MeshBasicMaterial({ color: c, fog:false, transparent:true, opacity:0.0, blending:T.AdditiveBlending, depthWrite:false });
+    const s = m(geo("cfxVolleyStreak", () => box(0.04, 0.04, 1.1)), rMat);
+    s.rotation.x = -Math.PI / 2; // point downward
+    // scatter across a circular target zone in front of the player
+    const rr = 0.5 + Math.sqrt((i + 0.5) / M) * 2.0;
+    const ph = (i * 2.39996); // golden-angle scatter
+    s.userData.mat = rMat;
+    s.userData.tx = Math.cos(ph) * rr;
+    s.userData.tz = RZ + Math.sin(ph) * rr;
+    s.userData.delay = (i / M) * 0.45;
+    s.userData.len = 0.8 + (i % 4) * 0.25;
+    g.add(s); rain.push(s);
+  }
+
+  // ---- launch ring at the bow ----
   const ringMat = new T.MeshBasicMaterial({ color: c, fog:false, transparent:true, opacity:0.0, blending:T.AdditiveBlending, depthWrite:false });
-  const ring = m(geo("cfxVolleyRing", () => new T.RingGeometry(0.5, 0.85, 32)), ringMat);
+  const ring = m(geo("cfxVolleyRing", () => new T.RingGeometry(0.45, 0.9, 36)), ringMat);
   ring.rotation.x = -Math.PI / 2; ring.position.y = 0.05; g.add(ring);
+
+  // ---- target-zone impact ring on the ground ----
+  const zoneMat = new T.MeshBasicMaterial({ color: c, fog:false, transparent:true, opacity:0.0, blending:T.AdditiveBlending, depthWrite:false });
+  const zone = m(geo("cfxVolleyZone", () => new T.RingGeometry(0.6, 2.4, 40)), zoneMat);
+  zone.rotation.x = -Math.PI / 2; zone.position.set(0, 0.04, RZ); g.add(zone);
+
+  // ---- sky flare: bright glow at apex where arrows crest ----
+  const flareMat = new T.MeshBasicMaterial({ color: c, fog:false, transparent:true, opacity:0.0, blending:T.AdditiveBlending, depthWrite:false });
+  const flare = m(geo("cfxVolleyFlare", () => new T.SphereGeometry(0.5, 10, 8)), flareMat);
+  flare.position.set(0, 3.6, RZ * 0.5); g.add(flare);
+
   g.userData.castAnim = (grp, prog) => {
-    const draw = Math.min(prog / 0.6, 1);
-    const launch = prog > 0.6 ? (prog - 0.6) / 0.4 : 0;
-    const env = Math.sin(prog * Math.PI);
+    const draw = Math.min(prog / 0.55, 1);
+    const launch = prog > 0.55 ? (prog - 0.55) / 0.45 : 0;
+    const drawEnv = Math.sin(draw * Math.PI * 0.5);
+
+    // rising arrows: explode up off the bow on loose
     for (let i = 0; i < arrows.length; i++) {
       const a = arrows[i];
       const ang = a.userData.ang;
       const sp = a.userData.spread;
-      const t = Math.min(launch * 1.15, 1);
-      const arc = Math.sin(t * Math.PI);
+      const t = Math.min(launch * 1.3, 1);
+      const arc = Math.sin(Math.min(t, 1) * Math.PI * 0.5);
       const radius = t * sp;
       a.position.x = Math.cos(ang) * radius;
       a.position.z = Math.sin(ang) * radius;
-      a.position.y = 0.85 + arc * 2.8 + draw * 0.3;
-      const pitch = (0.5 - t) * 1.9;
+      a.position.y = 0.9 + arc * 3.4 + draw * 0.3;
+      const pitch = (0.6 - t) * 2.0;
       a.rotation.set(pitch, -ang + Math.PI / 2, 0);
-      const s = 0.6 + draw * 0.4 + launch * 0.3;
+      const s = 0.7 + draw * 0.4 + launch * 0.4;
       a.scale.setScalar(s);
+      a.userData.mat.opacity = launch > 0 ? 0.95 * (1 - t) : 0.2 + 0.7 * draw;
     }
-    arrowMat.opacity = launch > 0 ? 0.85 * (1 - 0.35 * launch) : 0.15 + 0.6 * draw;
-    ringMat.opacity = 0.6 * env;
-    ring.scale.setScalar(0.6 + prog * 1.7);
+
+    // falling rain: streaks plunge into the target zone, staggered
+    for (let i = 0; i < rain.length; i++) {
+      const s = rain[i];
+      const lt = (launch - s.userData.delay) / (1 - s.userData.delay);
+      if (lt <= 0) { s.userData.mat.opacity = 0; continue; }
+      const f = Math.min(lt, 1);
+      s.position.x = s.userData.tx;
+      s.position.z = s.userData.tz;
+      // fall from high sky down to ground
+      s.position.y = 4.4 * (1 - f) + 0.05;
+      s.scale.set(1, 1, s.userData.len * (0.6 + 0.7 * f));
+      // bright while falling, snuff on impact
+      s.userData.mat.opacity = f < 0.9 ? 0.95 : 0.95 * (1 - (f - 0.9) / 0.1);
+    }
+
+    // launch ring pulses out on draw, fades on loose
+    ringMat.opacity = (0.7 * drawEnv) * (1 - launch * 0.8);
+    ring.scale.setScalar(0.5 + draw * 1.4 + launch * 0.6);
+
+    // target zone blooms as the rain lands
+    zoneMat.opacity = 0.75 * Math.sin(Math.min(launch * 1.2, 1) * Math.PI);
+    zone.scale.setScalar(0.5 + launch * 1.3);
+
+    // apex flare flashes at the crest of the launch
+    const fl = Math.sin(Math.min(launch * 1.5, 1) * Math.PI);
+    flareMat.opacity = 0.85 * fl;
+    flare.scale.setScalar(0.5 + fl * 1.2);
   };
   return g;
 }
 
+// STRENGTHENED: jagged ground-tear cracks + double grave-glow ring + clawing bony hands AND rising skeletal forms, brighter staged reveal
 export function buildCastFx_raisedead(opts) {
   const c = (opts && opts.color) || "#a0ffc0";
   const g = new T.Group();
-  const wispMat = new T.MeshBasicMaterial({ color: c, fog:false, transparent:true, opacity:0.0, blending:T.AdditiveBlending, depthWrite:false });
-  const ringMat = new T.MeshBasicMaterial({ color: c, fog:false, transparent:true, opacity:0.0, blending:T.AdditiveBlending, depthWrite:false });
-  // ground summoning ring
-  const ring = m(geo("cfxRdRing", () => new T.RingGeometry(0.55, 0.95, 32)), ringMat);
+  const mkMat = () => new T.MeshBasicMaterial({ color: c, fog:false, transparent:true, opacity:0.0, blending:T.AdditiveBlending, depthWrite:false });
+  const ringMat = mkMat();
+  const crackMat = mkMat();
+  const handMat = mkMat();
+  const boneMat = mkMat();
+  const moteMat = mkMat();
+
+  // ---- grave-glow rings on the ground ----
+  const ring = m(geo("cfxRdRing", () => new T.RingGeometry(0.50, 0.92, 36)), ringMat);
   ring.rotation.x = -Math.PI/2; ring.position.y = 0.03; g.add(ring);
-  const ring2 = m(geo("cfxRdRing2", () => new T.RingGeometry(0.95, 1.05, 32)), ringMat);
+  const ring2 = m(geo("cfxRdRing2", () => new T.RingGeometry(0.95, 1.08, 36)), ringMat);
   ring2.rotation.x = -Math.PI/2; ring2.position.y = 0.03; g.add(ring2);
-  // bone/soul wisps rising from a ring around the feet
-  const wisps = [];
-  const N = 8;
-  for (let i = 0; i < N; i++) {
-    const a = (i / N) * Math.PI * 2;
-    const w = m(geo("cfxRdWisp", () => new T.ConeGeometry(0.07, 0.4, 6)), wispMat);
-    const r = 0.8;
-    w.userData.bx = Math.cos(a) * r;
-    w.userData.bz = Math.sin(a) * r;
-    w.userData.ph = i / N;
-    w.position.set(w.userData.bx, 0.1, w.userData.bz);
-    g.add(w); wisps.push(w);
+  const core = m(geo("cfxRdCore", () => new T.CircleGeometry(0.55, 24)), ringMat);
+  core.rotation.x = -Math.PI/2; core.position.y = 0.025; g.add(core);
+
+  // ---- jagged ground-tear cracks radiating out ----
+  const cracks = [];
+  const NC = 6;
+  for (let i = 0; i < NC; i++) {
+    const a = (i / NC) * Math.PI * 2 + 0.3;
+    const cr = m(geo("cfxRdCrack", () => new T.PlaneGeometry(0.10, 1.0)), crackMat);
+    cr.rotation.x = -Math.PI/2;
+    cr.rotation.z = a;
+    cr.position.set(Math.cos(a) * 0.55, 0.028, Math.sin(a) * 0.55);
+    cr.scale.set(0.0, 0.0, 0.0);
+    cr.userData.ph = i / NC;
+    g.add(cr); cracks.push(cr);
   }
+
+  // ---- clawing bony hands (fingers = thin cones) ----
+  const hands = [];
+  const NH = 4;
+  for (let i = 0; i < NH; i++) {
+    const a = (i / NH) * Math.PI * 2 + 0.6;
+    const r = 0.62;
+    const hand = new T.Group();
+    hand.position.set(Math.cos(a) * r, 0.05, Math.sin(a) * r);
+    for (let f = 0; f < 4; f++) {
+      const fin = m(geo("cfxRdFinger", () => new T.ConeGeometry(0.035, 0.34, 5)), handMat);
+      const fa = (f - 1.5) * 0.28;
+      fin.position.set(Math.sin(fa) * 0.10, 0.16, 0);
+      fin.rotation.z = -fa;
+      fin.rotation.x = -0.25; // curl like clutching claws
+      hand.add(fin);
+    }
+    hand.userData.ph = i / NH;
+    hand.userData.ang = a;
+    hand.scale.setScalar(0.0);
+    g.add(hand); hands.push(hand);
+  }
+
+  // ---- rising skeletal forms (tall ribbed wisps) ----
+  const bones = [];
+  const NB = 6;
+  for (let i = 0; i < NB; i++) {
+    const a = (i / NB) * Math.PI * 2;
+    const r = 0.82;
+    const bn = m(geo("cfxRdBone", () => new T.ConeGeometry(0.085, 0.9, 6)), boneMat);
+    bn.userData.bx = Math.cos(a) * r;
+    bn.userData.bz = Math.sin(a) * r;
+    bn.userData.ph = i / NB;
+    bn.position.set(bn.userData.bx, 0.05, bn.userData.bz);
+    g.add(bn); bones.push(bn);
+  }
+
+  // ---- soul motes flickering upward ----
+  const motes = [];
+  const NM = 10;
+  for (let i = 0; i < NM; i++) {
+    const mo = m(geo("cfxRdMote", () => new T.SphereGeometry(0.05, 6, 6)), moteMat);
+    mo.userData.ph = i / NM;
+    mo.userData.ang = (i * 2.39) % (Math.PI * 2);
+    mo.userData.rad = 0.3 + (i % 4) * 0.18;
+    g.add(mo); motes.push(mo);
+  }
+
   g.userData.castAnim = (grp, prog, now) => {
     const env = Math.sin(prog * Math.PI);
-    ringMat.opacity = 0.7 * env;
-    ring.rotation.z = prog * Math.PI * 1.5;
-    ring2.scale.setScalar(0.85 + env * 0.3);
-    wispMat.opacity = 0.85 * env;
     const t = (now || 0) * 0.004;
-    for (let i = 0; i < wisps.length; i++) {
-      const w = wisps[i];
-      const local = (prog * 1.3 + w.userData.ph) % 1;       // each wisp loops upward
-      w.position.y = 0.05 + local * 1.7;                    // rise from ground
-      const fade = Math.sin(local * Math.PI);               // born low, fade high
-      w.scale.set(fade, 0.5 + fade * 1.1, fade);
-      const swirl = w.userData.ph * Math.PI * 2 + t;        // curl inward as they rise
-      const rr = 0.8 * (1 - local * 0.55);
-      w.position.x = Math.cos(swirl) * rr;
-      w.position.z = Math.sin(swirl) * rr;
-      w.rotation.y = swirl;
+    const open = Math.min(prog / 0.40, 1);          // ground tears open
+    const oe = Math.sin(open * Math.PI / 2);
+    const summon = prog > 0.35 ? Math.min((prog - 0.35) / 0.5, 1) : 0;
+    const fade = prog > 0.82 ? (1 - (prog - 0.82) / 0.18) : 1;
+
+    // rings: bloom + spin
+    ringMat.opacity = (0.45 + 0.45 * env) * fade;
+    ring.rotation.z = prog * Math.PI * 1.8;
+    ring2.rotation.z = -prog * Math.PI * 1.4;
+    ring2.scale.setScalar(0.8 + env * 0.4);
+    core.scale.setScalar(0.5 + oe * 0.7 + Math.sin(prog * Math.PI * 8) * 0.04);
+
+    // cracks: snap open then hold bright
+    crackMat.opacity = 0.9 * oe * fade;
+    for (let i = 0; i < cracks.length; i++) {
+      const cr = cracks[i];
+      const lo = Math.max(0, Math.min(1, (open - cr.userData.ph * 0.25) / 0.6));
+      cr.scale.set(1, lo, 1);
+    }
+
+    // clawing hands: burst up first, clutch the air
+    handMat.opacity = 0.95 * Math.min(1, summon * 1.6) * fade;
+    for (let i = 0; i < hands.length; i++) {
+      const hd = hands[i];
+      const local = Math.max(0, Math.min(1, (summon - hd.userData.ph * 0.18) / 0.5));
+      const h = Math.sin(local * Math.PI * 0.5);
+      hd.scale.setScalar(h * 1.0);
+      hd.position.y = 0.05 + h * 0.5;
+      // clutch: rock the hand as it grasps
+      hd.rotation.y = hd.userData.ang + Math.sin(t * 2 + i) * 0.2;
+      hd.rotation.x = -0.2 + Math.sin(local * Math.PI + i) * 0.15;
+    }
+
+    // skeletal forms: stream upward, curling inward
+    boneMat.opacity = 0.85 * Math.min(1, summon * 1.4) * fade;
+    for (let i = 0; i < bones.length; i++) {
+      const bn = bones[i];
+      const local = ((summon * 1.3) + bn.userData.ph) % 1;
+      bn.position.y = 0.05 + local * 1.9;
+      const f2 = Math.sin(local * Math.PI);
+      bn.scale.set(0.5 + f2 * 0.7, 0.6 + f2 * 1.3, 0.5 + f2 * 0.7);
+      const swirl = bn.userData.ph * Math.PI * 2 + t;
+      const rr = 0.82 * (1 - local * 0.5);
+      bn.position.x = Math.cos(swirl) * rr;
+      bn.position.z = Math.sin(swirl) * rr;
+      bn.rotation.y = swirl;
+    }
+
+    // soul motes: flicker and drift up
+    moteMat.opacity = 0.8 * env * fade;
+    for (let i = 0; i < motes.length; i++) {
+      const mo = motes[i];
+      const local = ((prog * 1.5) + mo.userData.ph) % 1;
+      const sw = mo.userData.ang + t * 1.5;
+      const rr = mo.userData.rad * (1 - local * 0.3);
+      mo.position.set(Math.cos(sw) * rr, 0.1 + local * 1.6, Math.sin(sw) * rr);
+      const fl = Math.sin(local * Math.PI) * (0.6 + 0.4 * Math.sin(t * 6 + i));
+      mo.scale.setScalar(Math.max(0, fl));
     }
   };
   return g;
 }
 
+// STRENGTHENED: brighter twin-strand spiral tether, more motes streaming inward, a hungry pulsing chest-core that flares on each drink + inward shockwave rings
 export function buildCastFx_souldrain(opts) {
   const c = (opts && opts.color) || "#c489ff";
   const g = new T.Group();
   const handY = 1.05, handZ = 0.35;
-  const tipZ = 1.9;
-  const tetherMat = new T.MeshBasicMaterial({ color: c, fog:false, transparent:true, opacity:0.7, blending:T.AdditiveBlending, depthWrite:false });
-  const motes = [];
-  const N = 6;
-  for (let i = 0; i < N; i++) {
-    const s = m(geo("cfxSdMote", () => new T.OctahedronGeometry(0.11, 0)), tetherMat);
-    s.userData.ph = i / N;
-    g.add(s); motes.push(s);
-  }
-  const core = m(geo("cfxSdCore", () => new T.SphereGeometry(0.16, 10, 10)), tetherMat);
+  const tipZ = 2.2;
+  const NA = (hex, o) => new T.MeshBasicMaterial({ color: hex, opacity: o, blending: T.AdditiveBlending, transparent: true, depthWrite: false, fog: false });
+
+  // chest core — where soul is drained INTO
+  const coreMat = NA(c, 0.9);
+  const core = m(geo("cfxSdCore2", () => new T.SphereGeometry(0.18, 12, 12)), coreMat);
   core.position.set(0, handY, handZ); g.add(core);
-  const strand = m(cyl(0.025, 0.025, 1, 6), tetherMat);
-  strand.position.set(0, handY, (handZ + tipZ) / 2);
-  strand.rotation.x = Math.PI / 2;
-  strand.scale.y = tipZ - handZ;
-  g.add(strand);
-  const wisp = m(geo("cfxSdWisp", () => new T.RingGeometry(0.18, 0.3, 16)), tetherMat);
+  const haloMat = NA("#ffffff", 0.85);
+  const halo = m(geo("cfxSdHalo", () => new T.SphereGeometry(0.1, 10, 10)), haloMat);
+  halo.position.set(0, handY, handZ); g.add(halo);
+
+  // two spiraling tether strands hand -> foe
+  const strands = [];
+  for (let s = 0; s < 2; s++) {
+    const sm = NA(c, 0.7);
+    const st = m(cyl(0.03, 0.012, 1, 6), sm);
+    st.rotation.x = Math.PI / 2;
+    st.userData.mat = sm; st.userData.sign = s === 0 ? 1 : -1;
+    g.add(st); strands.push(st);
+  }
+
+  // soul motes streaming inward along the tether
+  const motes = [], N = 11;
+  for (let i = 0; i < N; i++) {
+    const mm = NA(i % 3 === 0 ? "#ffffff" : c, 0.85);
+    const mt = m(geo("cfxSdMote2", () => new T.OctahedronGeometry(0.1, 0)), mm);
+    mt.userData.ph = i / N; mt.userData.mat = mm; mt.userData.sw = (i % 2) ? 1 : -1;
+    g.add(mt); motes.push(mt);
+  }
+
+  // far wisp ring at the foe
+  const wispMat = NA(c, 0.8);
+  const wisp = m(geo("cfxSdWisp2", () => new T.RingGeometry(0.16, 0.34, 18)), wispMat);
   wisp.position.set(0, handY, tipZ); g.add(wisp);
+
+  // inward-collapsing pulse rings at the chest (each "drink")
+  const rings = [];
+  for (let i = 0; i < 2; i++) {
+    const rm = NA("#ffffff", 0);
+    const r = m(geo("cfxSdRing2", () => new T.RingGeometry(0.3, 0.42, 24)), rm);
+    r.position.set(0, handY, handZ);
+    r.userData.mat = rm; r.userData.off = i * 0.5;
+    g.add(r); rings.push(r);
+  }
+
   g.userData.castAnim = (grp, prog, now) => {
     const t = now * 0.004;
-    const env = Math.sin(prog * Math.PI);
-    const pullT = 0.5 - 0.5 * Math.cos(prog * Math.PI * 2);
-    tetherMat.opacity = 0.75 * env;
-    const reach = tipZ - prog * 0.55;
-    strand.position.z = (handZ + reach) / 2;
-    strand.scale.y = reach - handZ;
-    strand.scale.x = strand.scale.z = 1 + Math.sin(t * 3) * 0.25;
+    const env = Math.sin(Math.min(1, prog) * Math.PI);
+    const reach = tipZ - prog * 0.7;
+    const drink = Math.max(0, (prog - 0.4) / 0.6);
+    const beat = 0.5 + 0.5 * Math.sin(prog * Math.PI * 9);
+
+    coreMat.opacity = (0.55 + 0.45 * beat) * (0.4 + 0.6 * env);
+    core.scale.setScalar(0.7 + drink * 1.1 + beat * 0.4 * env);
+    haloMat.opacity = (0.5 + 0.5 * beat) * env;
+    halo.scale.setScalar(0.5 + drink * 0.7 + beat * 0.3);
+
+    // strands spiral between hand-core and reach
+    for (let s = 0; s < strands.length; s++) {
+      const st = strands[s];
+      st.position.z = (handZ + reach) / 2;
+      st.position.y = handY;
+      st.scale.y = (reach - handZ);
+      const w = 1 + Math.sin(t * 5 + s * Math.PI) * 0.5;
+      st.scale.x = st.scale.z = w;
+      st.rotation.z = t * 3 * st.userData.sign;
+      st.position.x = Math.sin(t * 4 + s * Math.PI) * 0.06 * st.userData.sign;
+      st.userData.mat.opacity = (0.5 + 0.4 * beat) * env;
+    }
+
+    // wisp ring at foe shrinks as soul is sapped
     wisp.position.z = reach;
-    wisp.position.y = handY + Math.sin(t * 2) * 0.08;
-    wisp.scale.setScalar(0.8 + pullT * 0.5);
-    wisp.rotation.z = t;
-    core.scale.setScalar(0.6 + pullT * 0.9 + env * 0.3);
+    wisp.position.y = handY + Math.sin(t * 2) * 0.07;
+    wisp.scale.setScalar((1.1 - prog * 0.5) + Math.sin(t * 3) * 0.1);
+    wisp.rotation.z = t * 1.5;
+    wispMat.opacity = 0.85 * env;
+
+    // motes race inward toward the chest, brightening as they arrive
     for (let i = 0; i < motes.length; i++) {
       const mt = motes[i];
-      let f = (mt.userData.ph + prog * 1.6) % 1;
-      f = 1 - f;
+      let f = (mt.userData.ph + prog * 1.9) % 1;
       const z = handZ + f * (reach - handZ);
-      mt.position.set(Math.sin(z * 6 + t * 4) * 0.12, handY + Math.cos(z * 5 + t * 3) * 0.1, z);
-      const s = (0.5 + (1 - f) * 0.7) * env;
-      mt.scale.setScalar(s);
-      mt.rotation.x = t * 2 + i; mt.rotation.y = t * 3;
+      const spin = z * 5 + t * 5;
+      mt.position.set(Math.cos(spin) * 0.16 * mt.userData.sw, handY + Math.sin(spin) * 0.14, z);
+      const near = 1 - f;
+      mt.scale.setScalar((0.4 + near * 1.1) * env);
+      mt.userData.mat.opacity = (0.5 + near * 0.5) * env;
+      mt.rotation.x = t * 3 + i; mt.rotation.y = t * 4;
+    }
+
+    // collapsing pulse rings on each drink
+    for (let i = 0; i < rings.length; i++) {
+      const r = rings[i];
+      const p = ((prog * 2.2 + r.userData.off) % 1);
+      r.scale.setScalar(0.2 + (1 - p) * 1.3);
+      r.rotation.z = t * 2;
+      r.userData.mat.opacity = p * (1 - p) * 3.2 * drink * env;
     }
   };
   return g;
 }
 
+// Stronger: replaced single centered shard-ring with SEVERAL distinct sickly-green bursts popping at offset spots AROUND the player (staggered pop timing), each a bright flare + spike-shards + shock-ring, plus a charging core and ground scorch.
 export function buildCastFx_corpseexplosion(opts) {
-  const c = (opts && opts.color) || "#b6ff6a";
+  const c = (opts && opts.color) || "#9bff4a";
   const g = new T.Group();
   const CHEST = 0.85;
 
-  const ringMat = new T.MeshBasicMaterial({ color: c, fog:false, transparent:true, opacity:0.0, blending:T.AdditiveBlending, depthWrite:false });
-  const groundMat = new T.MeshBasicMaterial({ color: c, fog:false, transparent:true, opacity:0.0, blending:T.AdditiveBlending, depthWrite:false });
-  const coreMat = new T.MeshBasicMaterial({ color: c, fog:false, transparent:true, opacity:0.0, blending:T.AdditiveBlending, depthWrite:false });
-  const shardMat = new T.MeshBasicMaterial({ color: c, fog:false, transparent:true, opacity:0.0, blending:T.AdditiveBlending, depthWrite:false });
+  const mkMat = (op) => new T.MeshBasicMaterial({ color: c, fog:false, transparent:true, opacity: op||0, blending:T.AdditiveBlending, depthWrite:false });
 
-  const ring = m(geo("cfxCeRing", () => new T.RingGeometry(0.55, 0.85, 36)), ringMat);
-  ring.position.y = CHEST;
-  g.add(ring);
-
-  const ground = m(geo("cfxCeGround", () => new T.RingGeometry(0.6, 0.95, 36)), groundMat);
-  ground.rotation.x = -Math.PI / 2;
-  ground.position.y = 0.04;
-  g.add(ground);
-
-  const core = m(geo("cfxCeCore", () => new T.SphereGeometry(0.32, 16, 12)), coreMat);
+  // --- charging core at the chest (clench glow) that flashes white-bright on detonate ---
+  const coreMat = mkMat(0);
+  const core = m(geo("cfxCeCore", () => new T.SphereGeometry(0.30, 16, 12)), coreMat);
   core.position.y = CHEST;
   g.add(core);
 
-  const shards = [];
-  const N = 8;
-  for (let i = 0; i < N; i++) {
-    const s = m(box(0.5, 0.07, 0.07), shardMat);
-    const a = (i / N) * Math.PI * 2;
-    s.userData.a = a;
-    s.position.y = CHEST;
-    s.rotation.y = a;
-    g.add(s);
-    shards.push(s);
+  // central shock ring on the ground from the throw-down
+  const shockMat = mkMat(0);
+  const shock = m(geo("cfxCeShock", () => new T.RingGeometry(0.45, 0.78, 40)), shockMat);
+  shock.rotation.x = -Math.PI / 2;
+  shock.position.y = 0.05;
+  g.add(shock);
+
+  // ground scorch flare
+  const scorchMat = mkMat(0);
+  const scorch = m(geo("cfxCeScorch", () => new T.CircleGeometry(1.0, 36)), scorchMat);
+  scorch.rotation.x = -Math.PI / 2;
+  scorch.position.y = 0.03;
+  g.add(scorch);
+
+  // --- SEVERAL corpse-bursts popping around the player ---
+  const BURSTS = 5;
+  const SPIKES = 5;
+  const bursts = [];
+  for (let b = 0; b < BURSTS; b++) {
+    const ang = (b / BURSTS) * Math.PI * 2 + 0.4;
+    const rad = 1.5 + (b % 2) * 0.55;
+    const bx = Math.sin(ang) * rad;
+    const bz = Math.cos(ang) * rad;
+    const by = CHEST * (0.35 + (b % 3) * 0.22);
+    const node = new T.Group();
+    node.position.set(bx, by, bz);
+    g.add(node);
+
+    // bright flare ball
+    const flareMat = mkMat(0);
+    const flare = m(geo("cfxCeFlare", () => new T.SphereGeometry(0.30, 12, 10)), flareMat);
+    node.add(flare);
+
+    // expanding shock ringlet, faces the player roughly
+    const ringMat = mkMat(0);
+    const ring = m(geo("cfxCeBRing", () => new T.RingGeometry(0.30, 0.50, 28)), ringMat);
+    ring.lookAt(new T.Vector3(0, by, 0));
+    node.add(ring);
+
+    // jagged spike-shards bursting outward
+    const spikes = [];
+    for (let s = 0; s < SPIKES; s++) {
+      const sMat = mkMat(0);
+      const sp = m(geo("cfxCeSpike", () => new T.ConeGeometry(0.07, 0.55, 6)), sMat);
+      const sa = (s / SPIKES) * Math.PI * 2;
+      sp.userData.sa = sa;
+      sp.userData.mat = sMat;
+      node.add(sp);
+      spikes.push(sp);
+    }
+
+    bursts.push({
+      node, flare, flareMat, ring, ringMat, spikes,
+      // staggered detonation peak so they pop in a ripple
+      peak: 0.5 + (b - (BURSTS - 1) / 2) * 0.055,
+      seed: b
+    });
   }
 
   g.userData.castAnim = (grp, prog) => {
-    const d = Math.max(0, 1 - Math.abs(prog - 0.5) / 0.16);
-    const blast = d * d;
-    const t = (prog - 0.45) / 0.55;
-    const grow = t < 0 ? 0 : (t > 1 ? 1 : t);
-    const after = prog > 0.45 ? 1 : 0;
-
-    const rScale = 0.4 + grow * 3.6;
-    ring.scale.setScalar(rScale);
-    ground.scale.setScalar(0.4 + grow * 4.2);
-    ringMat.opacity = (0.95 * blast + 0.4 * (1 - grow)) * after;
-    groundMat.opacity = (0.7 * blast + 0.3 * (1 - grow)) * after;
-
     const charge = Math.min(prog / 0.45, 1);
-    core.scale.setScalar(0.3 + charge * 0.6 + blast * 1.8);
-    coreMat.opacity = 0.25 * charge + 0.95 * blast;
+    // central detonation envelope
+    const dC = Math.max(0, 1 - Math.abs(prog - 0.5) / 0.12);
+    const blastC = dC * dC;
+    const after = prog > 0.46 ? 1 : 0;
+    const t = (prog - 0.46) / 0.54;
+    const grow = t < 0 ? 0 : (t > 1 ? 1 : t);
 
-    const reach = grow * 2.6;
-    shardMat.opacity = (0.85 * blast + 0.4 * (1 - grow)) * after;
-    for (let i = 0; i < shards.length; i++) {
-      const s = shards[i];
-      const a = s.userData.a;
-      s.position.x = Math.sin(a) * reach;
-      s.position.z = Math.cos(a) * reach;
-      s.position.y = CHEST + Math.sin(grow * Math.PI) * 0.3 - grow * 0.5;
-      s.scale.setScalar(0.6 + blast * 1.2);
+    // core charges during clench, flares hard, then snuffs
+    core.scale.setScalar(0.28 + charge * 0.55 + blastC * 2.2);
+    coreMat.opacity = 0.30 * charge + 1.0 * blastC;
+    coreMat.color.setRGB(0.6 + 0.4 * blastC, 1.0, 0.3 + 0.4 * blastC);
+
+    // central shock ring sweeps out flat
+    shock.scale.setScalar(0.4 + grow * 4.6);
+    shockMat.opacity = (1.0 * blastC + 0.45 * (1 - grow)) * after;
+    scorch.scale.setScalar(0.5 + grow * 2.2);
+    scorchMat.opacity = (0.5 * blastC + 0.25 * (1 - grow)) * after;
+
+    // each burst pops on its own staggered timeline
+    for (let i = 0; i < bursts.length; i++) {
+      const B = bursts[i];
+      const d = Math.max(0, 1 - Math.abs(prog - B.peak) / 0.085);
+      const pop = d * d;
+      const lt = (prog - (B.peak - 0.05)) / 0.40;
+      const local = lt < 0 ? 0 : (lt > 1 ? 1 : lt);
+      const on = prog > (B.peak - 0.06) ? 1 : 0;
+
+      B.flare.scale.setScalar(0.25 + pop * 1.9 + local * 0.4);
+      B.flareMat.opacity = (1.0 * pop + 0.3 * (1 - local)) * on;
+      B.flareMat.color.setRGB(0.65 + 0.35 * pop, 1.0, 0.35);
+
+      B.ring.scale.setScalar(0.3 + local * 3.0);
+      B.ringMat.opacity = (0.85 * pop + 0.35 * (1 - local)) * on;
+
+      const reach = local * 1.4;
+      for (let s = 0; s < B.spikes.length; s++) {
+        const sp = B.spikes[s];
+        const sa = sp.userData.sa;
+        const dx = Math.sin(sa) * reach;
+        const dz = Math.cos(sa) * reach;
+        const dy = Math.sin(local * Math.PI) * 0.35;
+        sp.position.set(dx, dy, dz);
+        // point cones outward from the burst center
+        sp.rotation.z = -sa;
+        sp.rotation.x = Math.PI / 2;
+        sp.scale.setScalar(0.5 + pop * 1.3);
+        sp.userData.mat.opacity = (0.9 * pop + 0.3 * (1 - local)) * on;
+      }
+      // little upward drift as the burst dies
+      B.node.position.y += (pop * 0.02);
     }
 
-    grp.rotation.y = prog * 0.6;
+    grp.rotation.y = prog * 0.4;
   };
 
   return g;
 }
 
+// STRENGTHENED: more & taller bone pillars (12) in a clear ring, each overshoots-then-settles erupting upward with a bright cap-flash; punchier ground shockwave + sweeping summon arc + rising marrow motes; brighter additive throughout.
 export function buildCastFx_boneprison(opts) {
   const c = (opts && opts.color) || "#e8e0c0";
   const g = new T.Group();
+  const N = 12;
+  const R = 1.05;
+
+  // shared additive materials (freshly created — safe to animate)
   const spikeMat = new T.MeshBasicMaterial({ color: c, fog:false, transparent:true, opacity:0.0, blending:T.AdditiveBlending, depthWrite:false });
-  const ringMat = new T.MeshBasicMaterial({ color: c, fog:false, transparent:true, opacity:0.0, blending:T.AdditiveBlending, depthWrite:false });
-  const N = 8;
-  const R = 0.95;
+  const capMat   = new T.MeshBasicMaterial({ color: "#ffffff", fog:false, transparent:true, opacity:0.0, blending:T.AdditiveBlending, depthWrite:false });
+  const ringMat  = new T.MeshBasicMaterial({ color: c, fog:false, transparent:true, opacity:0.0, blending:T.AdditiveBlending, depthWrite:false });
+  const coreMat  = new T.MeshBasicMaterial({ color: c, fog:false, transparent:true, opacity:0.0, blending:T.AdditiveBlending, depthWrite:false });
+  const arcMat   = new T.MeshBasicMaterial({ color: c, fog:false, transparent:true, opacity:0.0, blending:T.AdditiveBlending, depthWrite:false });
+  const moteMat  = new T.MeshBasicMaterial({ color: "#ffffff", fog:false, transparent:true, opacity:0.0, blending:T.AdditiveBlending, depthWrite:false });
+
   const spikes = [];
+  const caps = [];
   for (let i = 0; i < N; i++) {
     const a = (i / N) * Math.PI * 2;
-    const sp = m(geo("cfxBpSpike", () => new T.ConeGeometry(0.13, 0.85, 5)), spikeMat);
+    const sp = m(geo("cfxBpSpike", () => new T.ConeGeometry(0.16, 1.15, 5)), spikeMat);
     sp.position.set(Math.cos(a) * R, 0.0, Math.sin(a) * R);
-    sp.rotation.z = Math.cos(a) * 0.18;
-    sp.rotation.x = -Math.sin(a) * 0.18;
-    sp.scale.set(1, 0.05, 1);
+    sp.rotation.z = Math.cos(a) * 0.16;
+    sp.rotation.x = -Math.sin(a) * 0.16;
+    sp.scale.set(1, 0.03, 1);
     sp.userData.ph = i / N;
+    sp.userData.a = a;
     g.add(sp);
     spikes.push(sp);
+    // bright tip flash that pops when each pillar tops out
+    const cap = m(geo("cfxBpCap", () => new T.SphereGeometry(0.12, 7, 6)), capMat);
+    cap.position.set(Math.cos(a) * R, 0.0, Math.sin(a) * R);
+    cap.userData.ph = i / N;
+    cap.userData.a = a;
+    g.add(cap);
+    caps.push(cap);
   }
-  const ring = m(geo("cfxBpRing", () => new T.RingGeometry(R - 0.12, R + 0.12, 32)), ringMat);
+
+  // ground shockwave ring under the cage
+  const ring = m(geo("cfxBpRing", () => new T.RingGeometry(R - 0.14, R + 0.14, 36)), ringMat);
   ring.rotation.x = -Math.PI / 2;
   ring.position.y = 0.04;
   g.add(ring);
-  const core = m(geo("cfxBpCore", () => new T.RingGeometry(0.18, 0.42, 20)), ringMat);
+
+  // bright sigil core at center
+  const core = m(geo("cfxBpCore", () => new T.RingGeometry(0.16, 0.48, 24)), coreMat);
   core.rotation.x = -Math.PI / 2;
   core.position.y = 0.03;
   g.add(core);
-  g.userData.castAnim = (grp, prog) => {
-    const rise = prog < 0.45 ? (prog / 0.45) : 1;
-    const fade = prog > 0.8 ? (1 - (prog - 0.8) / 0.2) : 1;
+
+  // sweeping summon arc that traces the ring as the gesture flings forward
+  const arc = m(geo("cfxBpArc", () => new T.RingGeometry(R - 0.06, R + 0.06, 40, 1, 0, Math.PI * 0.9)), arcMat);
+  arc.rotation.x = -Math.PI / 2;
+  arc.position.y = 0.10;
+  g.add(arc);
+
+  // rising marrow motes
+  const motes = [];
+  for (let i = 0; i < 8; i++) {
+    const a = (i / 8) * Math.PI * 2 + 0.3;
+    const mo = m(geo("cfxBpMote", () => new T.SphereGeometry(0.05, 6, 5)), moteMat);
+    const mr = R * (0.85 + (i % 3) * 0.07);
+    mo.userData.a = a;
+    mo.userData.r = mr;
+    mo.userData.ph = (i * 0.13) % 1;
+    mo.position.set(Math.cos(a) * mr, 0, Math.sin(a) * mr);
+    g.add(mo);
+    motes.push(mo);
+  }
+
+  g.userData.castAnim = (grp, prog, now) => {
+    const rise = prog < 0.50 ? (prog / 0.50) : 1;
+    const fade = prog > 0.82 ? (1 - (prog - 0.82) / 0.18) : 1;
     const er = Math.sin(Math.min(rise, 1) * Math.PI * 0.5);
+    const t = now ? now : 0;
+
     for (let i = 0; i < spikes.length; i++) {
       const sp = spikes[i];
-      const local = Math.max(0, Math.min(1, (rise - sp.userData.ph * 0.3) / 0.7));
-      const h = Math.sin(local * Math.PI * 0.5);
-      sp.scale.y = 0.05 + h * 1.0;
-      sp.position.y = (0.85 * (0.05 + h * 1.0)) * 0.5 - 0.05;
+      // staggered eruption around the ring, each overshoots then settles
+      const local = Math.max(0, Math.min(1, (rise - sp.userData.ph * 0.35) / 0.55));
+      const eo = local <= 0 ? 0 : (1 + Math.sin(local * Math.PI - Math.PI * 0.5)) * 0.5; // ease
+      const overshoot = 1 + Math.sin(local * Math.PI) * 0.18; // pop past then settle
+      const h = eo * overshoot;
+      const sy = 0.03 + h * 1.0;
+      sp.scale.y = sy;
+      sp.position.y = (1.15 * sy) * 0.5 - 0.05;
+      // cap rides the tip, flashes brightest at the moment it tops out
+      const cap = caps[i];
+      cap.position.y = 1.15 * sy - 0.05;
+      const pop = Math.sin(Math.min(1, local) * Math.PI); // peaks mid-rise
+      cap.scale.setScalar(0.5 + pop * 1.4);
+      capMat.opacity = 0; // set per-mesh below via shared mat; use brightest contribution
     }
-    spikeMat.opacity = 0.85 * fade;
-    ringMat.opacity = 0.5 * er * fade;
-    const pulse = 1 + Math.sin(prog * Math.PI * 6) * 0.04;
-    ring.scale.setScalar(pulse);
-    core.scale.setScalar(0.6 + er * 0.6);
+    // cap flash: drive shared material by overall rise burst
+    capMat.opacity = (0.9 * Math.sin(Math.min(1, rise) * Math.PI)) * fade;
+
+    spikeMat.opacity = 0.95 * Math.min(1, rise * 1.4) * fade;
+
+    // shockwave: punchy expand at the start, then steady glow
+    const shock = prog < 0.4 ? (prog / 0.4) : 1;
+    ring.scale.setScalar(0.5 + shock * 0.75 + Math.sin(prog * Math.PI * 6) * 0.05);
+    ringMat.opacity = (0.7 * er) * fade;
+
+    // sigil core spins and pulses bright
+    core.rotation.z = t * 0.004;
+    core.scale.setScalar(0.5 + er * 0.8);
+    coreMat.opacity = (0.85 * er) * fade;
+
+    // summon arc sweeps around and brightens during the fling, then fades
+    arc.rotation.z = -Math.PI * 0.5 + prog * Math.PI * 2.2;
+    const arcLife = prog < 0.6 ? Math.sin(Math.min(1, prog / 0.6) * Math.PI) : 0;
+    arc.scale.setScalar(0.9 + er * 0.2);
+    arcMat.opacity = 0.85 * arcLife * fade;
+
+    // motes rise and twinkle
+    for (let i = 0; i < motes.length; i++) {
+      const mo = motes[i];
+      const lp = (rise + mo.userData.ph) % 1;
+      mo.position.y = lp * 1.25;
+      const drift = mo.userData.r * (1 + lp * 0.12);
+      mo.position.x = Math.cos(mo.userData.a) * drift;
+      mo.position.z = Math.sin(mo.userData.a) * drift;
+      mo.scale.setScalar(0.6 + Math.sin(t * 0.01 + i) * 0.4);
+    }
+    moteMat.opacity = (0.8 * er) * fade;
   };
   return g;
 }
 
+// demonslash: brighter layered flame crescent that sweeps on a DIAGONAL tilt, white-hot inner edge, leading flame tongue, trailing ember spray, punchier mid-swing flash
 export function buildCastFx_demonslash(opts) {
   const c = (opts && opts.color) || "#ff3b2f";
   const g = new T.Group();
-  const crescentMat = new T.MeshBasicMaterial({ color: c, fog:false, transparent:true, opacity:0.0, blending:T.AdditiveBlending, depthWrite:false });
-  const coreMat = new T.MeshBasicMaterial({ color: "#ffd28a", fog:false, transparent:true, opacity:0.0, blending:T.AdditiveBlending, depthWrite:false });
-  const arc = m(geo("cfxDsArc", () => new T.RingGeometry(1.3, 2.2, 40, 1, -Math.PI * 0.62, Math.PI * 1.24)), crescentMat);
-  arc.rotation.x = -Math.PI / 2; arc.position.y = 0.85; g.add(arc);
-  const core = m(geo("cfxDsCore", () => new T.RingGeometry(1.55, 1.95, 40, 1, -Math.PI * 0.55, Math.PI * 1.1)), coreMat);
-  core.rotation.x = -Math.PI / 2; core.position.y = 0.85; g.add(core);
+  const mk = (col, op) => new T.MeshBasicMaterial({ color: col, fog:false, transparent:true, opacity:op, blending:T.AdditiveBlending, depthWrite:false });
+
+  // pivot tilted so the whole crescent sweeps on a diagonal, not flat
+  const pivot = new T.Group();
+  pivot.position.y = 0.9;
+  pivot.rotation.z = 0.5;   // diagonal lean of the slash plane
+  pivot.rotation.x = -Math.PI / 2 + 0.35;
+  g.add(pivot);
+
+  const outerMat = mk(c, 0.0);
+  const coreMat = mk("#ffb347", 0.0);
+  const hotMat = mk("#fff2c8", 0.0);
+  const arc = m(geo("cfxDsArc", () => new T.RingGeometry(1.2, 2.5, 48, 1, -Math.PI * 0.66, Math.PI * 1.32)), outerMat);
+  pivot.add(arc);
+  const core = m(geo("cfxDsCore", () => new T.RingGeometry(1.55, 2.15, 48, 1, -Math.PI * 0.6, Math.PI * 1.2)), coreMat);
+  pivot.add(core);
+  const hot = m(geo("cfxDsHot", () => new T.RingGeometry(1.78, 2.02, 48, 1, -Math.PI * 0.56, Math.PI * 1.12)), hotMat);
+  pivot.add(hot);
+
+  // leading flame tongue at the tip of the arc
+  const tongueMat = mk("#ffd58a", 0.0);
+  const tongue = m(geo("cfxDsTongue", () => new T.ConeGeometry(0.5, 1.6, 12)), tongueMat);
+  tongue.userData.mat = tongueMat;
+  pivot.add(tongue);
+
+  // trailing ember spray
   const embers = [];
-  for (let i = 0; i < 7; i++) {
-    const eMat = new T.MeshBasicMaterial({ color: c, fog:false, transparent:true, opacity:0.0, blending:T.AdditiveBlending, depthWrite:false });
-    const e = m(box(0.16, 0.16, 0.16), eMat);
-    const a = -Math.PI * 0.5 + (i / 6) * Math.PI;
-    e.position.set(Math.cos(a) * 1.85, 0.85, Math.sin(a) * 1.85);
-    e.userData.a = a; e.userData.mat = eMat; e.userData.phase = i * 0.12;
-    g.add(e); embers.push(e);
+  for (let i = 0; i < 9; i++) {
+    const eMat = mk(i % 2 ? "#ffcf7a" : c, 0.0);
+    const e = m(box(0.17, 0.17, 0.17), eMat);
+    const a = -Math.PI * 0.55 + (i / 8) * Math.PI * 1.1;
+    e.userData.a = a; e.userData.mat = eMat; e.userData.phase = (i / 8) * 0.5; e.userData.r0 = 1.9 + (i % 3) * 0.12;
+    pivot.add(e); embers.push(e);
   }
-  const flash = m(plane(2.6, 1.6), new T.MeshBasicMaterial({ color: "#ffb070", fog:false, transparent:true, opacity:0.0, blending:T.AdditiveBlending, depthWrite:false }));
-  flash.position.set(0, 0.9, 1.4); g.add(flash);
+
+  // bright impact flash facing the player
+  const flashMat = mk("#ffd0a0", 0.0);
+  const flash = m(plane(3.2, 2.0), flashMat);
+  flash.position.set(0, 1.0, 1.5); g.add(flash);
+
   g.userData.castAnim = (grp, prog, now) => {
-    const swing = prog < 0.28 ? 0 : Math.min(1, (prog - 0.28) / 0.52);
+    const swing = prog < 0.26 ? 0 : Math.min(1, (prog - 0.26) / 0.46);
     const sweepEnv = Math.sin(Math.max(0, swing) * Math.PI);
-    const wind = Math.min(1, prog / 0.28);
-    const fade = prog < 0.85 ? 1 : Math.max(0, 1 - (prog - 0.85) / 0.15);
-    grp.rotation.y = -1.0 * (1 - swing) + 1.6 * swing;
-    const sc = 0.7 + 0.5 * swing;
-    arc.scale.set(sc, sc, sc); core.scale.set(sc, sc, sc);
-    crescentMat.opacity = (0.75 * sweepEnv + 0.2 * wind * (1 - swing)) * fade;
-    coreMat.opacity = 0.85 * sweepEnv * fade;
+    const wind = Math.min(1, prog / 0.26);
+    const fade = prog < 0.82 ? 1 : Math.max(0, 1 - (prog - 0.82) / 0.18);
+
+    // the crescent rotates fast through its tilted plane as the swing carves
+    pivot.rotation.y = -1.3 * (1 - swing) + 2.0 * swing;
+    const sc = 0.65 + 0.6 * swing;
+    arc.scale.setScalar(sc); core.scale.setScalar(sc); hot.scale.setScalar(sc);
+
+    outerMat.opacity = (0.85 * sweepEnv + 0.25 * wind * (1 - swing)) * fade;
+    coreMat.opacity = 0.95 * sweepEnv * fade;
+    hotMat.opacity = Math.pow(sweepEnv, 0.6) * fade;
+
+    // flame tongue rides the leading edge of the arc
+    const tipA = -Math.PI * 0.62 * sc;
+    tongue.position.set(Math.cos(tipA) * 2.2 * sc, Math.sin(tipA) * 2.2 * sc, 0);
+    tongue.rotation.z = tipA - Math.PI * 0.5;
+    tongueMat.opacity = sweepEnv * fade;
+    const ts = 0.7 + 0.7 * sweepEnv;
+    tongue.scale.set(ts, 1 + 0.5 * sweepEnv, ts);
+
     for (let i = 0; i < embers.length; i++) {
       const e = embers[i];
-      const lag = Math.max(0, Math.min(1, (swing - e.userData.phase) * 1.6));
-      const r = 1.85 + lag * 0.6;
-      e.position.set(Math.cos(e.userData.a) * r, 0.85 + lag * 0.5 + Math.sin(now * 0.012 + i) * 0.06, Math.sin(e.userData.a) * r);
-      const es = 1 - lag * 0.7;
+      const lag = Math.max(0, Math.min(1, (swing - e.userData.phase) * 1.7));
+      const r = (e.userData.r0 + lag * 0.8) * sc;
+      e.position.set(Math.cos(e.userData.a) * r, Math.sin(e.userData.a) * r, (Math.sin(now * 0.013 + i) * 0.12) - lag * 0.4);
+      const es = 1 - lag * 0.75;
       e.scale.setScalar(Math.max(0.05, es));
-      e.userData.mat.opacity = 0.9 * sweepEnv * (1 - lag * 0.5) * fade;
+      e.userData.mat.opacity = 1.0 * sweepEnv * (1 - lag * 0.45) * fade;
     }
-    flash.material.opacity = 0.6 * Math.max(0, 1 - Math.abs(swing - 0.45) * 4) * fade;
-    flash.scale.setScalar(0.8 + swing * 0.6);
+
+    flashMat.opacity = 0.85 * Math.max(0, 1 - Math.abs(swing - 0.4) * 4.2) * fade;
+    flash.scale.setScalar(0.7 + swing * 0.9);
   };
   return g;
 }
 
+// Brighter conjure: counter-rotating twin halo + pulsing white core + sharper motes; 3 staggered meteors with white-hot heads, long trails, and expanding impact flare + shockwave rings
 export function buildCastFx_starfall(opts) {
       const c = (opts && opts.color) || "#ffe08a";
       const g = new T.Group();
-      const haloMat = new T.MeshBasicMaterial({ color: c, fog:false, transparent:true, opacity:0.0, blending:T.AdditiveBlending, depthWrite:false });
-      const moteMat = new T.MeshBasicMaterial({ color: c, fog:false, transparent:true, opacity:0.0, blending:T.AdditiveBlending, depthWrite:false });
-      const trailMat = new T.MeshBasicMaterial({ color: c, fog:false, transparent:true, opacity:0.0, blending:T.AdditiveBlending, depthWrite:false });
-      const SKY = 3.4;
-      const halo = m(geo("cfxStarfallHalo", () => new T.RingGeometry(0.5, 1.05, 30)), haloMat);
+      const SKY = 3.6;
+      const haloMat  = new T.MeshBasicMaterial({ color: c, fog:false, transparent:true, opacity:0.0, blending:T.AdditiveBlending, depthWrite:false });
+      const ring2Mat = new T.MeshBasicMaterial({ color: c, fog:false, transparent:true, opacity:0.0, blending:T.AdditiveBlending, depthWrite:false });
+      const coreMat  = new T.MeshBasicMaterial({ color: "#ffffff", fog:false, transparent:true, opacity:0.0, blending:T.AdditiveBlending, depthWrite:false });
+      const moteMat  = new T.MeshBasicMaterial({ color: c, fog:false, transparent:true, opacity:0.0, blending:T.AdditiveBlending, depthWrite:false });
+
+      const halo = m(geo("cfxStarfallHalo", () => new T.RingGeometry(0.5, 1.15, 36)), haloMat);
       halo.rotation.x = -Math.PI / 2; halo.position.y = SKY; g.add(halo);
+      const ring2 = m(geo("cfxStarfallRing2", () => new T.RingGeometry(0.18, 0.34, 28)), ring2Mat);
+      ring2.rotation.x = -Math.PI / 2; ring2.position.y = SKY; g.add(ring2);
+      const core = m(geo("cfxStarfallCore", () => new T.OctahedronGeometry(0.4, 0)), coreMat);
+      core.position.y = SKY; g.add(core);
+
       const motes = [];
-      for (let i = 0; i < 7; i++) {
-        const s = m(geo("cfxStarfallMote", () => new T.OctahedronGeometry(0.16, 0)), moteMat);
-        s.userData.a = (i / 7) * Math.PI * 2;
-        s.userData.r = 0.7 + (i % 3) * 0.18;
+      for (let i = 0; i < 9; i++) {
+        const s = m(geo("cfxStarfallMote", () => new T.OctahedronGeometry(0.15, 0)), moteMat);
+        s.userData.a = (i / 9) * Math.PI * 2;
+        s.userData.r = 0.85 + (i % 3) * 0.22;
         g.add(s); motes.push(s);
       }
+
       const meteors = [];
       for (let i = 0; i < 3; i++) {
         const grp = new T.Group();
-        const head = m(geo("cfxStarfallHead", () => new T.OctahedronGeometry(0.22, 0)), trailMat);
+        const trailMat = new T.MeshBasicMaterial({ color: c, fog:false, transparent:true, opacity:0.0, blending:T.AdditiveBlending, depthWrite:false });
+        const headMat  = new T.MeshBasicMaterial({ color: "#ffffff", fog:false, transparent:true, opacity:0.0, blending:T.AdditiveBlending, depthWrite:false });
+        const flareMat = new T.MeshBasicMaterial({ color: c, fog:false, transparent:true, opacity:0.0, blending:T.AdditiveBlending, depthWrite:false });
+        const shockMat = new T.MeshBasicMaterial({ color: c, fog:false, transparent:true, opacity:0.0, blending:T.AdditiveBlending, depthWrite:false });
+        const head = m(geo("cfxStarfallHead", () => new T.OctahedronGeometry(0.26, 0)), headMat);
         grp.add(head);
-        const tail = m(geo("cfxStarfallTail", () => new T.ConeGeometry(0.16, 1.3, 8)), trailMat);
-        tail.position.y = 0.75; grp.add(tail);
-        const ang = (i / 3) * Math.PI * 2 + 0.4;
-        grp.userData.tx = Math.cos(ang) * 0.95;
-        grp.userData.tz = Math.sin(ang) * 0.95;
+        const tail = m(geo("cfxStarfallTail", () => new T.ConeGeometry(0.2, 2.0, 10)), trailMat);
+        tail.position.y = 1.1; grp.add(tail);
+        const flare = m(geo("cfxStarfallFlare", () => new T.OctahedronGeometry(0.5, 0)), flareMat);
+        flare.visible = false; grp.add(flare);
+        const shock = m(geo("cfxStarfallShock", () => new T.RingGeometry(0.4, 0.62, 28)), shockMat);
+        shock.rotation.x = -Math.PI / 2; shock.visible = false; grp.add(shock);
+        const ang = (i / 3) * Math.PI * 2 + 0.5;
+        grp.userData.tx = Math.cos(ang) * (0.7 + i * 0.35);
+        grp.userData.tz = Math.sin(ang) * (0.7 + i * 0.35);
+        grp.userData.delay = i * 0.16;
+        grp.userData.trailMat = trailMat; grp.userData.headMat = headMat;
+        grp.userData.flareMat = flareMat; grp.userData.shockMat = shockMat;
+        grp.userData.flare = flare; grp.userData.shock = shock;
         grp.visible = false;
         g.add(grp); meteors.push(grp);
       }
-      g.userData.castAnim = (grp, prog) => {
-        const gather = Math.min(prog, 0.7) / 0.7;
-        const strike = prog > 0.7 ? (prog - 0.7) / 0.3 : 0;
-        haloMat.opacity = 0.5 * gather * (1 - strike);
-        halo.scale.setScalar(0.4 + gather * 0.9 + strike * 0.6);
-        halo.rotation.z = prog * Math.PI * 1.5;
-        const conv = 1 - gather * 0.7;
-        moteMat.opacity = 0.85 * gather * (1 - strike);
+
+      g.userData.castAnim = (grp, prog, now) => {
+        const t = now ? now * 0.001 : prog * 5;
+        const gather = Math.min(prog, 0.62) / 0.62;
+        const strike = prog > 0.62 ? (prog - 0.62) / 0.38 : 0;
+        const conjure = gather * (1 - strike);
+
+        haloMat.opacity = 0.7 * conjure;
+        halo.scale.setScalar(0.4 + gather * 1.0 + strike * 0.8);
+        halo.rotation.z = prog * Math.PI * 1.8;
+        ring2Mat.opacity = 0.85 * conjure;
+        ring2.scale.setScalar(0.5 + gather * 0.8);
+        ring2.rotation.z = -prog * Math.PI * 2.6;
+        coreMat.opacity = (0.5 + 0.5 * Math.sin(t * 14)) * conjure;
+        core.scale.setScalar(0.5 + gather * 0.9 + Math.sin(t * 14) * 0.12 * gather);
+        core.rotation.y = t * 3;
+
+        const conv = 1 - gather * 0.78;
+        moteMat.opacity = 0.95 * conjure;
         for (let i = 0; i < motes.length; i++) {
           const s = motes[i];
-          const a = s.userData.a + prog * Math.PI * 2.5;
+          const a = s.userData.a + prog * Math.PI * 3.0;
           const r = s.userData.r * conv;
-          s.position.set(Math.cos(a) * r, SKY + Math.sin(prog * 6 + i) * 0.12, Math.sin(a) * r);
-          s.scale.setScalar(0.6 + gather * 0.6);
+          s.position.set(Math.cos(a) * r, SKY + Math.sin(prog * 7 + i) * 0.14, Math.sin(a) * r);
+          s.scale.setScalar(0.55 + gather * 0.7);
           s.rotation.y = a * 2;
         }
-        trailMat.opacity = 0.9 * (strike > 0 ? 1 : 0) * (1 - strike * 0.3);
+
         for (let i = 0; i < meteors.length; i++) {
           const mt = meteors[i];
-          const local = Math.min(1, Math.max(0, (strike - i * 0.12) * 1.5));
+          const ud = mt.userData;
+          const local = Math.min(1, Math.max(0, (strike - ud.delay) / 0.42));
           mt.visible = local > 0;
-          const y = SKY - local * SKY;
-          mt.position.set(mt.userData.tx * local, y, mt.userData.tz * local);
-          mt.scale.setScalar(0.7 + local * 0.5);
+          if (local <= 0) continue;
+          const fall = local < 0.78 ? local / 0.78 : 1;
+          const land = local > 0.78 ? (local - 0.78) / 0.22 : 0;
+          const ef = fall * fall;
+          const y = SKY - ef * SKY;
+          mt.position.set(ud.tx * ef, y, ud.tz * ef);
+          mt.scale.setScalar(0.85 + fall * 0.5);
+          ud.trailMat.opacity = 0.95 * (1 - land);
+          ud.headMat.opacity  = (0.8 + 0.2 * Math.sin(t * 30)) * (1 - land * 0.6);
+          ud.flare.visible = land > 0;
+          ud.shock.visible = land > 0;
+          if (land > 0) {
+            ud.flareMat.opacity = 1.0 * (1 - land);
+            ud.flare.scale.setScalar(0.6 + land * 2.2);
+            ud.shockMat.opacity = 0.85 * (1 - land);
+            ud.shock.scale.setScalar(0.3 + land * 3.0);
+          }
         }
       };
       return g;
     }
 
+// STRENGTHENED: brighter triple vortex (core + two counter-rotating rings), 9 fanned arrow streaks with bright glowing tips, a charge-up funnel of motes and a forward muzzle-blast shockwave on release
 export function buildCastFx_typhoonshot(opts) {
   const c = (opts && opts.color) || "#7dffb0";
   const g = new T.Group();
-  const ringMat = new T.MeshBasicMaterial({ color: c, fog:false, transparent:true, opacity:0.0, blending:T.AdditiveBlending, depthWrite:false });
-  const arrowMat = new T.MeshBasicMaterial({ color: c, fog:false, transparent:true, opacity:0.0, blending:T.AdditiveBlending, depthWrite:false });
+  const mk = (o) => new T.MeshBasicMaterial({ color: c, fog:false, transparent:true, opacity:0.0, blending:T.AdditiveBlending, depthWrite:false });
+  const ringMat = mk();
+  const coreMat = mk();
+  const arrowMat = mk();
+  const tipMat = mk();
+  const moteMat = mk();
+  const blastMat = mk();
 
-  // Two tilted swirling wind vortex rings stacked at chest height
-  const ringA = m(geo("cfxTyphRingA", () => new T.TorusGeometry(0.9, 0.06, 8, 28)), ringMat);
-  ringA.position.y = 0.85; ringA.rotation.x = -Math.PI/2 + 0.5; g.add(ringA);
-  const ringB = m(geo("cfxTyphRingB", () => new T.TorusGeometry(0.6, 0.05, 8, 24)), ringMat);
-  ringB.position.y = 1.05; ringB.rotation.x = -Math.PI/2 - 0.45; g.add(ringB);
+  // Bright vortex core funnel + two counter-rotating swirl rings at chest height
+  const core = m(geo("cfxTyphCore", () => new T.ConeGeometry(0.5, 1.0, 14, 1, true)), coreMat);
+  core.position.y = 1.0; core.rotation.x = Math.PI; g.add(core);
+  const ringA = m(geo("cfxTyphRingA", () => new T.TorusGeometry(0.95, 0.07, 8, 30)), ringMat);
+  ringA.position.y = 0.82; ringA.rotation.x = -Math.PI/2 + 0.5; g.add(ringA);
+  const ringB = m(geo("cfxTyphRingB", () => new T.TorusGeometry(0.62, 0.055, 8, 26)), ringMat);
+  ringB.position.y = 1.08; ringB.rotation.x = -Math.PI/2 - 0.45; g.add(ringB);
 
-  // Arrow streaks spiraling forward (+Z), built as thin boxes with cone heads
+  // Forward muzzle-blast shockwave ring (fires on release)
+  const blast = m(geo("cfxTyphBlast", () => new T.TorusGeometry(0.5, 0.09, 8, 24)), blastMat);
+  blast.position.y = 0.95; g.add(blast);
+
+  // Arrow streaks: thin glowing shaft + bright cone tip
   const arrows = [];
-  for (let i = 0; i < 6; i++) {
+  const N = 9;
+  for (let i = 0; i < N; i++) {
     const a = new T.Group();
-    const shaft = m(box(0.04, 0.04, 0.9), arrowMat); shaft.position.z = 0.0; a.add(shaft);
-    const head = m(cone(0.1, 0.22, 6), arrowMat); head.rotation.x = Math.PI/2; head.position.z = 0.5; a.add(head);
-    a.userData.a = (i / 6) * Math.PI * 2;
-    a.userData.r = 0.5 + (i % 3) * 0.18;
+    const shaft = m(geo("cfxTyphShaft", () => box(0.045, 0.045, 1.0)), arrowMat); a.add(shaft);
+    const head = m(geo("cfxTyphHead", () => cone(0.11, 0.26, 7)), arrowMat); head.rotation.x = Math.PI/2; head.position.z = 0.6; a.add(head);
+    const tip = m(geo("cfxTyphTip", () => new T.SphereGeometry(0.13, 8, 8)), tipMat); tip.position.z = 0.62; a.add(tip);
+    a.userData.a = (i / N) * Math.PI * 2;
+    a.userData.r = 0.45 + (i % 3) * 0.2;
     a.position.y = 0.95;
     g.add(a); arrows.push(a);
+  }
+
+  // Charge-up motes spiraling inward into the funnel during the coil
+  const motes = [];
+  for (let i = 0; i < 8; i++) {
+    const p = m(geo("cfxTyphMote", () => new T.SphereGeometry(0.06, 6, 6)), moteMat);
+    p.userData.a = (i / 8) * Math.PI * 2; p.userData.h = (i % 4) * 0.12;
+    g.add(p); motes.push(p);
   }
 
   g.userData.castAnim = (grp, prog) => {
     const coil = Math.min(prog / 0.5, 1);
     const rel = Math.max((prog - 0.5) / 0.5, 0);
     const env = Math.sin(prog * Math.PI);
-    ringMat.opacity = 0.5 * env;
-    arrowMat.opacity = 0.7 * rel * (1 - rel * 0.3);
-    // Rings wind up tight then expand on release, spinning fast
-    const spin = prog * Math.PI * 2 * 4;
-    ringA.rotation.z = spin; ringB.rotation.z = -spin * 1.3;
-    const grow = 0.4 + coil * 0.3 + rel * 0.8;
+    const snap = Math.sin(Math.min(rel, 1) * Math.PI);
+    const spin = prog * Math.PI * 2 * 5;
+
+    ringMat.opacity = 0.7 * env;
+    coreMat.opacity = 0.55 * coil * (1 - rel * 0.6);
+    arrowMat.opacity = 0.85 * rel * (1 - rel * 0.25);
+    tipMat.opacity = rel * (1 - rel * 0.2);
+    moteMat.opacity = 0.8 * coil * (1 - rel);
+    blastMat.opacity = 0.9 * snap * (1 - rel * 0.5);
+
+    // Rings wind tight on coil, burst wide on release, spinning hard in opposition
+    ringA.rotation.z = spin; ringB.rotation.z = -spin * 1.4;
+    const grow = 0.35 + coil * 0.25 + rel * 1.0;
     ringA.scale.setScalar(grow); ringB.scale.setScalar(grow * 0.85);
-    // Arrows spiral and shoot forward, fanning outward as they go
+    core.scale.set(0.8 + coil * 0.3, 0.8 + coil * 0.4, 0.8 + coil * 0.3);
+    core.rotation.y = -spin * 0.5;
+
+    // Forward shockwave punches out and expands as arrows launch
+    blast.scale.setScalar(0.4 + rel * 2.4);
+    blast.position.z = 0.4 + rel * 1.2;
+
+    // Inward-spiraling charge motes collapse into the funnel mouth
+    for (let i = 0; i < motes.length; i++) {
+      const mo = motes[i];
+      const ang = mo.userData.a + spin * 0.4;
+      const rad = (1 - coil) * 1.1 + 0.12;
+      mo.position.x = Math.cos(ang) * rad;
+      mo.position.z = Math.sin(ang) * rad;
+      mo.position.y = 0.95 + mo.userData.h + coil * 0.25;
+      mo.scale.setScalar(0.6 + coil * 0.6);
+    }
+
+    // Arrows spiral then blast forward, fanning outward into a cone
     for (let i = 0; i < arrows.length; i++) {
       const ar = arrows[i];
       const ang = ar.userData.a + spin * 0.6;
-      const reach = rel * 3.2;
-      const spread = ar.userData.r * (0.6 + rel * 1.4);
+      const reach = rel * 3.6;
+      const spread = ar.userData.r * (0.5 + rel * 1.6);
       ar.position.x = Math.cos(ang) * spread;
       ar.position.z = 0.4 + reach;
-      ar.position.y = 0.95 + Math.sin(ang) * spread * 0.4;
-      ar.rotation.y = ang * 0.3 + (ar.userData.a - Math.PI) * 0.4;
-      ar.scale.setScalar(0.6 + rel * 0.6);
+      ar.position.y = 0.95 + Math.sin(ang) * spread * 0.45;
+      ar.rotation.x = -spread * 0.25;
+      ar.rotation.y = ang * 0.3 + (ar.userData.a - Math.PI) * 0.45;
+      ar.scale.setScalar(0.55 + rel * 0.75);
     }
   };
   return g;
 }
 
+// STRENGTHENED: more soul motes dragged from a wider radius on visible tethers, a brighter cinching reap-ring, a darker-cored imploding nova with a hard flash-spike + recoil shockwave on collapse.
 export function buildCastFx_soulharvest(opts) {
   const c = (opts && opts.color) || "#c489ff";
   const g = new T.Group();
 
-  const ringMat = new T.MeshBasicMaterial({ color: c, fog:false, transparent:true, opacity:0.4, blending:T.AdditiveBlending, depthWrite:false });
-  const ring = m(geo("cfxShReapRing", () => new T.RingGeometry(3.4, 3.95, 40)), ringMat);
+  // Cinching reap-ring at the harvest radius
+  const ringMat = new T.MeshBasicMaterial({ color: c, fog:false, transparent:true, opacity:0.0, blending:T.AdditiveBlending, depthWrite:false });
+  const ring = m(geo("cfxShReapRing", () => new T.RingGeometry(3.6, 4.15, 48)), ringMat);
   ring.rotation.x = -Math.PI / 2; ring.position.y = 0.7; g.add(ring);
 
-  const wispMat = new T.MeshBasicMaterial({ color: c, fog:false, transparent:true, opacity:0.9, blending:T.AdditiveBlending, depthWrite:false });
-  const wisps = [];
-  const N = 9;
+  // Inner counter-ring for a brighter braided look
+  const ring2Mat = new T.MeshBasicMaterial({ color: c, fog:false, transparent:true, opacity:0.0, blending:T.AdditiveBlending, depthWrite:false });
+  const ring2 = m(geo("cfxShReapRing2", () => new T.RingGeometry(2.4, 2.7, 40)), ring2Mat);
+  ring2.rotation.x = -Math.PI / 2; ring2.position.y = 0.85; g.add(ring2);
+
+  // Soul motes + their drag-tethers
+  const wispMat = new T.MeshBasicMaterial({ color: c, fog:false, transparent:true, opacity:0.0, blending:T.AdditiveBlending, depthWrite:false });
+  const tethMat = new T.MeshBasicMaterial({ color: c, fog:false, transparent:true, opacity:0.0, blending:T.AdditiveBlending, depthWrite:false });
+  const wisps = [], teths = [];
+  const N = 12;
   for (let i = 0; i < N; i++) {
-    const w = m(geo("cfxShWisp", () => new T.SphereGeometry(0.12, 8, 8)), wispMat);
+    const w = m(geo("cfxShWisp", () => new T.SphereGeometry(0.13, 8, 8)), wispMat);
     w.userData.a = (i / N) * Math.PI * 2;
     w.userData.ph = (i / N);
     g.add(w); wisps.push(w);
+    const t = m(geo("cfxShTeth", () => new T.PlaneGeometry(0.07, 1, 1, 1)), tethMat);
+    g.add(t); teths.push(t);
   }
 
-  const coreMat = new T.MeshBasicMaterial({ color: c, fog:false, transparent:true, opacity:0.0, blending:T.AdditiveBlending, depthWrite:false });
-  const core = m(geo("cfxShCore", () => new T.SphereGeometry(0.45, 12, 12)), coreMat);
+  // Dark-cored imploding nova: bright halo with a darker (absent-light) center void implied by a tighter hot core
+  const haloMat = new T.MeshBasicMaterial({ color: c, fog:false, transparent:true, opacity:0.0, blending:T.AdditiveBlending, depthWrite:false });
+  const halo = m(geo("cfxShHalo", () => new T.SphereGeometry(0.55, 14, 14)), haloMat);
+  halo.position.y = 1.0; g.add(halo);
+
+  const coreMat = new T.MeshBasicMaterial({ color: "#ffffff", fog:false, transparent:true, opacity:0.0, blending:T.AdditiveBlending, depthWrite:false });
+  const core = m(geo("cfxShCore", () => new T.SphereGeometry(0.26, 12, 12)), coreMat);
   core.position.y = 1.0; g.add(core);
 
+  // Vertical soul pillar erupting on collapse
   const pillarMat = new T.MeshBasicMaterial({ color: c, fog:false, transparent:true, opacity:0.0, blending:T.AdditiveBlending, depthWrite:false });
-  const pillar = m(cyl(0.18, 0.05, 2.2, 10), pillarMat);
-  pillar.position.y = 1.1; g.add(pillar);
+  const pillar = m(cyl(0.22, 0.04, 2.6, 12), pillarMat);
+  pillar.position.y = 1.2; g.add(pillar);
+
+  // Recoil shockwave ring kicked out at the instant of implosion
+  const shockMat = new T.MeshBasicMaterial({ color: c, fog:false, transparent:true, opacity:0.0, blending:T.AdditiveBlending, depthWrite:false });
+  const shock = m(geo("cfxShShock", () => new T.RingGeometry(0.3, 0.55, 40)), shockMat);
+  shock.rotation.x = -Math.PI / 2; shock.position.y = 0.6; g.add(shock);
 
   g.userData.castAnim = (grp, prog) => {
-    const reap = Math.min(prog / 0.62, 1);
-    const draw = Math.max((prog - 0.62) / 0.38, 0);
+    const reap = Math.min(prog / 0.58, 1);
+    const draw = Math.max((prog - 0.58) / 0.42, 0);
     const reapE = Math.sin(reap * Math.PI * 0.5);
+    const drawE = draw * draw * (3 - 2 * draw);
+    // hard flash at the collapse moment
+    const flash = Math.sin(Math.min(draw / 0.28, 1) * Math.PI);
 
-    ringMat.opacity = 0.45 * reapE * (1 - draw * 0.8);
-    ring.rotation.z = reap * Math.PI * 1.2;
-    ring.scale.setScalar(1 - draw * 0.3);
+    // Cinching rings: bright during reap, snap tighter and fade as souls pull in
+    ringMat.opacity = 0.6 * reapE * (1 - draw * 0.85);
+    ring.rotation.z = reap * Math.PI * 1.4;
+    ring.scale.setScalar((1 - draw * 0.55));
+    ring2Mat.opacity = 0.5 * reapE * (1 - draw * 0.7);
+    ring2.rotation.z = -reap * Math.PI * 1.8;
+    ring2.scale.setScalar(1 - draw * 0.4);
 
-    const inward = draw;
+    const inward = drawE;
     for (let i = 0; i < wisps.length; i++) {
-      const w = wisps[i];
-      const local = Math.min(Math.max((prog - w.userData.ph * 0.25) / 0.75, 0), 1);
-      const rad = 3.6 * (1 - inward) * (1 - local * 0.15);
-      const spin = w.userData.a + prog * Math.PI * 3.2 + inward * Math.PI * 2.5;
-      const rNow = rad * (1 - inward * 0.95);
-      w.position.x = Math.cos(spin) * rNow;
-      w.position.z = Math.sin(spin) * rNow;
-      w.position.y = 0.5 + inward * (0.7 + (i % 3) * 0.18) + reapE * 0.1;
-      const s = 0.7 + reapE * 0.5 + inward * 0.6;
+      const w = wisps[i], t = teths[i];
+      const local = Math.min(Math.max((prog - w.userData.ph * 0.22) / 0.78, 0), 1);
+      const rad = 3.9 * (1 - local * 0.12);
+      const spin = w.userData.a + prog * Math.PI * 3.6 + inward * Math.PI * 3.0;
+      const rNow = rad * (1 - inward * 0.97);
+      const px = Math.cos(spin) * rNow;
+      const pz = Math.sin(spin) * rNow;
+      const py = 0.5 + inward * (0.55 + (i % 3) * 0.2) + reapE * 0.12;
+      w.position.set(px, py, pz);
+      const s = 0.75 + reapE * 0.55 + inward * 0.7 + flash * 0.3;
       w.scale.setScalar(s);
+
+      // tether streak from mote toward the core
+      const cx = 0, cy = 1.0, cz = 0;
+      const dx = cx - px, dy = cy - py, dz = cz - pz;
+      const len = Math.hypot(dx, dy, dz) || 0.0001;
+      t.position.set((px + cx) / 2, (py + cy) / 2, (pz + cz) / 2);
+      t.scale.set(1, len, 1);
+      t.lookAt(cx, cy, cz);
+      t.rotateX(Math.PI / 2);
     }
-    wispMat.opacity = 0.85 * Math.min(reap * 1.4, 1) * (1 - draw * 0.5);
+    wispMat.opacity = 0.9 * Math.min(reap * 1.5, 1) * (1 - draw * 0.45);
+    tethMat.opacity = 0.5 * Math.min(reap * 1.6, 1) * (1 - draw * 0.6) * (0.4 + inward * 0.6);
 
-    coreMat.opacity = draw * 0.85;
-    core.scale.setScalar(0.4 + draw * 1.3 + Math.sin(prog * 40) * 0.05 * draw);
+    // Imploding nova: halo balloons then the white core flares hard
+    haloMat.opacity = drawE * 0.7 * (1 - draw * 0.25) + flash * 0.2;
+    halo.scale.setScalar(0.5 + drawE * 1.7 + flash * 0.4);
+    coreMat.opacity = drawE * 0.95 + flash * 0.5;
+    core.scale.setScalar(0.35 + drawE * 1.1 + flash * 0.7 + Math.sin(prog * 44) * 0.05 * drawE);
 
-    pillarMat.opacity = draw * 0.5 * (1 - draw * 0.4);
-    pillar.scale.y = 0.3 + draw * 1.1;
-    pillar.scale.x = pillar.scale.z = 0.5 + draw * 0.8;
+    // Pillar erupts upward on collapse
+    pillarMat.opacity = drawE * 0.55 * (1 - draw * 0.35) + flash * 0.2;
+    pillar.scale.y = 0.25 + drawE * 1.25;
+    pillar.scale.x = pillar.scale.z = 0.45 + drawE * 0.9;
+
+    // Recoil shockwave punches outward at the implosion instant
+    shockMat.opacity = flash * 0.7;
+    const sw = 0.5 + flash * 6.0 + draw * 1.5;
+    shock.scale.set(sw, sw, sw);
   };
 
   return g;
@@ -9148,3 +10453,327 @@ export function buildCastFx_soulharvest(opts) {
 
 // expose the cache for the engine (warm-up / disposal if needed)
 export const _cache = { GEO, MATS };
+
+
+// seismicrupture FX: a bright cracking fissure that ERUPTS forward in +Z ~5 tiles on slam-impact — jagged ground cracks, flung earth shards, dust, amber/orange additive glow.
+export function buildCastFx_seismicrupture(opts) {
+  const c = (opts && opts.color) || "#ff8a2c";
+  const g = new T.Group();
+  const RUN = 5.0;            // ~5 tiles forward in +Z
+  const SEGS = 7;             // jagged crack segments
+
+  const fresh = (op) => new T.MeshBasicMaterial({ color: c, fog: false, transparent: true, opacity: op, blending: T.AdditiveBlending, depthWrite: false });
+
+  // --- main fissure line: chain of jagged segments laid out along +Z, each kinked sideways ---
+  const crackMat = fresh(0.0);
+  const segs = [];
+  let zCur = 0.15, xCur = 0;
+  for (let i = 0; i < SEGS; i++) {
+    const dz = RUN / SEGS;
+    const nx = (i % 2 === 0 ? 1 : -1) * (0.12 + (i / SEGS) * 0.18); // widening zig-zag
+    const seg = m(geo("seismicruptureCrack" + i, () => box(0.16, 0.05, 1.0)), crackMat);
+    const z0 = zCur, z1 = zCur + dz, x0 = xCur, x1 = xCur + nx;
+    seg.userData.z0 = z0; seg.userData.z1 = z1; seg.userData.x0 = x0; seg.userData.x1 = x1;
+    seg.userData.t = (i + 1) / SEGS;     // how far down the line (for staggered eruption)
+    g.add(seg); segs.push(seg);
+    zCur = z1; xCur = x1;
+  }
+
+  // --- flung earth shards kicked up along the fissure ---
+  const shardMat = fresh(0.0);
+  const shards = [];
+  for (let i = 0; i < 9; i++) {
+    const s = m(geo("seismicruptureShard" + (i % 3), () => box(0.09, 0.16, 0.09)), shardMat);
+    const t = (i + 0.5) / 9;
+    s.userData.t = t;
+    s.userData.z = 0.15 + t * RUN;
+    s.userData.x = (i % 2 === 0 ? 1 : -1) * (0.18 + Math.random() * 0.25);
+    s.userData.sp = 0.9 + Math.random() * 0.8;   // launch speed
+    s.userData.rot = (Math.random() - 0.5) * 8;
+    g.add(s); shards.push(s);
+  }
+
+  // --- dust plumes (soft wide boxes) rising along the line ---
+  const dustMat = fresh(0.0);
+  const dusts = [];
+  for (let i = 0; i < 4; i++) {
+    const d = m(geo("seismicruptureDust" + i, () => box(0.5, 0.6, 0.5)), dustMat);
+    d.userData.t = (i + 0.5) / 4;
+    d.userData.z = 0.4 + d.userData.t * (RUN - 0.4);
+    g.add(d); dusts.push(d);
+  }
+
+  // --- impact flare at the caster's feet where the slam lands ---
+  const flareMat = fresh(0.0);
+  const flare = m(geo("seismicruptureFlare", () => new T.RingGeometry(0.12, 0.5, 20)), flareMat);
+  flare.rotation.x = -Math.PI / 2; flare.position.set(0, 0.06, 0.2); g.add(flare);
+
+  g.userData.castAnim = (grp, prog, now) => {
+    // fissure erupts on the slam (~0.45 in the body anim); before that, nothing visible
+    const erupt = prog < 0.42 ? 0 : Math.min((prog - 0.42) / 0.20, 1); // 0→1 race forward
+    const eEase = erupt * erupt * (3 - 2 * erupt);
+    const fade = prog > 0.78 ? (prog - 0.78) / 0.22 : 0;               // settle/fade tail
+    const fadeMul = 1 - fade;
+    const flick = 1 + Math.sin((now || 0) * 0.05) * 0.12;             // glow flicker
+
+    // impact flare: hard pop on the slam, expands and fades
+    const fl = prog < 0.42 ? 0 : Math.min((prog - 0.42) / 0.12, 1);
+    flareMat.opacity = Math.sin(Math.min(fl, 1) * Math.PI) * 0.9 * flick;
+    flare.scale.setScalar(0.5 + fl * 2.6);
+
+    // crack: each segment lights up as the eruption front passes its position
+    for (let i = 0; i < segs.length; i++) {
+      const s = segs[i];
+      const lit = Math.max(0, Math.min((eEase - s.userData.t * 0.85) / 0.18, 1));
+      const mx = (s.userData.x0 + s.userData.x1) / 2;
+      const mz = (s.userData.z0 + s.userData.z1) / 2;
+      s.position.set(mx, 0.05, mz);
+      const len = (s.userData.z1 - s.userData.z0) * 1.05;
+      s.scale.set(1, 1, len * lit);
+      s.lookAt(s.userData.x1, 0.05, s.userData.z1);
+      s.userData.litMat = lit;
+    }
+    crackMat.opacity = (0.55 + 0.35 * flick) * eEase * fadeMul + 0.15 * eEase;
+
+    // shards: launch upward+outward as the front reaches them, arc back down
+    for (let i = 0; i < shards.length; i++) {
+      const s = shards[i];
+      const local = Math.max(0, Math.min((eEase - s.userData.t * 0.85) / 0.22, 1));
+      const arc = Math.sin(local * Math.PI);          // up then down
+      const y = 0.05 + arc * s.userData.sp;
+      s.position.set(s.userData.x * (0.4 + local), y, s.userData.z + arc * 0.2);
+      s.rotation.set(local * s.userData.rot, local * 2, local * s.userData.rot * 0.6);
+      s.scale.setScalar(0.5 + local * 0.7);
+    }
+    shardMat.opacity = (0.8 * eEase) * fadeMul;
+
+    // dust: bloom up and dissipate, lagging slightly behind the shards
+    for (let i = 0; i < dusts.length; i++) {
+      const d = dusts[i];
+      const local = Math.max(0, Math.min((eEase - d.userData.t * 0.85) / 0.30, 1));
+      const rise = local;
+      d.position.set(0, 0.2 + rise * 0.8, d.userData.z);
+      d.scale.set(0.6 + rise * 1.4, 0.5 + rise * 1.2, 0.6 + rise * 1.4);
+    }
+    dustMat.opacity = 0.22 * eEase * fadeMul;
+  };
+
+  return g;
+}
+
+export function buildCastFx_singularity(opts) {
+  // void core ~3.5 tiles ahead (+Z): shrinking rings + inward motes, then a bright implosion flash
+  const c = (opts && opts.color) || '#c489ff';
+  const g = new T.Group();
+  const cx = 0, cy = 0.85, cz = 3.5;
+  const mk = (hex, op) => new T.MeshBasicMaterial({ color: hex, fog: false, transparent: true, opacity: op, blending: T.AdditiveBlending, depthWrite: false });
+  const coreMat = mk('#7a3cff', 0.92);
+  const core = m(geo('singCore', () => new T.SphereGeometry(0.42, 10, 10)), coreMat); core.position.set(cx, cy, cz); g.add(core);
+  const ringMat = mk(c, 0.8);
+  const rings = [];
+  for (let i = 0; i < 3; i++) {
+    const r = m(geo('singRing' + i, () => new T.TorusGeometry(1.0 + i * 0.45, 0.06, 6, 22)), ringMat);
+    r.position.set(cx, cy, cz); r.rotation.x = Math.PI / 2; g.add(r); rings.push(r);
+  }
+  const moteMat = mk('#e6cfff', 0.9);
+  const motes = [];
+  for (let i = 0; i < 10; i++) {
+    const mt = m(geo('singMote', () => box(0.13, 0.13, 0.13)), moteMat);
+    mt.userData.a = (i / 10) * Math.PI * 2; mt.userData.r = 1.7 + (i % 3) * 0.3; g.add(mt); motes.push(mt);
+  }
+  const flashMat = mk('#ffffff', 0);
+  const flash = m(geo('singFlash', () => new T.SphereGeometry(0.6, 10, 10)), flashMat); flash.position.set(cx, cy, cz); g.add(flash);
+  g.userData.castAnim = (grp, prog) => {
+    const charge = Math.min(prog / 0.72, 1), imp = prog > 0.72 ? (prog - 0.72) / 0.28 : 0;
+    core.scale.setScalar(Math.max(0.05, 1 + charge * 0.5 - imp * 0.9));
+    coreMat.opacity = 0.92 * (1 - imp);
+    const rs = Math.max(0.05, (1 - charge * 0.55) * (1 - imp));
+    for (let i = 0; i < rings.length; i++) { rings[i].scale.setScalar(rs); rings[i].rotation.z = prog * 6; }
+    ringMat.opacity = 0.8 * (1 - imp);
+    const pull = (1 - charge) * (1 - imp);
+    for (let i = 0; i < motes.length; i++) {
+      const ang = motes[i].userData.a + prog * 4, r = motes[i].userData.r * pull;
+      motes[i].position.set(cx + Math.cos(ang) * r, cy + Math.sin(ang) * r * 0.6, cz + Math.sin(ang) * r);
+    }
+    moteMat.opacity = 0.9 * (1 - imp);
+    flashMat.opacity = imp > 0 ? Math.sin(imp * Math.PI) * 0.9 : 0;
+    flash.scale.setScalar(0.5 + imp * 3.2);
+  };
+  return g;
+}
+
+// strengthened: volatile forward launch — bright nocked spark that streaks out in +Z, a muzzle flash at the loose point, and a fading ember/spark trail
+export function buildCastFx_explosiveshot(opts) {
+  const c = (opts && opts.color) || "#ffb020";
+  const g = new T.Group();
+  const Y = 1.45, Z0 = 0.30;                 // launch origin (shoulder height, front)
+
+  // fresh additive mats (never the shared cache)
+  const headMat  = new T.MeshBasicMaterial({ color: c, fog:false, transparent:true, opacity:0.0, blending:T.AdditiveBlending, depthWrite:false });
+  const flashMat = new T.MeshBasicMaterial({ color: "#ffffff", fog:false, transparent:true, opacity:0.0, blending:T.AdditiveBlending, depthWrite:false });
+  const ringMat  = new T.MeshBasicMaterial({ color: c, fog:false, transparent:true, opacity:0.0, blending:T.AdditiveBlending, depthWrite:false });
+  const trailMat = new T.MeshBasicMaterial({ color: c, fog:false, transparent:true, opacity:0.0, blending:T.AdditiveBlending, depthWrite:false });
+  const emberMat = new T.MeshBasicMaterial({ color: c, fog:false, transparent:true, opacity:0.0, blending:T.AdditiveBlending, depthWrite:false });
+
+  // bright streaking head
+  const head = m(geo("explosiveshotHead", () => new T.SphereGeometry(0.13, 12, 10)), headMat);
+  head.position.set(0, Y, Z0); g.add(head);
+
+  // hot trailing streak behind the head
+  const trail = m(geo("explosiveshotTrail", () => new T.CylinderGeometry(0.025, 0.10, 1.0, 8)), trailMat);
+  trail.position.set(0, Y, Z0); g.add(trail);
+
+  // muzzle flash burst at the nock point
+  const flash = m(geo("explosiveshotFlash", () => new T.SphereGeometry(0.22, 12, 10)), flashMat);
+  flash.position.set(0, Y, Z0); g.add(flash);
+
+  // expanding launch ring (shockwave at loose)
+  const ring = m(geo("explosiveshotRing", () => new T.RingGeometry(0.10, 0.26, 20)), ringMat);
+  ring.position.set(0, Y, Z0); g.add(ring);
+
+  // ember sparks scattered along the wake
+  const embers = [];
+  for (let i = 0; i < 8; i++) {
+    const e = m(geo("explosiveshotEmber", () => new T.BoxGeometry(0.05, 0.05, 0.05)), emberMat);
+    e.userData.a = (i / 8) * Math.PI * 2;
+    e.userData.r = 0.06 + (i % 3) * 0.045;
+    e.userData.lag = 0.10 + (i % 4) * 0.07;   // how far back along the streak
+    e.visible = false;
+    g.add(e); embers.push(e);
+  }
+
+  g.userData.castAnim = (grp, prog) => {
+    // charge while drawing, fire forward after the loose
+    const charge = Math.min(prog / 0.55, 1);
+    const cEase = charge * charge * (3 - 2 * charge);
+    const fire = prog > 0.55 ? (prog - 0.55) / 0.45 : 0;   // 0..1 flight
+    const fEase = fire * fire;                              // accelerate out
+
+    // pre-loose: charging glow + jitter at the nock
+    if (fire <= 0) {
+      const jit = Math.sin(prog * 40) * 0.04;
+      head.position.set(jit, Y, Z0);
+      headMat.opacity = 0.35 + 0.5 * cEase;
+      head.scale.setScalar(0.6 + cEase * 0.6 + Math.sin(prog * 26) * 0.1);
+      flashMat.opacity = 0; ringMat.opacity = 0; trailMat.opacity = 0;
+      for (const e of embers) e.visible = false;
+      return;
+    }
+
+    // the loose flash (brief, front-loaded on fire)
+    const flashE = Math.max(0, 1 - fire / 0.35);
+    flashMat.opacity = flashE * flashE * 0.95;
+    flash.scale.setScalar(0.4 + (1 - flashE) * 1.6);
+
+    // launch ring expands and fades
+    ringMat.opacity = flashE * 0.7;
+    ring.scale.setScalar(0.5 + (1 - flashE) * 2.4);
+    ring.rotation.z = prog * 4.0;
+
+    // head streaks forward in +Z
+    const z = Z0 + fEase * 3.4;
+    head.position.set(0, Y, z);
+    headMat.opacity = 0.95 * (1 - fire * 0.25);
+    head.scale.setScalar(1.0 + Math.sin(prog * 30) * 0.12);
+
+    // stretched hot trail behind the head
+    const len = 0.4 + fEase * 1.6;
+    trailMat.opacity = 0.7 * (1 - fire * 0.4);
+    trail.position.set(0, Y, z - len * 0.5);
+    trail.scale.set(1, len, 1);
+    trail.rotation.x = Math.PI / 2;   // align cylinder along +Z
+
+    // ember sparks scatter and drift back along the wake
+    for (let i = 0; i < embers.length; i++) {
+      const e = embers[i]; e.visible = true;
+      const ez = z - e.userData.lag - fEase * (0.3 + e.userData.lag);
+      const spin = prog * 10 + e.userData.a;
+      const r = e.userData.r * (1 + fire * 1.2);
+      e.position.set(Math.cos(spin) * r, Y + Math.sin(spin) * r - fire * 0.18, ez);
+      e.scale.setScalar((0.5 + Math.sin(prog * 24 + i) * 0.3) * (1 - fire * 0.3));
+      emberMat.opacity = 0.8 * (1 - fire * 0.6);
+    }
+  };
+
+  return g;
+}
+
+// gravegrasp FX: strengthened with a full RING of bone-white skeletal hands/claws erupting up out of the ground ahead in +Z (~2.6-tile span), staggered burst, plus a grave-dust shock ring, ground crack ring, central grave glow, and rising bone motes — all additive
+export function buildCastFx_gravegrasp(opts){
+  const c = (opts && opts.color) || '#e8f0e0';
+  const g = new T.Group();
+  const HANDS = 7;
+  const CZ = 1.55;            // ring center ahead in +Z
+  const RAD = 1.1;            // ring radius → ~2.6-tile diameter span
+  const hands = [];
+  const ringMat = new T.MeshBasicMaterial({ color:c, fog:false, transparent:true, opacity:0.0, blending:T.AdditiveBlending, depthWrite:false });
+  const dustMat = new T.MeshBasicMaterial({ color:c, fog:false, transparent:true, opacity:0.0, blending:T.AdditiveBlending, depthWrite:false });
+  const glowMat = new T.MeshBasicMaterial({ color:c, fog:false, transparent:true, opacity:0.0, blending:T.AdditiveBlending, depthWrite:false });
+  // ground crack ring marking where the hands rise
+  const ring = m(geo('gravegraspRing', () => new T.RingGeometry(RAD*0.55, RAD*1.02, 28)), ringMat);
+  ring.rotation.x = -Math.PI/2; ring.position.set(0, 0.02, CZ); g.add(ring);
+  // expanding grave-dust shock ring
+  const dust = m(geo('gravegraspDust', () => new T.RingGeometry(0.2, 0.42, 24)), dustMat);
+  dust.rotation.x = -Math.PI/2; dust.position.set(0, 0.03, CZ); g.add(dust);
+  // central grave glow dome
+  const glow = m(geo('gravegraspGlow', () => new T.SphereGeometry(0.5, 12, 8)), glowMat);
+  glow.position.set(0, 0.05, CZ); glow.scale.set(1, 0.45, 1); g.add(glow);
+  // skeletal hands: each = a wrist/palm column + 2 claw bones
+  for (let i = 0; i < HANDS; i++){
+    const a = (i / HANDS) * Math.PI * 2;
+    const hand = new T.Group();
+    hand.position.set(Math.sin(a) * RAD, 0, CZ + Math.cos(a) * RAD);
+    hand.rotation.y = a;                                   // face outward from the ring
+    const palmMat = new T.MeshBasicMaterial({ color:c, fog:false, transparent:true, opacity:0.0, blending:T.AdditiveBlending, depthWrite:false });
+    const palm = m(geo('gravegraspPalm', () => new T.CylinderGeometry(0.05, 0.07, 0.36, 6)), palmMat);
+    palm.position.y = 0.18; hand.add(palm);
+    for (let f = 0; f < 2; f++){
+      const fin = m(geo('gravegraspFinger', () => new T.ConeGeometry(0.032, 0.28, 5)), palmMat);
+      const fa = (f === 0 ? -0.42 : 0.42);
+      fin.position.set(Math.sin(fa)*0.08, 0.42, 0.02);
+      fin.rotation.z = -fa; fin.rotation.x = -0.18;
+      hand.add(fin);
+    }
+    hand.userData.mat = palmMat;
+    hand.userData.delay = (i / HANDS) * 0.4;               // staggered burst around the ring
+    g.add(hand); hands.push(hand);
+  }
+  // rising bone motes
+  const moteMat = new T.MeshBasicMaterial({ color:c, fog:false, transparent:true, opacity:0.0, blending:T.AdditiveBlending, depthWrite:false });
+  const motes = [];
+  for (let i = 0; i < 3; i++){
+    const mt = m(box(0.06,0.06,0.06), moteMat);
+    mt.userData.a = (i/3)*Math.PI*2; mt.userData.r = RAD*0.7;
+    g.add(mt); motes.push(mt);
+  }
+  g.userData.castAnim = (grp, prog, now) => {
+    const pre = Math.min(prog/0.45, 1);                    // gesture builds
+    const preE = pre*pre*(3-2*pre);
+    const burst = prog > 0.45 ? (prog-0.45)/0.55 : 0;      // hands erupt
+    ringMat.opacity = (0.15 + preE*0.5) * (1 - burst*0.4);
+    ring.scale.setScalar(0.4 + preE*0.7 + burst*0.15);
+    ring.rotation.z = prog * 1.4;
+    glowMat.opacity = preE*0.5*(1-burst) + (burst>0 ? Math.sin(Math.min(burst,1)*Math.PI)*0.4 : 0);
+    glow.scale.set(0.6+preE*0.6, 0.3+preE*0.2, 0.6+preE*0.6);
+    dustMat.opacity = burst>0 ? (1-burst)*0.55 : 0;        // shock ring expands on burst
+    dust.scale.setScalar(0.3 + burst*3.2);
+    for (let i=0;i<hands.length;i++){
+      const h = hands[i];
+      const local = Math.max(0, Math.min((burst - h.userData.delay) / Math.max(0.0001, 1 - h.userData.delay), 1));
+      const rise = local*local*(3-2*local);
+      h.position.y = -0.6 + rise*0.9;                      // emerge from below ground
+      h.scale.setScalar(0.3 + rise*1.0);
+      h.rotation.x = -0.15 + Math.sin(local*Math.PI)*0.28; // claw clench at apex
+      h.userData.mat.opacity = rise * (1 - burst*0.25) * 0.95;
+    }
+    for (let i=0;i<motes.length;i++){
+      const mt = motes[i];
+      const ph = (burst*1.3 + i*0.2) % 1;
+      const r = mt.userData.r * (0.6 + burst*0.5);
+      mt.position.set(Math.sin(mt.userData.a)*r, ph*1.0, CZ + Math.cos(mt.userData.a)*r);
+      mt.scale.setScalar((1-ph)*0.6*(burst>0?1:0));
+      moteMat.opacity = burst>0 ? (1-ph)*0.6 : 0;
+    }
+  };
+  return g;
+}
