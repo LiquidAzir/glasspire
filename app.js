@@ -985,6 +985,8 @@
       bossesKilled: {},
       bestiary: {},   // { [enemyId]: killCount } — populated as enemies are slain
       bestRift: 0,    // deepest Greater Rift level cleared
+      bestGauntlet: 0, // most bosses felled in one Gauntlet run
+      dailyDone: '',   // date-string of the last claimed Daily Challenge
       difficulty: 'normal',     // currently selected difficulty tier
       maxDifficulty: 'normal',  // highest unlocked tier
       upgrades: { pickup: 0, xpgain: 0, goldfind: 0, potions: 0 },  // permanent gold-sink perks
@@ -1074,6 +1076,8 @@
       if (obj.char && obj.char.craftDust === undefined) obj.char.craftDust = 0;
       // migrate: best rift level for old saves
       if (obj.bestRift === undefined) obj.bestRift = 0;
+      if (obj.bestGauntlet === undefined) obj.bestGauntlet = 0;
+      if (obj.dailyDone === undefined) obj.dailyDone = '';
       // migrate: per-skill runes for old saves
       if (obj.char && !obj.char.skillRunes) obj.char.skillRunes = {};
       // migrate: difficulty tiers for old saves
@@ -2025,6 +2029,7 @@
   function enemyHitPlayer(e, dmg) {
     damagePlayer(dmg, e && e.element);
     if (game.char.hp <= 0) return;
+    if (e && e.modCurse) applyCurse(e.modCurse);   // Cursed modifier
     const curse = enemyCurse(e);
     if (curse) applyCurse(curse);
   }
@@ -2060,6 +2065,7 @@
     ambientParticles.length = 0;
     clearSkillEffects();
     game.activeBuffs = {}; // shrine buffs don't persist across zones
+    game.gauntlet = null;  // leaving the arena ends any gauntlet run
     game.activeBiomeId = null;
     game.activeFloor = 0;
     game.rift = null;  // any active rift ends when you reach town (e.g. on death)
@@ -2142,6 +2148,114 @@
   }
 
   // ============================================================
+  // BOSS GAUNTLET — fight every boss in sequence in one arena.
+  // ============================================================
+  const GAUNTLET_BOSSES = ['lich', 'druid', 'wyrm', 'archdemon', 'voidlord', 'hollowking'];
+  function arenaSpawnPos() {
+    const w = game.world, p = w.player;
+    for (const o of [[0, -6], [6, 0], [-6, 0], [0, 6], [4, -4], [-4, -4]]) {
+      const tx = p.x + o[0], ty = p.y + o[1], gx = Math.floor(tx), gy = Math.floor(ty);
+      if (gy >= 0 && gy < w.h && gx >= 0 && gx < w.w && w.grid[gy][gx] === 0) return { x: tx, y: ty };
+    }
+    return { x: p.x, y: Math.max(1, p.y - 2) };
+  }
+  function spawnGauntletBoss(idx) {
+    const g = game.gauntlet; if (!g) return;
+    const id = GAUNTLET_BOSSES[idx];
+    const pos = arenaSpawnPos();
+    const e = makeEnemy(id, pos.x, pos.y, g.lvl + idx * 2);
+    e.hp = Math.floor(e.hp * (1 + idx * 0.25)); e.hpMax = e.hp;
+    e.dmg = Math.floor(e.dmg * (1 + idx * 0.15));
+    e._gauntlet = true; e.boss = true;
+    game.enemies.push(e);
+    showZoneToast(`BOSS ${idx + 1}/${GAUNTLET_BOSSES.length}: ${ENEMIES[id].name}`);
+  }
+  function gauntletAdvance(boss) {
+    const g = game.gauntlet; if (!g) return;
+    g.idx += 1;
+    const rg = 80 + g.idx * 50; game.char.gold += rg;
+    floatText('+' + rg + 'g', boss.x, boss.y - 0.9, 'loot');
+    if (g.idx >= GAUNTLET_BOSSES.length) {
+      const prevBest = game.save.bestGauntlet || 0;
+      game.save.bestGauntlet = GAUNTLET_BOSSES.length;
+      game.char.glassTears = (game.char.glassTears || 0) + 5;
+      game.char.sigils = (game.char.sigils || 0) + 2;
+      const item = rollItem(Math.max(18, game.char.level + 6), 'unique', { preferLegendary: true });
+      if (item) game.items.push({ x: boss.x, y: boss.y, item, age: 0 });
+      game.gauntlet = null; saveGame();
+      showHudToast(`GAUNTLET COMPLETE! +5 tears +2 sigils + a legendary${prevBest < GAUNTLET_BOSSES.length ? ' · NEW BEST!' : ''}`);
+    } else {
+      if ((game.save.bestGauntlet || 0) < g.idx) game.save.bestGauntlet = g.idx;
+      showHudToast(`Boss down — ${GAUNTLET_BOSSES.length - g.idx} remain. Next incoming…`);
+      g.nextIn = 1.4;   // brief breather; tickGauntlet spawns the next boss
+    }
+  }
+  function tickGauntlet(dt) {
+    const g = game.gauntlet; if (!g || g.nextIn == null) return;
+    g.nextIn -= dt;
+    if (g.nextIn <= 0) { g.nextIn = null; spawnGauntletBoss(g.idx); }
+  }
+  function enterGauntlet() {
+    const biome = BIOMES.find(b => b.id === 'voidspire') || BIOMES[BIOMES.length - 1];
+    game.world = generateDungeon(biome, CFG.biomeFloors, { throne: true });
+    game.world.name = 'THE GAUNTLET'; game.world.isGauntlet = true;
+    if (window.__GL) window.__GL.onZoneChange(game.world);
+    if (window.__AUDIO) window.__AUDIO.music('void');
+    game.enemies = []; game.world.enemies = null;   // empty arena; bosses spawn in sequence
+    game.projectiles = []; game.items = game.world.loot || []; game.world.loot = null;
+    game.minions = []; game.particles = []; game.floatingTexts = []; ambientParticles.length = 0;
+    clearSkillEffects(); game.activeBuffs = {}; game.rift = null;
+    game.activeBiomeId = 'voidspire'; game.activeFloor = CFG.biomeFloors;
+    game.gauntlet = { idx: 0, lvl: game.char.level, nextIn: null };
+    spawnHireling(); snapCamera(); navigateTo('game');
+    showZoneToast('THE GAUNTLET — 6 bosses');
+    applyDerivedToChar(); updateHud();
+    spawnGauntletBoss(0);
+  }
+
+  // ============================================================
+  // DAILY CHALLENGE — a date-seeded run with a fixed modifier + a once-a-day reward.
+  // ============================================================
+  function todayKey() { try { return new Date().toISOString().slice(0, 10); } catch (e) { return '2026-01-01'; } }
+  function dayHash() { const s = todayKey(); let h = 5381; for (let i = 0; i < s.length; i++) h = ((h * 33) ^ s.charCodeAt(i)) >>> 0; return h; }
+  function dailyComplete() {
+    if (!game.world || !game.world.daily) return;
+    const today = todayKey();
+    if (game.save.dailyDone === today) { showHudToast('Daily already claimed today — nice clear though!'); return; }
+    game.save.dailyDone = today;
+    const c = game.char;
+    const rg = 200 + c.level * 10; c.gold += rg;
+    c.sigils = (c.sigils || 0) + 1;
+    const item = rollItem(Math.max(16, c.level + 4), 'unique', { preferLegendary: true });
+    if (item) game.items.push({ x: game.world.player.x, y: game.world.player.y, item, age: 0 });
+    gainXp(Math.floor(xpForLevel(c.level) * 0.4));
+    saveGame();
+    showHudToast(`DAILY COMPLETE! +${rg}g +1 Sigil + a legendary + XP`);
+  }
+  function enterDaily() {
+    const h = dayHash();
+    const unlocked = BIOMES.filter(b => game.save.unlockedBiomes[b.id]);
+    const biomeList = unlocked.length ? unlocked : [BIOMES[0]];
+    const biome = biomeList[h % biomeList.length];
+    const modKeys = Object.keys(NIGHTMARE_MODS).filter(k => k !== 'teeming');
+    const mod = modKeys[h % modKeys.length];
+    const floor = CFG.biomeFloors;   // a full descent — guarantees a boss to slay for completion
+    game.world = generateDungeon(biome, floor, {});
+    game.world.name = 'DAILY — ' + biome.shortName; game.world.daily = true; game.world.dailyMod = mod;
+    if (window.__GL) window.__GL.onZoneChange(game.world);
+    if (window.__AUDIO) window.__AUDIO.music(biome.id);
+    game.enemies = game.world.enemies; game.world.enemies = null;
+    for (const e of game.enemies) { const md = NIGHTMARE_MODS[mod]; if (md && md.apply) md.apply(e); if (e.boss) e._daily = true; }
+    game.projectiles = []; game.items = game.world.loot || []; game.world.loot = null;
+    game.minions = []; game.particles = []; game.floatingTexts = []; ambientParticles.length = 0;
+    clearSkillEffects(); game.activeBuffs = {}; game.rift = null;
+    game.activeBiomeId = biome.id; game.activeFloor = floor;
+    spawnHireling(); snapCamera(); navigateTo('game');
+    showZoneToast('DAILY · ' + NIGHTMARE_MODS[mod].name + (game.save.dailyDone === todayKey() ? ' (claimed)' : ' — slay the boss'));
+    applyDerivedToChar(); updateHud();
+  }
+
+  // ============================================================
   // KEYED NIGHTMARE DUNGEONS — consume a Sigil to open a modified, harder
   // dungeon with rolled modifiers and boosted loot.
   // ============================================================
@@ -2150,10 +2264,12 @@
     frenzied:  { name: 'Frenzied',  color: '#ffd166', apply: e => { e.speed *= 1.3; } },
     teeming:   { name: 'Teeming',   color: '#9be57c', apply: null },   // handled at spawn
     brutal:    { name: 'Brutal',    color: '#ff8c42', apply: e => { e.hp = Math.floor(e.hp * 1.4); e.hpMax = e.hp; } },
+    volatile:  { name: 'Volatile',  color: '#ff7a3c', apply: e => { e.volatile = 1; } },   // explodes on death
+    cursed:    { name: 'Cursed',    color: '#c489ff', apply: e => { e.modCurse = 'manaburn'; } }, // curses on hit
   };
-  function rollNightmareMods() {
-    const keys = Object.keys(NIGHTMARE_MODS), n = roll(0.5) ? 2 : 1, chosen = [];
-    while (chosen.length < n) { const k = pick(keys); if (chosen.indexOf(k) < 0) chosen.push(k); }
+  function rollNightmareMods(pool) {
+    const keys = pool || Object.keys(NIGHTMARE_MODS), n = roll(0.5) ? 2 : 1, chosen = [];
+    while (chosen.length < n && chosen.length < keys.length) { const k = pick(keys); if (chosen.indexOf(k) < 0) chosen.push(k); }
     return chosen;
   }
   function enterNightmare() {
@@ -2223,6 +2339,10 @@
     world.enemies.forEach(e => {
       if (!e.elite && roll(0.18)) makeElite(e);
     });
+    // Rolled RIFT MODIFIERS — every rift rolls 1-2 affixes (skip teeming; rifts are already dense).
+    const riftMods = rollNightmareMods(Object.keys(NIGHTMARE_MODS).filter(k => k !== 'teeming'));
+    world.riftMods = riftMods;
+    world.enemies.forEach(e => { for (const mk of riftMods) { const md = NIGHTMARE_MODS[mk]; if (md && md.apply) md.apply(e); } });
     game.world = world;
     if (window.__GL) window.__GL.onZoneChange(game.world);
     game.enemies = game.world.enemies; game.world.enemies = null;
@@ -2248,7 +2368,7 @@
     spawnHireling();   // companion joins the rift run
     snapCamera();
     navigateTo('game');
-    showZoneToast(`GREATER RIFT ${level}`);
+    showZoneToast(`GREATER RIFT ${level}` + (riftMods.length ? ' · ' + riftMods.map(m => NIGHTMARE_MODS[m].name).join(' · ') : ''));
     applyDerivedToChar();
     updateHud();
   }
@@ -3466,6 +3586,15 @@
       if (se.poison)    comboBurst(e, 'poison', 0.45 + 0.12 * (se.poison.stacks || 1), 2.4);   // DETONATE cloud
       if (se.burn)      igniteSpread(e, se.burn);                                              // IGNITE leap
     }
+    // Volatile modifier: explode on death, threatening the player if close.
+    if (e.volatile && game.world && game.world.player) {
+      burst(e.x, e.y, '#ff7a3c', 18);
+      if (dist(game.world.player, e) <= 2.2) damagePlayer(Math.floor((e.dmg || 8) * 1.5), 'fire');
+    }
+    // Boss Gauntlet: a fallen gauntlet boss advances the run.
+    if (e._gauntlet && game.gauntlet) gauntletAdvance(e);
+    // Daily Challenge: felling the day's boss completes it.
+    if (e._daily && game.world && game.world.daily) dailyComplete();
     // Treasure Goblin JACKPOT — a burst of gold + a handful of high-rarity items
     if (e.isGoblin) {
       sfx('gold'); sfx('legendary');
@@ -8510,6 +8639,31 @@
         <div class="waypoint-sub">${sigils > 0 ? `Sigils: ${sigils} · Rolled modifiers · tougher foes, richer loot` : 'Locked — bosses drop Nightmare Sigils'}</div>
       </div>`;
     el.appendChild(nmCard);
+    // Boss Gauntlet — every boss in sequence, unlocked once you've felled any biome boss
+    const gauntletUnlocked = BIOMES.some(b => (game.save.bossesKilled[b.id] || 0) > 0);
+    const gBest = game.save.bestGauntlet || 0;
+    const gCard = document.createElement('button');
+    gCard.className = 'waypoint-card rift-card focusable' + (gauntletUnlocked ? '' : ' locked');
+    if (gauntletUnlocked) { gCard.dataset.action = 'enter-gauntlet'; } else { gCard.tabIndex = -1; }
+    gCard.innerHTML = `
+      <div class="waypoint-glyph" style="color:#ff4d6d;text-shadow:0 0 12px #ff4d6d">${gauntletUnlocked ? '☠' : '🔒'}</div>
+      <div class="waypoint-meta">
+        <div class="waypoint-name" style="color:${gauntletUnlocked ? '#ffb3c0' : '#9a9ab0'};text-shadow:0 0 8px #ff4d6d">Boss Gauntlet</div>
+        <div class="waypoint-sub">${gauntletUnlocked ? `Six bosses, no rest · Best: ${gBest}/6` : 'Locked — defeat a biome boss first'}</div>
+      </div>`;
+    el.appendChild(gCard);
+    // Daily Challenge — date-seeded run with a once-a-day reward
+    const dClaimed = game.save.dailyDone === todayKey();
+    const dCard = document.createElement('button');
+    dCard.className = 'waypoint-card rift-card focusable';
+    dCard.dataset.action = 'enter-daily';
+    dCard.innerHTML = `
+      <div class="waypoint-glyph" style="color:#ffd27a;text-shadow:0 0 12px #ffd27a">${dClaimed ? '✓' : '★'}</div>
+      <div class="waypoint-meta">
+        <div class="waypoint-name" style="color:#ffe0a0;text-shadow:0 0 8px #ffd27a">Daily Challenge</div>
+        <div class="waypoint-sub">${dClaimed ? 'Reward claimed today · resets at midnight UTC' : 'A seeded run · slay the boss for a daily reward'}</div>
+      </div>`;
+    el.appendChild(dCard);
     BIOMES.forEach(b => {
       const unlocked = game.save.unlockedBiomes[b.id];
       const card = document.createElement('button');
@@ -9003,6 +9157,14 @@
         return;
       case 'enter-throne':
         enterThrone();
+        game.history = [];
+        return;
+      case 'enter-gauntlet':
+        enterGauntlet();
+        game.history = [];
+        return;
+      case 'enter-daily':
+        enterDaily();
         game.history = [];
         return;
       case 'enter-nightmare':
@@ -9808,6 +9970,7 @@
       tickEffects(dt);
       tickAmbient(dt);
       tickRift(dt);
+      tickGauntlet(dt);
       tickAmbush(dt);
       tickInteraction();
       updateCamera();
