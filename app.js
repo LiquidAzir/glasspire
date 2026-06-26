@@ -64,7 +64,7 @@
       attackSpeed: 1.05,      // attacks/sec
       damage: 12,
       attackKind: 'cleave',   // hits all enemies in arc
-      skills: ['whirlwind', 'leapslam', 'warcry', 'shieldwall'],
+      skills: ['whirlwind', 'leapslam', 'warcry', 'shieldwall', 'seismicrupture'],
       activeSkill: 'whirlwind',
       activeSkillCost: 12,
     },
@@ -79,7 +79,7 @@
       attackSpeed: 1.2,
       damage: 9,
       attackKind: 'projectile-bolt',
-      skills: ['frostnova', 'chainlightning', 'meteor', 'blinkstrike'],
+      skills: ['frostnova', 'chainlightning', 'meteor', 'blinkstrike', 'singularity'],
       activeSkill: 'frostnova',
       activeSkillCost: 24,
     },
@@ -94,7 +94,7 @@
       attackSpeed: 1.6,
       damage: 7,
       attackKind: 'projectile-arrow',
-      skills: ['multishot', 'poisontrap', 'piercingshot', 'volley'],
+      skills: ['multishot', 'poisontrap', 'piercingshot', 'volley', 'explosiveshot'],
       activeSkill: 'multishot',
       activeSkillCost: 18,
     },
@@ -109,7 +109,7 @@
       attackSpeed: 1.0,
       damage: 6,
       attackKind: 'projectile-bone',
-      skills: ['raisedead', 'souldrain', 'corpseexplosion', 'boneprison'],
+      skills: ['raisedead', 'souldrain', 'corpseexplosion', 'boneprison', 'gravegrasp'],
       activeSkill: 'raisedead',
       activeSkillCost: 20,
     },
@@ -155,6 +155,16 @@
       desc: 'Detonate all recent corpse positions within 5 tiles, dealing 200% damage in a 1.8-tile radius around each.' },
     boneprison: { name: 'Bone Prison', cooldown: 11, cost: 20,
       desc: 'Imprison the nearest enemy in bone — they are stunned for 4 seconds and take 150% damage on impact.' },
+
+    // ===== New skills (added round 2 — one per class) =====
+    seismicrupture: { name: 'Seismic Rupture', cooldown: 9, cost: 16,
+      desc: 'Tear a fissure straight ahead (5 tiles), dealing 320% damage and staggering every enemy in the line.' },
+    singularity: { name: 'Singularity', cooldown: 13, cost: 34,
+      desc: 'Conjure a void singularity 3 tiles ahead that drags in nearby enemies, then implodes for 380% damage in a 3.2-tile radius.' },
+    explosiveshot: { name: 'Explosive Shot', cooldown: 8, cost: 22,
+      desc: 'Fire a volatile arrow that detonates on impact for 240% damage in a 2.2-tile blast and sets enemies ablaze.' },
+    gravegrasp: { name: 'Grave Grasp', cooldown: 10, cost: 22,
+      desc: 'Skeletal hands erupt around the nearest foe, dealing 200% damage and rooting every enemy in a 2.6-tile area for 2.5s.' },
 
     // ===== Legendary-granted skills (only available with specific unique item equipped) =====
     demonslash: { name: 'Demon Slash', cooldown: 5, cost: 18, granted: true,
@@ -208,6 +218,10 @@
     starfall:       { dur: 0.82, color: '#ffe08a' },
     typhoonshot:    { dur: 0.62, color: '#7dffb0' },
     soulharvest:    { dur: 0.75, color: '#c489ff' },
+    seismicrupture: { dur: 0.66, color: '#ffb84a' },
+    singularity:    { dur: 0.72, color: '#c489ff' },
+    explosiveshot:  { dur: 0.50, color: '#ff7a3c' },
+    gravegrasp:     { dur: 0.66, color: '#d8d0b0' },
   };
 
   const BIOMES = [
@@ -3362,6 +3376,69 @@
       }
       burst(p.x, p.y, '#c489ff', 14);
     }
+    // ===== NEW SKILLS (round 2) =====
+    else if (skillId === 'seismicrupture') {
+      const d = derived(c);
+      const dmg = Math.floor(d.dmg * 3.2);
+      const dir = (p.lastDir.x || p.lastDir.y) ? p.lastDir : { x: 0, y: 1 };
+      const len = 5.0, halfW = 0.95;
+      const targets = game.enemies.slice();
+      for (const e of targets) {
+        const rx = e.x - p.x, ry = e.y - p.y;
+        const along = rx * dir.x + ry * dir.y;            // distance projected along the fissure
+        if (along < -0.5 || along > len) continue;
+        const perp = Math.abs(rx * -dir.y + ry * dir.x);  // perpendicular offset from the line
+        if (perp > halfW) continue;
+        hitEnemy(e, dmg, d.crit);
+        if (e.hp > 0) e.stagger = Math.max(e.stagger, 0.8);
+      }
+      // erupting fissure of earth + sparks down the line
+      for (let i = 0; i <= 16; i++) {
+        const t = i / 16, fx = p.x + dir.x * len * t, fy = p.y + dir.y * len * t;
+        addParticle({ x: fx + (rand() - 0.5) * 0.5, y: fy + (rand() - 0.5) * 0.5, vx: (rand() - 0.5) * 2, vy: -3 - rand() * 3, color: i % 2 ? '#ffb84a' : '#ff7a3c', life: 0.4 + rand() * 0.3, age: 0, size: 2.5 + rand() * 2 });
+      }
+      burst(p.x + dir.x, p.y + dir.y, '#ffffff', 10);
+      game.screenShake = Math.max(game.screenShake, 0.3);
+    }
+    else if (skillId === 'singularity') {
+      const d = derived(c);
+      const dmg = Math.floor(d.dmg * 3.8 * (game._skillDmgMul || 1));   // delayed — bake the mul now
+      const dir = (p.lastDir.x || p.lastDir.y) ? p.lastDir : { x: 0, y: 1 };
+      const tx = p.x + dir.x * 3.5, ty = p.y + dir.y * 3.5;
+      if (!game.pendingMeteors) game.pendingMeteors = [];
+      game.pendingMeteors.push({ x: tx, y: ty, dmg, crit: d.crit, delay: 0.9, radius: 3.2, pull: 4.5, color1: '#c489ff', color2: '#7a3cff', shake: 0.4 });
+      for (let i = 0; i < 18; i++) {
+        const a = (i / 18) * PI2;
+        addParticle({ x: tx + Math.cos(a) * 1.8, y: ty + Math.sin(a) * 1.8, vx: -Math.cos(a) * 3, vy: -Math.sin(a) * 3, color: i % 2 ? '#c489ff' : '#7a3cff', life: 0.5 + rand() * 0.3, age: 0, size: 2 + rand() * 2 });
+      }
+      showHudToast('Singularity forming!');
+    }
+    else if (skillId === 'explosiveshot') {
+      const d = derived(c);
+      const dmg = Math.floor(d.dmg * 2.4);
+      const dir = (p.lastDir.x || p.lastDir.y) ? p.lastDir : { x: 0, y: 1 };
+      const a = Math.atan2(dir.y, dir.x);
+      spawnProjectile(p.x, p.y, Math.cos(a), Math.sin(a), 9, dmg, '#ff7a3c', 'bolt', true);
+      const proj = game.projectiles[game.projectiles.length - 1];
+      if (proj) { proj.explosive = { radius: 2.2, color: '#ff7a3c', burn: Math.max(2, Math.floor(d.dmg * 0.18)) }; proj.life = 2.4; }
+      burst(p.x + dir.x * 0.3, p.y + dir.y * 0.3, '#ff7a3c', 8);
+    }
+    else if (skillId === 'gravegrasp') {
+      const d = derived(c);
+      const dmg = Math.floor(d.dmg * 2.0);
+      const dir = (p.lastDir.x || p.lastDir.y) ? p.lastDir : { x: 0, y: 1 };
+      let cx = p.x + dir.x * 3, cy = p.y + dir.y * 3, nd = Infinity;   // center on nearest foe, else ahead
+      for (const e of game.enemies) { const dd = dist(e, p); if (dd < nd && dd <= 7) { nd = dd; cx = e.x; cy = e.y; } }
+      const radius = 2.6;
+      const targets = game.enemies.filter(e => dist(e, { x: cx, y: cy }) <= radius);
+      for (const e of targets) { hitEnemy(e, dmg, d.crit); if (e.hp > 0) { e.frozen = Math.max(e.frozen || 0, 2.5); e.stagger = Math.max(e.stagger, 0.4); } }
+      for (let i = 0; i < 22; i++) {
+        const a = rand() * PI2, r = rand() * radius;
+        addParticle({ x: cx + Math.cos(a) * r, y: cy + Math.sin(a) * r, vx: (rand() - 0.5) * 1.5, vy: -4 - rand() * 3, color: i % 3 === 0 ? '#d8d0b0' : '#9a9580', life: 0.5 + rand() * 0.4, age: 0, size: 2.5 + rand() * 2 });
+      }
+      burst(cx, cy, '#e8e0c0', 14);
+      game.screenShake = Math.max(game.screenShake, 0.18);
+    }
     } finally {
       game._skillDmgMul = 1;
     }
@@ -3844,6 +3921,23 @@
       life: 1.6, age: 0,
     });
   }
+  // Detonate an explosive friendly projectile (Explosive Shot): AoE damage + ignite.
+  function explodeProjectile(p) {
+    const ex = p.explosive; if (!ex) return;
+    const crit = derived(game.char).crit;
+    const targets = game.enemies.filter(e => dist(e, p) <= ex.radius);
+    for (const e of targets) {
+      hitEnemy(e, p.dmg, crit);
+      if (e.hp > 0 && ex.burn) applyStatus(e, 'burn', { dmg: ex.burn, dt: 3 });
+    }
+    burst(p.x, p.y, ex.color || '#ff7a3c', 24);
+    burst(p.x, p.y, '#ffffff', 8);
+    for (let j = 0; j < 12; j++) {
+      const a = (j / 12) * PI2;
+      addParticle({ x: p.x, y: p.y, vx: Math.cos(a) * 5, vy: Math.sin(a) * 5, color: j % 2 ? (ex.color || '#ff7a3c') : '#ffc857', life: 0.4 + rand() * 0.3, age: 0, size: 2.5 + rand() * 2 });
+    }
+    game.screenShake = Math.max(game.screenShake, 0.22);
+  }
   function tickProjectiles(dt) {
     for (let i = game.projectiles.length - 1; i >= 0; i--) {
       const p = game.projectiles[i];
@@ -3855,6 +3949,7 @@
       const gy = Math.floor(p.y), gx = Math.floor(p.x);
       if (gy < 0 || gy >= game.world.h || gx < 0 || gx >= game.world.w ||
           game.world.grid[gy][gx] !== 0) {
+        if (p.explosive) explodeProjectile(p);
         game.projectiles.splice(i, 1); continue;
       }
       if (p.friendly) {
@@ -3883,7 +3978,8 @@
             if (dist(game.enemies[ei], p) < 0.45) { hitTarget = game.enemies[ei]; break; }
           }
           if (hitTarget) {
-            hitEnemy(hitTarget, p.dmg, derived(game.char).crit);
+            if (p.explosive) explodeProjectile(p);
+            else hitEnemy(hitTarget, p.dmg, derived(game.char).crit);
             game.projectiles.splice(i, 1);
             burst(p.x, p.y, p.color, 8);
             removed = true;
@@ -3900,7 +3996,7 @@
           continue;
         }
       }
-      if (p.age > p.life) game.projectiles.splice(i, 1);
+      if (p.age > p.life) { if (p.explosive) explodeProjectile(p); game.projectiles.splice(i, 1); }
     }
   }
 
@@ -4619,29 +4715,39 @@
       for (let i = game.pendingMeteors.length - 1; i >= 0; i--) {
         const m = game.pendingMeteors[i];
         m.delay -= dt;
-        // Warning particles while waiting
-        if (m.delay > 0 && rand() < 0.4) {
-          addParticle({
-            x: m.x + (rand() - 0.5) * 1.5, y: m.y + (rand() - 0.5) * 1.5,
-            vx: 0, vy: -2, color: '#ff7043', life: 0.3, age: 0, size: 1.5,
-          });
+        const c1 = m.color1 || '#ff7043', c2 = m.color2 || '#ffc857';
+        // Singularity: drag nearby enemies toward the core while it charges
+        if (m.delay > 0 && m.pull) {
+          for (const e of game.enemies) {
+            const dx = m.x - e.x, dy = m.y - e.y, dd = Math.hypot(dx, dy);
+            if (dd > 0.25 && dd <= m.radius * 1.8) {
+              const f = m.pull * dt / dd;
+              e.x += dx * f * Math.min(1, dt * 6); e.y += dy * f * Math.min(1, dt * 6);
+            }
+          }
+        }
+        // Warning particles while waiting (swirl inward for a singularity, rise for a meteor)
+        if (m.delay > 0 && rand() < (m.pull ? 0.6 : 0.4)) {
+          if (m.pull) { const a = rand() * PI2, r = m.radius * (0.8 + rand() * 0.6);
+            addParticle({ x: m.x + Math.cos(a) * r, y: m.y + Math.sin(a) * r, vx: -Math.cos(a) * 4, vy: -Math.sin(a) * 4, color: rand() < 0.5 ? c1 : c2, life: 0.35, age: 0, size: 1.8 }); }
+          else addParticle({ x: m.x + (rand() - 0.5) * 1.5, y: m.y + (rand() - 0.5) * 1.5, vx: 0, vy: -2, color: c1, life: 0.3, age: 0, size: 1.5 });
         }
         if (m.delay <= 0) {
           // IMPACT
           const targets = game.enemies.filter(e => dist(e, m) <= m.radius);
           for (const e of targets) hitEnemy(e, m.dmg, m.crit);
           // Massive explosion
-          burst(m.x, m.y, '#ff7043', 30);
-          burst(m.x, m.y, '#ffc857', 20);
+          burst(m.x, m.y, c1, 30);
+          burst(m.x, m.y, c2, 20);
           burst(m.x, m.y, '#ffffff', 10);
           for (let j = 0; j < 16; j++) {
             const a = (j / 16) * PI2;
             addParticle({
               x: m.x, y: m.y, vx: Math.cos(a) * 6, vy: Math.sin(a) * 6,
-              color: j % 2 === 0 ? '#ff7043' : '#ffc857', life: 0.5 + rand() * 0.3, age: 0, size: 3 + rand() * 2,
+              color: j % 2 === 0 ? c1 : c2, life: 0.5 + rand() * 0.3, age: 0, size: 3 + rand() * 2,
             });
           }
-          game.screenShake = Math.max(game.screenShake, 0.4);
+          game.screenShake = Math.max(game.screenShake, m.shake || 0.4);
           game.pendingMeteors.splice(i, 1);
         }
       }
