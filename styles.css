@@ -1312,6 +1312,15 @@ html, body {
 }
 .waypoint-card:focus { border-color: var(--focus-ring); box-shadow: 0 0 18px var(--focus-glow); }
 .waypoint-card.locked { opacity: 0.45; cursor: default; }
+
+/* ===== Abyss boon draft ===== */
+.abyss-intro { color: #b9b9d0; font-size: 13px; margin: 8px 4px 14px; line-height: 1.4; }
+.boon-card { display: block; width: 100%; text-align: left; background: rgba(20,16,32,0.62);
+  border: 2px solid #555; border-radius: 10px; padding: 13px 16px; margin: 0 0 12px; cursor: pointer; }
+.boon-card.focused, .boon-card:focus { outline: none; background: rgba(44,32,66,0.9); box-shadow: 0 0 18px var(--focus-glow); }
+.boon-tag { font-size: 10px; letter-spacing: 2px; opacity: 0.85; margin-bottom: 3px; }
+.boon-name { font-size: 18px; font-weight: 700; margin-bottom: 4px; }
+.boon-desc { font-size: 13px; color: #c8c8d8; line-height: 1.35; }
 .waypoint-glyph {
   width: 48px;
   height: 48px;

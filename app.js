@@ -721,7 +721,11 @@
     return set;
   }
   // Fast lookup for the active character — refreshed in applyDerivedToChar on equip changes.
-  function hasPower(id) { return !!(game._powers && game._powers.has(id)); }
+  function hasPower(id) {
+    if (game._powers && game._powers.has(id)) return true;
+    // Abyss run-boons grant legendary powers for the run (only inside an Abyss world)
+    return !!(game.world && game.world.isAbyss && game.abyss && game.abyss.powers && game.abyss.powers.has(id));
+  }
 
   // ============================================================
   // PASSIVE TALENT TREE — spend a point earned each level into 4 branches.
@@ -1007,6 +1011,7 @@
       bestiary: {},   // { [enemyId]: killCount } — populated as enemies are slain
       bestRift: 0,    // deepest Greater Rift level cleared
       bestGauntlet: 0, // most bosses felled in one Gauntlet run
+      bestAbyss: 0,    // deepest Abyss depth reached
       dailyDone: '',   // date-string of the last claimed Daily Challenge
       difficulty: 'normal',     // currently selected difficulty tier
       maxDifficulty: 'normal',  // highest unlocked tier
@@ -1098,6 +1103,7 @@
       // migrate: best rift level for old saves
       if (obj.bestRift === undefined) obj.bestRift = 0;
       if (obj.bestGauntlet === undefined) obj.bestGauntlet = 0;
+      if (obj.bestAbyss === undefined) obj.bestAbyss = 0;
       if (obj.dailyDone === undefined) obj.dailyDone = '';
       // migrate: per-skill runes for old saves
       if (obj.char && !obj.char.skillRunes) obj.char.skillRunes = {};
@@ -1284,6 +1290,15 @@
     // ===== Active shrine damage buff =====
     if (game.activeBuffs && game.activeBuffs.damage > 0) dmgMul *= 2;
 
+    // ===== The Abyss — stacked run boons (apply only inside an Abyss world) =====
+    const abMods = (game.world && game.world.isAbyss && game.abyss) ? game.abyss.mods : null;
+    if (abMods) {
+      if (abMods.crit)   crit    += abMods.crit;
+      if (abMods.dmgPct) dmgMul  *= 1 + abMods.dmgPct / 100;
+      if (abMods.aspd)   aspdMul *= 1 + abMods.aspd / 100;
+      if (abMods.hpPct)  hpMul   *= 1 + abMods.hpPct / 100;
+    }
+
     const preMulDmg = dmg;
 
     // Apply final multipliers
@@ -1320,7 +1335,7 @@
 
     // Glass Cannon power: trade max life for raw damage.
     if (charPowers(char).has('glasscannon')) { dmg = Math.floor(dmg * 1.3); hpMax = Math.floor(hpMax * 0.75); }
-    return { dmg, def, hpMax, mpMax, crit, aspd, res: Math.min(75, res), dr: Math.min(60, te.dr || 0), ms: (te.ms || 0) + frenzyMs, bonusStats, breakdown };
+    return { dmg, def, hpMax, mpMax, crit, aspd, res: Math.min(75, res), dr: Math.min(60, te.dr || 0), ms: (te.ms || 0) + frenzyMs + ((abMods && abMods.ms) || 0), bonusStats, breakdown };
   }
 
   // Count how many pieces of each set the player has equipped, return summed bonus
@@ -1748,6 +1763,12 @@
       portals.push({
         x: last.cx + 0.5, y: last.cy + 0.5,
         kind: 'rift-next', label: '→ Descend (locked)', locked: true,
+      });
+    } else if (opts.isAbyss) {
+      // Abyss descend portal — locked until enough enemies fall; opens the boon draft
+      portals.push({
+        x: last.cx + 0.5, y: last.cy + 0.5,
+        kind: 'abyss-next', label: '→ Descend (locked)', locked: true,
       });
     } else if (!isBossFloor) {
       portals.push({
@@ -2482,6 +2503,124 @@
   }
 
   // ============================================================
+  // THE ABYSS — a roguelike endless descent. Between floors you draft 1 of 3
+  // powerful BOONS that STACK for the whole run. No timer; death ends it; the
+  // score is how deep you get. Boon stat-mods apply only inside an Abyss world.
+  // ============================================================
+  const BOONS = [
+    { id: 'berserk',   name: 'Berserker’s Rage', type: 'stat', key: 'dmgPct', val: 20, color: '#ff4d6d', desc: '+20% Damage' },
+    { id: 'deadeye',   name: 'Deadeye',               type: 'stat', key: 'crit',   val: 12, color: '#ffd166', desc: '+12% Critical Chance' },
+    { id: 'frenzied',  name: 'Frenzied',              type: 'stat', key: 'aspd',   val: 18, color: '#ff9a3c', desc: '+18% Attack Speed' },
+    { id: 'jugg',      name: 'Juggernaut',            type: 'stat', key: 'hpPct',  val: 25, color: '#8fb7ff', desc: '+25% Maximum Life' },
+    { id: 'fleet',     name: 'Fleetfoot',             type: 'stat', key: 'ms',     val: 20, color: '#7dffb0', desc: '+20% Move Speed' },
+    { id: 'wildfire',  name: 'Wildfire',     type: 'power', power: 'wildfire',    color: '#ff7a3c', desc: 'Attacks set enemies ablaze' },
+    { id: 'permafrost',name: 'Permafrost',   type: 'power', power: 'permafrost',  color: '#6df1ff', desc: 'Attacks may freeze foes' },
+    { id: 'venom',     name: 'Venomfang',    type: 'power', power: 'venomfang',   color: '#9be57c', desc: 'Attacks poison foes' },
+    { id: 'echo',      name: 'Echoes',       type: 'power', power: 'echo',        color: '#c489ff', desc: '35% chance to recast skills free' },
+    { id: 'sanguine',  name: 'Sanguine',     type: 'power', power: 'bloodthirst', color: '#ff5577', desc: 'Kills heal 3% of max Life' },
+    { id: 'execute',   name: 'Executioner',  type: 'power', power: 'executioner', color: '#ff3df0', desc: '+60% damage to low-health foes' },
+    { id: 'overcharge',name: 'Overcharge',   type: 'power', power: 'overcharge',  color: '#bff0ff', desc: 'Active skills deal +50% damage' },
+    { id: 'glasspact', name: 'Glass Pact',   type: 'special', color: '#ff4d6d', desc: '+60% Damage, −30% Maximum Life' },
+    { id: 'greed',     name: 'Abyssal Greed',type: 'special', color: '#ffd24a', desc: '+60% Gold & Experience' },
+    { id: 'secondwind',name: 'Second Wind',  type: 'special', color: '#7dffb0', desc: 'Fully heal at the start of every floor' },
+  ];
+  const BOON_BY_ID = {}; BOONS.forEach(b => BOON_BY_ID[b.id] = b);
+  function freshAbyss() { return { active: false, floor: 0, boons: [], mods: {}, powers: new Set(), greed: 0, secondWind: false, kills: 0, killsNeeded: 0, offered: null, pendingFloor: 0 }; }
+  function applyBoon(boon) {
+    const a = game.abyss; if (!a || !boon) return;
+    a.boons.push(boon.id);
+    if (boon.type === 'stat') a.mods[boon.key] = (a.mods[boon.key] || 0) + boon.val;
+    else if (boon.type === 'power') a.powers.add(boon.power);
+    else if (boon.id === 'glasspact') { a.mods.dmgPct = (a.mods.dmgPct || 0) + 60; a.mods.hpPct = (a.mods.hpPct || 0) - 30; }
+    else if (boon.id === 'greed') a.greed = (a.greed || 0) + 60;
+    else if (boon.id === 'secondwind') a.secondWind = true;
+    applyDerivedToChar();
+  }
+  function enterAbyss(floor) {
+    floor = floor || 1;
+    const a = (game.abyss && game.abyss.active) ? game.abyss : (game.abyss = freshAbyss());
+    a.active = true;
+    const pool = riftEnemyPool();
+    const palette = { wall: '#c489ff', floor: '#0c0716', accent: '#ff3df0' };
+    const synth = { id: 'voidspire', shortName: 'ABYSS', enemies: pool, boss: null, palette };
+    const enemyLevel = Math.max(1, game.char.level + floor * 2 + 2);
+    const world = generateDungeon(synth, floor, { isAbyss: true, noBoss: true, enemyLevel, enemyPerRoom: [3, 5] });
+    world.enemies.forEach(e => { if (!e.elite && !e.hazard && roll(0.16)) makeElite(e); });
+    world.isAbyss = true; world.name = `THE ABYSS — Depth ${floor}`;
+    game.world = world;
+    if (window.__GL) window.__GL.onZoneChange(game.world);
+    if (window.__AUDIO) window.__AUDIO.music('void');
+    game.enemies = game.world.enemies; game.world.enemies = null;
+    game.projectiles = []; game.items = game.world.loot || []; game.world.loot = null;
+    game.minions = []; game.particles = []; game.floatingTexts = []; ambientParticles.length = 0;
+    clearSkillEffects(); game.activeBuffs = {}; game.rift = null;
+    game.activeBiomeId = null; game.activeFloor = 0;
+    a.floor = floor; a.kills = 0; a.killsNeeded = Math.max(6, Math.floor(game.enemies.length * 0.7));
+    a.offered = null; a.pendingFloor = 0;
+    spawnHireling(); snapCamera(); navigateTo('game');
+    showZoneToast(`THE ABYSS — Depth ${floor}` + (a.boons.length ? ` · ${a.boons.length} boon${a.boons.length === 1 ? '' : 's'}` : ''));
+    applyDerivedToChar();
+    if (a.secondWind) game.char.hp = game.char.hpMax;
+    updateHud();
+  }
+  function abyssCheckProgress() {
+    const a = game.abyss; if (!a || !a.active) return;
+    if (a.kills < a.killsNeeded) return;
+    const portal = (game.world.portals || []).find(p => p.kind === 'abyss-next' && p.locked);
+    if (portal) { portal.locked = false; portal.label = '→ Descend deeper'; showHudToast('ABYSS PORTAL OPEN!'); floatText('DESCEND', game.world.player.x, game.world.player.y - 1, 'crit'); }
+  }
+  function openBoonDraft(nextFloor) {
+    const a = game.abyss; if (!a) return;
+    const avail = BOONS.filter(b => b.type === 'stat' || a.boons.indexOf(b.id) < 0);
+    const offered = [], pool = avail.slice();
+    while (offered.length < 3 && pool.length) offered.push(pool.splice(irand(0, pool.length - 1), 1)[0]);
+    a.offered = offered; a.pendingFloor = nextFloor;
+    renderBoonDraft();
+    navigateTo('abyss-draft');
+  }
+  function chooseBoon(id) {
+    const a = game.abyss; if (!a || !a.offered) return;
+    applyBoon(a.offered.find(b => b.id === id));
+    const next = a.pendingFloor || (a.floor + 1);
+    a.offered = null;
+    enterAbyss(next);
+  }
+  function endAbyss(left) {
+    const a = game.abyss; if (!a) { enterTown(); return; }
+    const depth = a.floor;
+    let newBest = false;
+    if (depth > (game.save.bestAbyss || 0)) { game.save.bestAbyss = depth; newBest = true; }
+    const tears = Math.max(1, Math.floor(depth / 2));
+    game.char.glassTears = (game.char.glassTears || 0) + tears;
+    game.abyss = freshAbyss();
+    saveGame();
+    enterTown();
+    showHudToast(`${left ? 'Left the Abyss' : 'Fell in the Abyss'} at Depth ${depth} · +${tears} tear${tears === 1 ? '' : 's'}${newBest ? ' · NEW BEST!' : ''}`);
+  }
+  function renderBoonDraft() {
+    const a = game.abyss; if (!a || !a.offered) return;
+    const dEl = $('abyss-depth'); if (dEl) dEl.textContent = (a.pendingFloor || a.floor + 1);
+    const el = $('abyss-draft-content'); if (!el) return;
+    el.innerHTML = '';
+    const intro = document.createElement('div');
+    intro.className = 'abyss-intro';
+    intro.textContent = `Boons stack for the whole run — you carry ${a.boons.length} so far. Choose one:`;
+    el.appendChild(intro);
+    a.offered.forEach(b => {
+      const card = document.createElement('button');
+      card.className = 'boon-card focusable';
+      card.dataset.action = 'abyss-pick';
+      card.dataset.boon = b.id;
+      card.style.borderColor = b.color;
+      const tag = b.type === 'special' ? 'PACT' : (b.type === 'power' ? 'POWER' : 'STAT');
+      card.innerHTML = `<div class="boon-tag" style="color:${b.color}">${tag}</div>` +
+        `<div class="boon-name" style="color:${b.color};text-shadow:0 0 8px ${b.color}">${b.name}</div>` +
+        `<div class="boon-desc">${b.desc}</div>`;
+      el.appendChild(card);
+    });
+  }
+
+  // ============================================================
   // INPUT
   // ============================================================
   function setupInput() {
@@ -2848,10 +2987,15 @@
     } else if (p.kind === 'rift-next') {
       if (p.locked) { showHudToast('Clear more enemies to open the portal.'); return; }
       enterRift((game.rift ? game.rift.level : 0) + 1);
+    } else if (p.kind === 'abyss-next') {
+      if (p.locked) { showHudToast('Clear more enemies to open the portal.'); return; }
+      openBoonDraft((game.abyss ? game.abyss.floor : 0) + 1);
     } else if (p.kind === 'town') {
-      // Leaving via a rift's portal banks the run for rewards
+      // Leaving via a run portal ends the run (keeping what you've earned)
       if (game.world && game.world.isRift && game.rift && game.rift.active) {
         endRift(true);
+      } else if (game.world && game.world.isAbyss && game.abyss && game.abyss.active) {
+        endAbyss(true);
       } else {
         enterTown();
       }
@@ -3780,6 +3924,11 @@
       game.rift.kills++;
       riftCheckProgress();
     }
+    // The Abyss: count progress toward the descend portal (the boon draft)
+    if (game.abyss && game.abyss.active && game.world && game.world.isAbyss) {
+      game.abyss.kills++;
+      abyssCheckProgress();
+    }
     // Voidling split: spawns 2 smaller copies on death (only if not already a split)
     if (e.trait === 'split' && !e._isSplit && game.enemies.length < 24) {
       for (let i = 0; i < 2; i++) {
@@ -3818,6 +3967,11 @@
     // Midas Touch upgrade — +15% gold per level
     const gf = upgradeLevel('goldfind');
     if (gf > 0) gold = Math.floor(gold * (1 + 0.15 * gf));
+    // Abyssal Greed boon — +X% gold & XP inside the Abyss
+    if (game.world && game.world.isAbyss && game.abyss && game.abyss.greed) {
+      const gm = 1 + game.abyss.greed / 100;
+      xp = Math.floor(xp * gm); gold = Math.floor(gold * gm);
+    }
     gainXp(xp);
     game.char.gold += gold;
     floatText(`+${gold}g`, e.x + 0.3, e.y - 0.2, 'loot');
@@ -4602,6 +4756,11 @@
   }
   function onDeath() {
     game.char.hp = 0;
+    // Dying in the Abyss banks your depth as the run's score, then ends the run.
+    if (game.abyss && game.abyss.active) {
+      if (game.abyss.floor > (game.save.bestAbyss || 0)) game.save.bestAbyss = game.abyss.floor;
+      game.abyss = freshAbyss();
+    }
     sfx('boss');                 // a grim low knell on death
     if (window.__AUDIO) window.__AUDIO.stopMusic();
     if (game.char.hardcore) {
@@ -7949,6 +8108,7 @@
     if (id === 'skills') renderSkills();
     if (id === 'passives') renderPassives();
     if (id === 'talents') renderTalents();
+    if (id === 'abyss-draft') renderBoonDraft();
     if (id === 'gem-socket') renderGemSocket();
     if (id === 'mystery-vendor') renderMysteryVendor();
     if (id === 'quests') renderQuests();
@@ -8877,6 +9037,19 @@
         <div class="waypoint-sub">${dClaimed ? 'Reward claimed today · resets at midnight UTC' : 'A seeded run · slay the boss for a daily reward'}</div>
       </div>`;
     el.appendChild(dCard);
+    // The Abyss — roguelike boon-draft descent (unlocked after the first boss falls)
+    const abyssUnlocked = !!game.save.unlockedBiomes.overgrowth;
+    const abBest = game.save.bestAbyss || 0;
+    const abCard = document.createElement('button');
+    abCard.className = 'waypoint-card rift-card focusable' + (abyssUnlocked ? '' : ' locked');
+    if (abyssUnlocked) { abCard.dataset.action = 'enter-abyss'; } else { abCard.tabIndex = -1; }
+    abCard.innerHTML = `
+      <div class="waypoint-glyph" style="color:#ff3df0;text-shadow:0 0 12px #c489ff">${abyssUnlocked ? '🜲' : '🔒'}</div>
+      <div class="waypoint-meta">
+        <div class="waypoint-name" style="color:${abyssUnlocked ? '#e7b3ff' : '#9a9ab0'};text-shadow:0 0 8px #c489ff">The Abyss</div>
+        <div class="waypoint-sub">${abyssUnlocked ? `Endless · draft a boon each floor · Best: Depth ${abBest}` : 'Locked — defeat the first boss'}</div>
+      </div>`;
+    el.appendChild(abCard);
     BIOMES.forEach(b => {
       const unlocked = game.save.unlockedBiomes[b.id];
       const card = document.createElement('button');
@@ -9378,6 +9551,15 @@
         return;
       case 'enter-daily':
         enterDaily();
+        game.history = [];
+        return;
+      case 'enter-abyss':
+        game.abyss = freshAbyss();
+        enterAbyss(1);
+        game.history = [];
+        return;
+      case 'abyss-pick':
+        chooseBoon(el.dataset.boon);
         game.history = [];
         return;
       case 'enter-nightmare':
