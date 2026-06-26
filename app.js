@@ -3213,6 +3213,8 @@
       if (e.weak === pElem)        { dmg = Math.floor(dmg * 1.5); floatText('WEAK', e.x + (rand() - 0.5) * 0.3, e.y - 0.75, 'crit'); }
       else if (e.resist === pElem) { dmg = Math.max(1, Math.floor(dmg * 0.5)); floatText('RESIST', e.x + (rand() - 0.5) * 0.3, e.y - 0.75, 'xp'); }
     }
+    // SHATTER combo: striking a FROZEN enemy cracks it for +60% damage.
+    if (e.frozen > 0) { dmg = Math.floor(dmg * 1.6); floatText('SHATTER', e.x + (rand() - 0.5) * 0.3, e.y - 0.95, 'crit'); }
     e.hp -= dmg;
     if (isCrit) sfxT('crit', 55); else sfxT('enemyHit', 45);
     e.hitFlash = 0.18;
@@ -3253,11 +3255,57 @@
     if (e.hp <= 0) killEnemy(e);
   }
 
-  function killEnemy(e) {
+  // ----- STATUS COMBOS: payoffs for stacking statuses on an enemy before it dies -----
+  // An elemental nova around a dying enemy, damaging nearby foes (scaled to your damage,
+  // so it grows with your build). Kills via killEnemy(o, true) so chains are one level deep.
+  function comboBurst(src, elem, frac, radius) {
+    const base = Math.floor(derived(game.char).dmg * frac);
+    const col = (ELEMENTS[elem] && ELEMENTS[elem].color) || '#ffffff';
+    burst(src.x, src.y, col, 16);
+    if (base < 1) return;
+    const r = radius || 2.2;
+    for (let i = game.enemies.length - 1; i >= 0; i--) {
+      const o = game.enemies[i];
+      if (o === src || o.hp <= 0) continue;
+      if (dist(o, src) <= r) {
+        let d = base;
+        if (o.weak === elem) d = Math.floor(d * 1.5);
+        else if (o.resist === elem) d = Math.max(1, Math.floor(d * 0.5));
+        o.hp -= d; o.hitFlash = 0.15;
+        floatText(`${d}`, o.x + (rand() - 0.5) * 0.3, o.y - 0.4, 'dmg');
+        if (o.hp <= 0) killEnemy(o, true);   // fromCombo: no nested chain reaction
+      }
+    }
+  }
+  // Flames leap from a dying burning enemy to the nearest foe.
+  function igniteSpread(src, burn) {
+    let best = null, bd = 1e9;
+    for (const o of game.enemies) {
+      if (o === src || o.hp <= 0) continue;
+      const dd = dist(o, src);
+      if (dd < bd && dd <= 2.6) { bd = dd; best = o; }
+    }
+    if (best) {
+      applyStatus(best, 'burn', { dmg: burn.dmg, dt: Math.max(2, burn.dt || 2) });
+      burst(best.x, best.y, '#ff7a3c', 8);
+      floatText('IGNITE', best.x, best.y - 0.7, 'crit');
+    }
+  }
+
+  function killEnemy(e, fromCombo) {
+    if (e._dead) return;   // guard against double-processing (combo chains, overlapping DoTs)
+    e._dead = true;
     sfx(e.boss ? 'bossDie' : 'enemyDie');
     burst(e.x, e.y, e.color, e.boss ? 35 : 20);
     burst(e.x, e.y, '#ffffff', e.boss ? 12 : 5);
     game.screenShake = Math.max(game.screenShake, e.boss ? 0.45 : 0.12);
+    // STATUS COMBOS on death — skipped when this kill is itself from a combo (bounds chains).
+    if (!fromCombo) {
+      const se = e.statusEffects || {};
+      if (e.frozen > 0) comboBurst(e, 'cold', 0.5, 2.0);                                       // SHATTER nova
+      if (se.poison)    comboBurst(e, 'poison', 0.45 + 0.12 * (se.poison.stacks || 1), 2.4);   // DETONATE cloud
+      if (se.burn)      igniteSpread(e, se.burn);                                              // IGNITE leap
+    }
     // Treasure Goblin JACKPOT — a burst of gold + a handful of high-rarity items
     if (e.isGoblin) {
       sfx('gold'); sfx('legendary');
