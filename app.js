@@ -472,6 +472,17 @@
     'tempest-spire':      { type: 'weapon', name: 'Tempest Spire',       icon: '✦', base: { dmg: 41, mp: 45, dex: 2 }, ilvl: 24, glyph: 'wep', legendary: true, look: 'storm' },
     'duskfang':           { type: 'weapon', name: 'Duskfang',            icon: '☠', base: { dmg: 39, crit: 6, mp: 20 }, ilvl: 23, glyph: 'wep', legendary: true, look: 'shadow' },
 
+    // ===== LEGENDARY POWER ITEMS (each grants a build-defining power) =====
+    'sanguine-fang':      { type: 'weapon', name: 'Sanguine Fang',       icon: '⚔', base: { dmg: 40, hp: 25 }, ilvl: 23, glyph: 'wep', legendary: true, look: 'shadow', power: 'bloodthirst' },
+    'glassheart-blade':   { type: 'weapon', name: 'Glassheart Blade',    icon: '⚔', base: { dmg: 52, crit: 6 }, ilvl: 24, glyph: 'wep', legendary: true, look: 'frost', power: 'glasscannon' },
+    'emberheart-amulet':  { type: 'amulet', name: 'Emberheart',          icon: '✸', base: { hp: 24, str: 2 }, ilvl: 22, legendary: true, power: 'wildfire' },
+    'rimepact-charm':     { type: 'amulet', name: 'Rimepact Charm',      icon: '❄', base: { def: 14, vit: 2 }, ilvl: 22, legendary: true, power: 'permafrost' },
+    'venom-locket':       { type: 'amulet', name: 'Venom Locket',        icon: '☣', base: { dmg: 10, dex: 2 }, ilvl: 22, legendary: true, power: 'venomfang' },
+    'stormcaller-ring':   { type: 'ring',   name: 'Stormcaller Ring',    icon: '⚡', base: { dmg: 12, crit: 4 }, ilvl: 22, legendary: true, power: 'stormcharged' },
+    'echoing-band':       { type: 'ring',   name: 'Echoing Band',        icon: '◌', base: { mp: 30, int: 2 }, ilvl: 23, legendary: true, power: 'echo' },
+    'overcharger-ring':   { type: 'ring',   name: 'Overcharger',         icon: '◈', base: { dmg: 14, mp: 22 }, ilvl: 23, legendary: true, power: 'overcharge' },
+    'headsmans-seal':     { type: 'amulet', name: "Headsman's Seal",     icon: '☠', base: { dmg: 16, str: 2 }, ilvl: 23, legendary: true, power: 'executioner' },
+
     // ===== LEGENDARY ARMOR =====
     'dragonscale-plate':  { type: 'armor', name: 'Dragonscale Plate',    icon: '◇', base: { def: 42, hp: 30 }, ilvl: 22, legendary: true, look: 'wings' },
     'abyssal-robe':       { type: 'armor', name: 'Abyssal Robe',         icon: '◇', base: { def: 24, mp: 65 }, ilvl: 22, legendary: true, look: 'cape' },
@@ -660,6 +671,36 @@
   function playerElement() {
     return weaponElement(game.char && game.char.equip && game.char.equip.weapon);
   }
+
+  // ============================================================
+  // LEGENDARY POWERS — build-defining effects granted by special legendaries.
+  // Each is a central hook (hitEnemy / castActiveSkill / killEnemy / derived), so no
+  // per-skill code changes. An item carries one via its base.power (or rolled it.power).
+  // ============================================================
+  const POWERS = {
+    wildfire:     { name: 'Wildfire',      desc: 'Your attacks also set enemies on fire.' },
+    permafrost:   { name: 'Permafrost',    desc: 'Your attacks chill enemies, sometimes freezing them.' },
+    venomfang:    { name: 'Venomfang',     desc: 'Your attacks also poison enemies.' },
+    stormcharged: { name: 'Storm-Charged', desc: 'Your attacks crackle for +25% bonus damage.' },
+    echo:         { name: 'Echo',          desc: '35% chance for your skill to cast a second time.' },
+    overcharge:   { name: 'Overcharge',    desc: 'Your skills deal +50% damage.' },
+    bloodthirst:  { name: 'Bloodthirst',   desc: 'Killing an enemy heals you for 3% of max life.' },
+    executioner:  { name: 'Executioner',   desc: '+60% damage to enemies below 25% life.' },
+    glasscannon:  { name: 'Glass Cannon',  desc: '+30% damage dealt, but −25% maximum life.' },
+  };
+  function charPowers(char) {
+    const set = new Set();
+    if (!char || !char.equip) return set;
+    for (const slot of ['weapon', 'armor', 'ring', 'amulet']) {
+      const it = char.equip[slot]; if (!it) continue;
+      const base = ITEM_BASES[it.baseId];
+      if (base && base.power) set.add(base.power);
+      if (it.power) set.add(it.power);
+    }
+    return set;
+  }
+  // Fast lookup for the active character — refreshed in applyDerivedToChar on equip changes.
+  function hasPower(id) { return !!(game._powers && game._powers.has(id)); }
 
   const RARITY_TIERS = ['common', 'magic', 'rare', 'unique', 'mythic'];
   const RARITY_WEIGHTS = [[ 'common', 70 ], [ 'magic', 22 ], [ 'rare', 7 ], [ 'unique', 1 ], [ 'mythic', 0.2 ]];
@@ -1160,6 +1201,8 @@
       avgPerHit: Math.round(avgPerHit), dps,
     };
 
+    // Glass Cannon power: trade max life for raw damage.
+    if (charPowers(char).has('glasscannon')) { dmg = Math.floor(dmg * 1.3); hpMax = Math.floor(hpMax * 0.75); }
     return { dmg, def, hpMax, mpMax, crit, aspd, res: Math.min(75, res), bonusStats, breakdown };
   }
 
@@ -1200,6 +1243,7 @@
   }
 
   function applyDerivedToChar() {
+    game._powers = charPowers(game.char);   // refresh active legendary powers
     const d = derived(game.char);
     game.char.hpMax = d.hpMax;
     game.char.mpMax = d.mpMax;
@@ -2570,15 +2614,18 @@
     const p = game.world.player;
     // Nullweaver silence check
     if (p.silenced && p.silenced > 0) { showHudToast('SILENCED!'); return; }
-    if (p.skillCd > 0) { showHudToast(`Skill cooling: ${p.skillCd.toFixed(1)}s`); return; }
+    const echoing = !!game._echoing;   // a free Echo recast bypasses cost + cooldown
+    if (!echoing && p.skillCd > 0) { showHudToast(`Skill cooling: ${p.skillCd.toFixed(1)}s`); return; }
     const rune = getSkillRune(skillId);
     const cost = Math.round((skill.cost || cls.activeSkillCost) * (rune ? (rune.costMul || 1) : 1));
-    if (c.mp < cost) { showHudToast('Not enough mana'); return; }
-    c.mp -= cost;
-    p.skillCd = skill.cooldown * (rune ? (rune.cdMul || 1) : 1);
-    // Skill damage multiplier from the equipped rune — read by hitEnemy + spawnProjectile.
-    // try/finally guarantees it resets even if a skill takes an early return.
-    game._skillDmgMul = rune ? (rune.dmgMul || 1) : 1;
+    if (!echoing) {
+      if (c.mp < cost) { showHudToast('Not enough mana'); return; }
+      c.mp -= cost;
+      p.skillCd = skill.cooldown * (rune ? (rune.cdMul || 1) : 1);
+    }
+    // Skill damage multiplier from the equipped rune (+ Overcharge power) — read by hitEnemy
+    // + spawnProjectile. try/finally guarantees it resets even if a skill takes an early return.
+    game._skillDmgMul = (rune ? (rune.dmgMul || 1) : 1) * (hasPower('overcharge') ? 1.5 : 1);
     // Kick off the cast body-animation + flourish (purely visual; advanced in tickPlayer).
     const _cfx = CAST_FX[skillId] || { dur: 0.6, color: '#ffffff' };
     p.castAnim = { id: skillId, t: 0, dur: _cfx.dur, color: _cfx.color, uid: (game._castUid = (game._castUid || 0) + 1) };
@@ -3103,6 +3150,11 @@
     } finally {
       game._skillDmgMul = 1;
     }
+    // Echo power: a chance to immediately recast the skill for free (no cost/cooldown).
+    if (!echoing && hasPower('echo') && roll(0.35)) {
+      game._echoing = true;
+      try { castActiveSkill(); } finally { game._echoing = false; }
+    }
     updateHud();
   }
 
@@ -3215,7 +3267,16 @@
     }
     // SHATTER combo: striking a FROZEN enemy cracks it for +60% damage.
     if (e.frozen > 0) { dmg = Math.floor(dmg * 1.6); floatText('SHATTER', e.x + (rand() - 0.5) * 0.3, e.y - 0.95, 'crit'); }
+    // Legendary powers (offensive multipliers)
+    if (hasPower('executioner') && e.hp <= e.hpMax * 0.25) dmg = Math.floor(dmg * 1.6);
+    if (hasPower('stormcharged')) dmg = Math.floor(dmg * 1.25);
     e.hp -= dmg;
+    // Legendary powers (on-hit statuses), if the enemy survived the blow
+    if (e.hp > 0) {
+      if (hasPower('wildfire'))  applyStatus(e, 'burn',   { dmg: Math.floor(baseDmg * 0.4),  dt: 3 });
+      if (hasPower('venomfang')) applyStatus(e, 'poison', { dmg: Math.floor(baseDmg * 0.35), dt: 4 });
+      if (hasPower('permafrost') && roll(0.25)) e.frozen = Math.max(e.frozen || 0, 0.7);
+    }
     if (isCrit) sfxT('crit', 55); else sfxT('enemyHit', 45);
     e.hitFlash = 0.18;
     e.stagger = Math.max(e.stagger, 0.12);
@@ -3299,6 +3360,10 @@
     burst(e.x, e.y, e.color, e.boss ? 35 : 20);
     burst(e.x, e.y, '#ffffff', e.boss ? 12 : 5);
     game.screenShake = Math.max(game.screenShake, e.boss ? 0.45 : 0.12);
+    // Bloodthirst power: kills heal you for 3% of max life.
+    if (hasPower('bloodthirst') && game.char && game.char.hp > 0 && game.char.hp < game.char.hpMax) {
+      game.char.hp = Math.min(game.char.hpMax, game.char.hp + Math.ceil(game.char.hpMax * 0.03));
+    }
     // STATUS COMBOS on death — skipped when this kill is itself from a combo (bounds chains).
     if (!fromCombo) {
       const se = e.statusEffects || {};
@@ -8893,6 +8958,7 @@
       <div class="item-type">${base.type} · ilvl ${it.ilvl} · ${it.rarity.toUpperCase()}</div>
       ${baseLines.map(l => `<div class="item-affix">${l}</div>`).join('')}
       ${(base.type === 'weapon' && weaponElement(it) !== 'physical') ? (function(){ const el = ELEMENTS[weaponElement(it)]; return `<div class="item-affix" style="color:${el.color}">${el.icon} ${el.name} damage</div>`; })() : ''}
+      ${(function(){ const pw = (base.power && POWERS[base.power]) || (it.power && POWERS[it.power]); return pw ? `<div class="item-affix" style="color:#ffd27a">★ ${pw.name} — ${pw.desc}</div>` : ''; })()}
       ${(it.affixes || []).map(a => `<div class="item-affix">+${a.val} ${a.label}</div>`).join('')}
       ${socketInfo}
       ${setInfo}
