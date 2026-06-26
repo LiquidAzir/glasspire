@@ -155,236 +155,412 @@ export function buildPlaceholder(opts) {
 // =============================================================
 
 export function buildEnemy_skeleton(opts) {
+  // Strengthened: crisper angular skull (brow + tapered jaw), bolder ribcage with bright sternum, brighter glowing eye sockets w/ pulse + brow shadow, cleaner shoulder line.
   const g = new T.Group();
   const c = (opts && opts.color) || '#cfc8b0';
-  const bone = mat(c, 0.55);
-  const boneDark = mat(c, 0.32);
-  const eye = matAdd('#ff5a3c');
-  const glint = matAdd('#dfffff', 0.7);
+  const bone = mat(c, 0.6);
+  const boneDark = mat(c, 0.34);
+  const eye = new T.MeshBasicMaterial({ color: new T.Color('#ff5a3c'), transparent: true, opacity: 0.95, blending: T.AdditiveBlending, depthWrite: false });
+  const socket = mat('#171c27');
+  const glint = matAdd('#dfffff', 0.8);
 
-  // thin legs
-  const legL = m(box(0.08, 0.5, 0.08), boneDark); legL.position.set(-0.11, 0.25, 0);
-  const legR = m(box(0.08, 0.5, 0.08), boneDark); legR.position.set(0.11, 0.25, 0);
-  const pelvis = m(box(0.3, 0.1, 0.16), bone); pelvis.position.set(0, 0.55, 0);
+  // thin legs + feet
+  const legL = m(box(0.085, 0.5, 0.085), boneDark); legL.position.set(-0.11, 0.25, 0);
+  const legR = m(box(0.085, 0.5, 0.085), boneDark); legR.position.set(0.11, 0.25, 0);
+  const footL = m(box(0.12, 0.05, 0.18), bone); footL.position.set(-0.11, 0.025, 0.04);
+  const footR = m(box(0.12, 0.05, 0.18), bone); footR.position.set(0.11, 0.025, 0.04);
+  const pelvis = m(box(0.32, 0.11, 0.16), bone); pelvis.position.set(0, 0.55, 0);
 
-  // spine + ribcage (stacked rib slats)
-  const spine = m(box(0.07, 0.42, 0.07), boneDark); spine.position.set(0, 0.8, -0.02);
-  const rib1 = m(box(0.34, 0.05, 0.18), bone); rib1.position.set(0, 0.7, 0.02);
-  const rib2 = m(box(0.32, 0.05, 0.18), bone); rib2.position.set(0, 0.82, 0.02);
-  const rib3 = m(box(0.28, 0.05, 0.17), bone); rib3.position.set(0, 0.94, 0.02);
+  // spine + bolder ribcage (slats taper to a cage) + bright sternum stripe
+  const spine = m(box(0.07, 0.42, 0.07), boneDark); spine.position.set(0, 0.8, -0.03);
+  const rib1 = m(box(0.38, 0.055, 0.2), bone); rib1.position.set(0, 0.68, 0.03);
+  const rib2 = m(box(0.36, 0.055, 0.2), bone); rib2.position.set(0, 0.81, 0.03);
+  const rib3 = m(box(0.31, 0.055, 0.19), bone); rib3.position.set(0, 0.94, 0.025);
+  const sternum = m(box(0.05, 0.34, 0.02), glint); sternum.position.set(0, 0.81, 0.14);
 
-  // shoulders + thin arms
-  const shoulders = m(box(0.4, 0.08, 0.14), boneDark); shoulders.position.set(0, 1.04, 0);
-  const armL = m(box(0.07, 0.42, 0.07), boneDark); armL.position.set(-0.22, 0.84, 0.04);
-  const armR = m(box(0.07, 0.42, 0.07), boneDark); armR.position.set(0.22, 0.84, 0.06);
+  // bold shoulder line + thin arms
+  const shoulders = m(box(0.44, 0.09, 0.15), bone); shoulders.position.set(0, 1.05, 0);
+  const armL = m(box(0.07, 0.42, 0.07), boneDark); armL.position.set(-0.23, 0.84, 0.04);
+  const armR = m(box(0.07, 0.42, 0.07), boneDark); armR.position.set(0.23, 0.84, 0.06);
 
   // chipped blade in right hand
-  const hilt = m(box(0.05, 0.1, 0.05), boneDark); hilt.position.set(0.24, 0.6, 0.1);
-  const blade = m(box(0.06, 0.46, 0.03), glint); blade.position.set(0.24, 0.86, 0.12); blade.rotation.z = 0.06;
-  const tip = m(cone(0.05, 0.12, 4), glint); tip.position.set(0.235, 1.13, 0.12);
+  const hilt = m(box(0.05, 0.1, 0.05), boneDark); hilt.position.set(0.25, 0.6, 0.1);
+  const blade = m(box(0.07, 0.5, 0.03), glint); blade.position.set(0.25, 0.88, 0.12); blade.rotation.z = 0.06;
+  const tip = m(cone(0.05, 0.14, 4), glint); tip.position.set(0.245, 1.17, 0.12);
 
-  // skull with glowing sockets
-  const skull = m(box(0.24, 0.24, 0.22), bone); skull.position.set(0, 1.22, 0);
-  const jaw = m(box(0.18, 0.07, 0.16), boneDark); jaw.position.set(0, 1.09, 0.02);
-  const eyeL = m(box(0.06, 0.06, 0.04), eye); eyeL.position.set(-0.06, 1.24, 0.12);
-  const eyeR = m(box(0.06, 0.06, 0.04), eye); eyeR.position.set(0.06, 1.24, 0.12);
+  // crisper angular skull: cranium + brow ridge + tapered jaw, recessed sockets + bright eyes
+  const skull = m(box(0.25, 0.22, 0.23), bone); skull.position.set(0, 1.24, 0);
+  const brow = m(box(0.26, 0.06, 0.06), boneDark); brow.position.set(0, 1.22, 0.12);
+  const jaw = m(cyl(0.12, 0.07, 0.1, 4), bone); jaw.position.set(0, 1.1, 0.03); jaw.rotation.y = Math.PI / 4;
+  const socketL = m(box(0.08, 0.08, 0.04), socket); socketL.position.set(-0.065, 1.21, 0.115);
+  const socketR = m(box(0.08, 0.08, 0.04), socket); socketR.position.set(0.065, 1.21, 0.115);
+  const eyeL = m(box(0.055, 0.055, 0.05), eye); eyeL.position.set(-0.065, 1.21, 0.13);
+  const eyeR = m(box(0.055, 0.055, 0.05), eye); eyeR.position.set(0.065, 1.21, 0.13);
 
-  g.add(legL, legR, pelvis, spine, rib1, rib2, rib3, shoulders, armL, armR, hilt, blade, tip, skull, jaw, eyeL, eyeR);
+  g.add(legL, legR, footL, footR, pelvis, spine, rib1, rib2, rib3, sternum,
+    shoulders, armL, armR, hilt, blade, tip, skull, brow, jaw, socketL, socketR, eyeL, eyeR);
 
-  g.userData.anim = (g, now) => {
+  g.userData.anim = (grp, now) => {
     const s = Math.sin(now / 360);
-    armR.rotation.x = -0.25 + s * 0.12;
+    armR.rotation.x = -0.25 + s * 0.14;
     hilt.position.y = 0.6 + s * 0.02;
-    blade.position.y = 0.86 + s * 0.02;
-    tip.position.y = 1.13 + s * 0.02;
-    skull.rotation.z = s * 0.04;
+    blade.position.y = 0.88 + s * 0.02;
+    tip.position.y = 1.17 + s * 0.02;
+    skull.rotation.z = s * 0.045;
+    brow.rotation.z = s * 0.045;
+    const pulse = 0.7 + (Math.sin(now / 200) * 0.5 + 0.5) * 0.3;
+    eye.opacity = pulse;
   };
   return g;
 }
 
+// Strengthened: deeper hunch + bony shoulder yoke + tall jagged spine hump, longer dragging arms with BIG bright claws, brighter sunken eyes + glowing brow + faint rib-core glow, richer shamble anim.
 export function buildEnemy_hunched(opts) {
   const g = new T.Group();
   const c = (opts && opts.color) || '#7a8a5e';
-  const flesh = mat(c, 0.5);
-  const fleshDark = mat(c, 0.3);
-  const claw = matAdd('#e8ffd0', 0.75);
-  const eye = matAdd('#aaff44');
+  const flesh = mat(c, 0.55);
+  const fleshDark = mat(c, 0.32);
+  const bone = mat('#cfd6b8', 0.6);
+  const claw = matAdd('#eaffcf', 0.85);
 
-  // bent crouched legs
-  const legL = m(box(0.14, 0.3, 0.16), fleshDark); legL.position.set(-0.16, 0.16, -0.02); legL.rotation.x = 0.25;
-  const legR = m(box(0.14, 0.3, 0.16), fleshDark); legR.position.set(0.16, 0.16, -0.02); legR.rotation.x = 0.25;
-  const footL = m(box(0.16, 0.06, 0.24), fleshDark); footL.position.set(-0.16, 0.03, 0.08);
-  const footR = m(box(0.16, 0.06, 0.24), fleshDark); footR.position.set(0.16, 0.03, 0.08);
+  // unique animated materials (eyes + rib core glow pulse)
+  const eyeMat = new T.MeshBasicMaterial({ color: new T.Color('#bcff3a') });
+  const browMat = new T.MeshBasicMaterial({ color: new T.Color('#8fff2a') });
+  const coreMat = new T.MeshBasicMaterial({ color: new T.Color('#9bff5a'), transparent: true, opacity: 0.45 });
 
-  // hunched torso, tilted forward, with humped spine
-  const torso = m(box(0.46, 0.4, 0.34), flesh); torso.position.set(0, 0.52, 0.04); torso.rotation.x = 0.4;
-  const hump = m(box(0.34, 0.22, 0.2), fleshDark); hump.position.set(0, 0.66, -0.16);
-  const spineRidge = m(cone(0.08, 0.2, 4), fleshDark); spineRidge.position.set(0, 0.72, -0.18); spineRidge.rotation.x = -0.5;
+  // --- bent, crouched legs + splayed feet (wide stable base) ---
+  const legL = m(box(0.15, 0.32, 0.16), fleshDark); legL.position.set(-0.18, 0.17, -0.03); legL.rotation.x = 0.3;
+  const legR = m(box(0.15, 0.32, 0.16), fleshDark); legR.position.set(0.18, 0.17, -0.03); legR.rotation.x = 0.3;
+  const kneeL = m(box(0.13, 0.16, 0.15), fleshDark); kneeL.position.set(-0.2, 0.1, 0.08); kneeL.rotation.x = -0.4;
+  const kneeR = m(box(0.13, 0.16, 0.15), fleshDark); kneeR.position.set(0.2, 0.1, 0.08); kneeR.rotation.x = -0.4;
+  const footL = m(box(0.17, 0.06, 0.26), fleshDark); footL.position.set(-0.2, 0.03, 0.12);
+  const footR = m(box(0.17, 0.06, 0.26), fleshDark); footR.position.set(0.2, 0.03, 0.12);
 
-  // oversized clawed arms reaching forward
-  const upperL = m(box(0.14, 0.34, 0.14), flesh); upperL.position.set(-0.28, 0.5, 0.1); upperL.rotation.x = 0.7;
-  const upperR = m(box(0.14, 0.34, 0.14), flesh); upperR.position.set(0.28, 0.5, 0.1); upperR.rotation.x = 0.7;
-  const foreL = m(box(0.12, 0.32, 0.12), fleshDark); foreL.position.set(-0.3, 0.34, 0.32); foreL.rotation.x = 1.2;
-  const foreR = m(box(0.12, 0.32, 0.12), fleshDark); foreR.position.set(0.3, 0.34, 0.32); foreR.rotation.x = 1.2;
-  const clawL = m(cone(0.07, 0.26, 4), claw); clawL.position.set(-0.3, 0.22, 0.5); clawL.rotation.x = 1.7;
-  const clawR = m(cone(0.07, 0.26, 4), claw); clawR.position.set(0.3, 0.22, 0.5); clawR.rotation.x = 1.7;
+  // --- deeply hunched torso tilted forward ---
+  const torso = m(box(0.5, 0.42, 0.36), flesh); torso.position.set(0, 0.5, 0.06); torso.rotation.x = 0.5;
+  // tall jagged spine hump = signature stooped silhouette
+  const hump = m(box(0.4, 0.3, 0.24), fleshDark); hump.position.set(0, 0.66, -0.16); hump.rotation.x = -0.25;
+  const spine1 = m(cone(0.09, 0.22, 4), bone); spine1.position.set(0, 0.74, -0.16); spine1.rotation.x = -0.6;
+  const spine2 = m(cone(0.07, 0.16, 4), bone); spine2.position.set(0, 0.62, -0.24); spine2.rotation.x = -0.8;
+  // bony shoulder yoke crossing the back, strengthens the stoop line
+  const yoke = m(box(0.56, 0.1, 0.16), bone); yoke.position.set(0, 0.7, -0.02); yoke.rotation.x = 0.25;
 
-  // sunken head with glowing eyes
-  const head = m(box(0.26, 0.2, 0.24), fleshDark); head.position.set(0, 0.66, 0.24);
-  const eyeL = m(box(0.05, 0.05, 0.04), eye); eyeL.position.set(-0.06, 0.68, 0.36);
-  const eyeR = m(box(0.05, 0.05, 0.04), eye); eyeR.position.set(0.06, 0.68, 0.36);
+  // faint glowing ribcage core (pop without bloat)
+  const core = m(box(0.22, 0.18, 0.05), coreMat); core.position.set(0, 0.5, 0.26); core.rotation.x = 0.5;
 
-  g.add(legL, legR, footL, footR, torso, hump, spineRidge, upperL, upperR, foreL, foreR, clawL, clawR, head, eyeL, eyeR);
+  // --- long dragging arms reaching forward + down, BIG bright claws ---
+  const shoL = m(box(0.16, 0.18, 0.16), flesh); shoL.position.set(-0.32, 0.66, -0.02);
+  const shoR = m(box(0.16, 0.18, 0.16), flesh); shoR.position.set(0.32, 0.66, -0.02);
+  const upperL = m(box(0.14, 0.4, 0.14), flesh); upperL.position.set(-0.34, 0.46, 0.12); upperL.rotation.x = 0.85;
+  const upperR = m(box(0.14, 0.4, 0.14), flesh); upperR.position.set(0.34, 0.46, 0.12); upperR.rotation.x = 0.85;
+  const foreL = m(box(0.12, 0.42, 0.12), fleshDark); foreL.position.set(-0.36, 0.24, 0.34); foreL.rotation.x = 1.35;
+  const foreR = m(box(0.12, 0.42, 0.12), fleshDark); foreR.position.set(0.36, 0.24, 0.34); foreR.rotation.x = 1.35;
+  const clawL = m(cone(0.09, 0.34, 4), claw); clawL.position.set(-0.36, 0.08, 0.52); clawL.rotation.x = 1.9;
+  const clawR = m(cone(0.09, 0.34, 4), claw); clawR.position.set(0.36, 0.08, 0.52); clawR.rotation.x = 1.9;
 
-  g.userData.anim = (g, now) => {
+  // --- sunken jutting head, glowing eyes + brow slit ---
+  const neck = m(box(0.14, 0.12, 0.16), fleshDark); neck.position.set(0, 0.62, 0.16);
+  const head = m(box(0.28, 0.22, 0.26), fleshDark); head.position.set(0, 0.6, 0.3); head.rotation.x = 0.2;
+  const jaw = m(box(0.22, 0.08, 0.18), fleshDark); jaw.position.set(0, 0.5, 0.36); jaw.rotation.x = 0.35;
+  const brow = m(box(0.24, 0.04, 0.04), browMat); brow.position.set(0, 0.66, 0.42);
+  const eyeL = m(box(0.07, 0.07, 0.05), eyeMat); eyeL.position.set(-0.07, 0.62, 0.44);
+  const eyeR = m(box(0.07, 0.07, 0.05), eyeMat); eyeR.position.set(0.07, 0.62, 0.44);
+
+  g.add(
+    legL, legR, kneeL, kneeR, footL, footR,
+    torso, hump, spine1, spine2, yoke, core,
+    shoL, shoR, upperL, upperR, foreL, foreR, clawL, clawR,
+    neck, head, jaw, brow, eyeL, eyeR
+  );
+
+  g.userData.anim = (grp, now) => {
     const s = Math.sin(now / 280);
-    foreL.rotation.x = 1.2 + s * 0.18;
-    foreR.rotation.x = 1.2 - s * 0.18;
-    clawL.position.z = 0.5 + s * 0.04;
-    clawR.position.z = 0.5 - s * 0.04;
-    head.position.y = 0.66 + Math.sin(now / 400) * 0.015;
+    const sway = Math.sin(now / 520);
+    // whole-body shambling sway + bob
+    grp.rotation.z = sway * 0.05;
+    grp.position.y = Math.abs(Math.sin(now / 260)) * 0.02;
+    // dragging arm swing (alternating)
+    foreL.rotation.x = 1.35 + s * 0.22;
+    foreR.rotation.x = 1.35 - s * 0.22;
+    clawL.position.z = 0.52 + s * 0.06;
+    clawR.position.z = 0.52 - s * 0.06;
+    clawL.position.y = 0.08 + s * 0.03;
+    clawR.position.y = 0.08 - s * 0.03;
+    // head loll
+    head.rotation.z = sway * 0.12;
+    head.position.y = 0.6 + Math.sin(now / 400) * 0.02;
+    // pulsing eye / core glow
+    const p = 0.55 + Math.abs(s) * 0.45;
+    eyeMat.color.setRGB(0.74 * p, 1.0 * p, 0.23 * p);
+    coreMat.opacity = 0.3 + Math.abs(sway) * 0.3;
   };
   return g;
 }
 
 export function buildEnemy_ghost(opts) {
+  // Strengthened: bolder additive shroud, tall hooded crown, brighter hollow-eye mask, a pulsing additive heart-core, longer trailing wisp tail + drifting wisp arms.
   const g = new T.Group();
   const c = (opts && opts.color) || '#8fb6c8';
-  const shroud = matAdd(c, 0.42);
-  const shroudFaint = matAdd(c, 0.24);
-  const hood = mat(c, 0.28);
-  const eye = matAdd('#dffaff');
+
+  // Bright additive shroud layers (the glowing silhouette) + a darker hood mass for contrast.
+  const shroud     = matAdd(c, 0.5);
+  const shroudSoft = matAdd(c, 0.3);
+  const shroudWisp = matAdd(c, 0.18);
+  const hoodMass   = mat(c, 0.34);
+  const maskDark   = mat(c, 0.1);
+  const eye        = matAdd('#e8ffff', 0.95);
+  // UNIQUE animated material for the pulsing core glow (never the shared cache).
+  const coreMat = new T.MeshBasicMaterial({ color: new T.Color('#eafcff'), transparent: true, opacity: 0.85, blending: T.AdditiveBlending, depthWrite: false });
 
   const float = new T.Group(); float.position.y = 0.5;
 
-  // tapered tattered body (wide hood -> narrow trailing wisp)
-  const upper = m(cyl(0.26, 0.34, 0.4, 6), shroud); upper.position.set(0, 0.5, 0);
-  const lower = m(cyl(0.3, 0.14, 0.46, 6), shroudFaint); lower.position.set(0, 0.1, 0);
+  // BOLD broad shoulders tapering down to a single trailing wisp — a clear wraith silhouette (no legs).
+  const shoulders = m(cyl(0.36, 0.3, 0.34, 7), shroud);     shoulders.position.set(0, 0.56, 0);
+  const torso     = m(cyl(0.3, 0.18, 0.42, 7), shroudSoft); torso.position.set(0, 0.18, 0);
+  const tail      = m(cone(0.18, 0.5, 6), shroudWisp);      tail.position.set(0, -0.34, 0); tail.rotation.x = Math.PI;
 
-  // ragged hem prongs trailing below
-  const hem1 = m(cone(0.1, 0.34, 4), shroudFaint); hem1.position.set(-0.14, -0.18, 0.04); hem1.rotation.x = Math.PI;
-  const hem2 = m(cone(0.1, 0.4, 4), shroudFaint); hem2.position.set(0.02, -0.24, -0.04); hem2.rotation.x = Math.PI;
-  const hem3 = m(cone(0.1, 0.3, 4), shroudFaint); hem3.position.set(0.16, -0.16, 0.06); hem3.rotation.x = Math.PI;
+  // Bright additive core deep in the chest — pulses, gives the wraith a glowing heart.
+  const core = m(cyl(0.06, 0.1, 0.16, 6), coreMat); core.position.set(0, 0.46, 0.06);
 
-  // hollow hood
-  const hoodTop = m(cone(0.26, 0.34, 6), hood); hoodTop.position.set(0, 0.82, 0);
-  const hollow = m(box(0.2, 0.18, 0.04), mat(c, 0.12)); hollow.position.set(0, 0.66, 0.2);
-  const eyeL = m(box(0.05, 0.06, 0.03), eye); eyeL.position.set(-0.06, 0.68, 0.22);
-  const eyeR = m(box(0.05, 0.06, 0.03), eye); eyeR.position.set(0.06, 0.68, 0.22);
+  // Three tattered hem prongs sweeping below the shoulders.
+  const hem1 = m(cone(0.1, 0.4, 4), shroudSoft);  hem1.position.set(-0.2, -0.02, 0.05); hem1.rotation.x = Math.PI;
+  const hem2 = m(cone(0.1, 0.34, 4), shroudWisp); hem2.position.set(0.04, -0.06, -0.06); hem2.rotation.x = Math.PI;
+  const hem3 = m(cone(0.1, 0.42, 4), shroudSoft); hem3.position.set(0.22, -0.02, 0.05); hem3.rotation.x = Math.PI;
 
-  // wispy arms
-  const armL = m(cyl(0.05, 0.09, 0.34, 5), shroudFaint); armL.position.set(-0.3, 0.44, 0.04); armL.rotation.z = 0.4;
-  const armR = m(cyl(0.05, 0.09, 0.34, 5), shroudFaint); armR.position.set(0.3, 0.44, 0.04); armR.rotation.z = -0.4;
+  // TALL hooded crown — the iconic haunting head shape.
+  const hoodTop  = m(cone(0.28, 0.5, 6), hoodMass);       hoodTop.position.set(0, 0.98, 0);
+  const hoodBack = m(cyl(0.24, 0.28, 0.22, 6), hoodMass); hoodBack.position.set(0, 0.74, -0.02);
+  // Dark mask cavity so the bright eyes read as hollow sockets.
+  const mask = m(box(0.26, 0.22, 0.06), maskDark); mask.position.set(0, 0.74, 0.18);
+  const eyeL = m(box(0.06, 0.09, 0.04), eye); eyeL.position.set(-0.07, 0.76, 0.22);
+  const eyeR = m(box(0.06, 0.09, 0.04), eye); eyeR.position.set(0.07, 0.76, 0.22);
 
-  float.add(upper, lower, hem1, hem2, hem3, hoodTop, hollow, eyeL, eyeR, armL, armR);
+  // Long flowing wisp arms reaching outward with trailing claws.
+  const armL  = m(cyl(0.05, 0.11, 0.46, 5), shroudSoft); armL.position.set(-0.36, 0.42, 0.04); armL.rotation.z = 0.5;
+  const armR  = m(cyl(0.05, 0.11, 0.46, 5), shroudSoft); armR.position.set(0.36, 0.42, 0.04);  armR.rotation.z = -0.5;
+  const clawL = m(cone(0.07, 0.22, 4), shroudWisp); clawL.position.set(-0.52, 0.18, 0.04); clawL.rotation.x = Math.PI;
+  const clawR = m(cone(0.07, 0.22, 4), shroudWisp); clawR.position.set(0.52, 0.18, 0.04);  clawR.rotation.x = Math.PI;
+
+  float.add(shoulders, torso, tail, core, hem1, hem2, hem3, hoodTop, hoodBack, mask, eyeL, eyeR, armL, armR, clawL, clawR);
   g.add(float);
 
-  g.userData.anim = (g, now) => {
+  g.userData.anim = (grp, now) => {
     const drift = Math.sin(now / 700);
-    float.position.y = 0.5 + drift * 0.07;
-    hem1.rotation.z = Math.sin(now / 500) * 0.12;
-    hem2.rotation.z = Math.sin(now / 500 + 1) * 0.12;
-    hem3.rotation.z = Math.sin(now / 500 + 2) * 0.12;
-    armL.rotation.z = 0.4 + Math.sin(now / 600) * 0.1;
-    armR.rotation.z = -0.4 - Math.sin(now / 600) * 0.1;
+    float.position.y = 0.5 + drift * 0.08;
+    float.rotation.y = Math.sin(now / 1600) * 0.12;
+    // Pulsing additive heart.
+    const pulse = 0.55 + (Math.sin(now / 320) * 0.5 + 0.5) * 0.45;
+    core.material.opacity = pulse;
+    core.scale.set(1, pulse * 1.2 + 0.4, 1);
+    // Tattered hem sway.
+    hem1.rotation.z = Math.sin(now / 500) * 0.16;
+    hem2.rotation.z = Math.sin(now / 500 + 1) * 0.16;
+    hem3.rotation.z = Math.sin(now / 500 + 2) * 0.16;
+    tail.rotation.z = Math.sin(now / 650) * 0.1;
+    // Reaching wisp arms.
+    armL.rotation.z = 0.5 + Math.sin(now / 600) * 0.12;
+    armR.rotation.z = -0.5 - Math.sin(now / 600) * 0.12;
   };
   return g;
 }
 
 export function buildEnemy_weaver(opts) {
+  // Strengthened: spider-CASTER silhouette — 6 angular legs with BRIGHT glowing knee-joints splayed
+  // in a radial frame around a hot pulsing abdomen core, hovering over a counter-rotating glyph ring.
   const c = (opts && opts.color) || '#b388ff';
   const boss = !!(opts && opts.boss);
-  const s = boss ? 1.6 : 1;
+  const s = boss ? 1.55 : 1;
   const g = new T.Group();
-  const ringMat = mat(c, 0.55);
-  const ringDeep = mat(c, 0.35);
-  const eyeGlow = matAdd(c, 0.95);
-  const pupil = matAdd('#ffffff', 1);
 
-  // floats off the ground — body hovers around y ~ 0.7..0.9 (scaled)
-  const cx = 0.85 * s;
+  const body = mat(c, 0.42);        // dark carapace mass
+  const limb = mat(c, 0.3);         // dim leg shafts
+  const glow = matAdd(c, 0.95);     // bright energy / eyes
+  const joint = matAdd(c, 0.85);    // glowing leg joints (shared static)
+  const hot = matAdd('#ffffff', 1); // white-hot pinpoints
+  const ringMat = mat(c, 0.5);
 
-  // central glowing eye — a faceted lens with a dim iris box and a hot core
-  const eyeBall = m(geo('weaverEye', () => new T.IcosahedronGeometry(0.16, 0)), eyeGlow);
-  eyeBall.position.y = cx; eyeBall.scale.setScalar(s);
-  const iris = m(box(0.11 * s, 0.13 * s, 0.05 * s), mat(c, 0.18)); iris.position.set(0, cx, 0.13 * s);
-  const core = m(box(0.05 * s, 0.07 * s, 0.04 * s), pupil); core.position.set(0, cx, 0.16 * s);
+  // hovers — abdomen core centered around this height
+  const cy = 0.78 * s;
 
-  // concentric angular rings (octagon torii) on different axes — the eldritch construct
-  const r1 = m(geo('weaverRing1', () => new T.TorusGeometry(0.34, 0.03, 4, 8)), ringMat);
-  r1.position.y = cx; r1.rotation.x = Math.PI / 2;
-  const r2 = m(geo('weaverRing2', () => new T.TorusGeometry(0.5, 0.035, 4, 8)), ringDeep);
-  r2.position.y = cx; r2.rotation.set(Math.PI / 2, 0, 0.4);
-  const r3 = m(geo('weaverRing3', () => new T.TorusGeometry(0.66, 0.03, 4, 6)), ringMat);
-  r3.position.y = cx; r3.rotation.set(0.5, 0.3, 0);
-  r1.scale.setScalar(s); r2.scale.setScalar(s); r3.scale.setScalar(s);
+  // ---- ABDOMEN CORE: the bright centerpiece. A faceted dark shell with a hot inner gem. ----
+  // unique animated material for the pulsing core
+  const coreMat = new T.MeshBasicMaterial({ color: c, fog: false, transparent: true, opacity: 0.95, blending: T.AdditiveBlending, depthWrite: false });
+  const shell = m(geo('weaverShell', () => new T.OctahedronGeometry(0.3, 0)), body);
+  shell.position.set(0, cy, -0.04 * s); shell.scale.set(1.05 * s, 1.25 * s, 1.1 * s);
+  const core = m(geo('weaverCore', () => new T.OctahedronGeometry(0.2, 0)), coreMat);
+  core.position.set(0, cy, -0.04 * s); core.scale.setScalar(s);
+  const spark = m(box(0.06 * s, 0.09 * s, 0.06 * s), hot); spark.position.set(0, cy, -0.04 * s);
 
-  // a few sharp shards riding the outer ring for a jagged silhouette
-  const shards = [];
-  for (let i = 0; i < 4; i++) {
-    const a = (i / 4) * Math.PI * 2;
-    const sh = m(cone(0.05 * s, 0.16 * s, 3), eyeGlow);
-    sh.position.set(Math.cos(a) * 0.66 * s, cx, Math.sin(a) * 0.66 * s);
-    sh.rotation.z = -a;
-    g.add(sh); shards.push(sh);
+  // ---- CEPHALOTHORAX + caster head (front, +Z) ----
+  const thorax = m(box(0.26 * s, 0.22 * s, 0.26 * s), body); thorax.position.set(0, cy - 0.02 * s, 0.24 * s);
+  const head = m(cone(0.13 * s, 0.22 * s, 4), body); head.position.set(0, cy - 0.02 * s, 0.42 * s); head.rotation.x = Math.PI / 2;
+  const eye = m(geo('weaverEye', () => new T.IcosahedronGeometry(0.1, 0)), glow); eye.position.set(0, cy + 0.02 * s, 0.46 * s); eye.scale.setScalar(s);
+  const eyeCore = m(box(0.035 * s, 0.05 * s, 0.03 * s), hot); eyeCore.position.set(0, cy + 0.02 * s, 0.52 * s);
+  // forward fangs
+  const fangL = m(cone(0.03 * s, 0.13 * s, 3), glow); fangL.position.set(-0.07 * s, cy - 0.08 * s, 0.5 * s); fangL.rotation.x = Math.PI / 2;
+  const fangR = m(cone(0.03 * s, 0.13 * s, 3), glow); fangR.position.set(0.07 * s, cy - 0.08 * s, 0.5 * s); fangR.rotation.x = Math.PI / 2;
+
+  // ---- 6 SPINDLY LEGS with BRIGHT GLOWING KNEE-JOINTS — bold radial frame ----
+  // Each leg: hip group at body height. Upper shaft angles up+out to a glowing knee node,
+  // lower shaft drops to the floor (foot at y~0). Joints are the iconic bright accents.
+  const legs = [];
+  const cfg = [
+    [-1, 0.16, 0.55], [1, 0.16, 0.55],   // front pair, splayed wide
+    [-1, 0.0, 0.18], [1, 0.0, 0.18],     // mid pair
+    [-1, -0.18, -0.2], [1, -0.18, -0.2], // rear pair
+  ];
+  for (let i = 0; i < cfg.length; i++) {
+    const side = cfg[i][0], z = cfg[i][1] * s, spread = cfg[i][2];
+    const lg = new T.Group(); lg.position.set(0.14 * side * s, cy - 0.04 * s, z);
+
+    // upper shaft rises outward to the knee
+    const upper = m(box(0.045 * s, 0.045 * s, 0.34 * s), limb);
+    upper.position.set(0.24 * side, 0.18 * s, spread * 0.1 * s);
+    upper.rotation.z = -0.95 * side; upper.rotation.y = spread * 0.9 * side;
+
+    // glowing knee joint at the apex of the leg (the signature bright node)
+    const knee = m(geo('weaverKnee', () => new T.OctahedronGeometry(0.07, 0)), joint);
+    knee.position.set(0.42 * side, 0.34 * s, spread * 0.18 * s); knee.scale.setScalar(s);
+
+    // lower shaft plunges from knee down to the ground
+    const lower = m(box(0.04 * s, 0.62 * s, 0.04 * s), limb);
+    lower.position.set(0.46 * side, -0.06 * s, spread * 0.2 * s);
+    lower.rotation.z = 0.25 * side;
+
+    // bright foot tip
+    const foot = m(cone(0.035 * s, 0.1 * s, 3), glow);
+    foot.position.set(0.5 * side, -(cy - 0.04 * s) + 0.05 * s, spread * 0.2 * s);
+    foot.rotation.x = Math.PI;
+
+    lg.add(upper, knee, lower, foot);
+    lg.userData.ph = i * 1.05;
+    lg.userData.knee = knee;
+    legs.push(lg); g.add(lg);
   }
 
-  g.add(r1, r2, r3, eyeBall, iris, core);
+  // ---- counter-rotating glyph ring beneath the caster ----
+  const ring = m(geo('weaverRing', () => new T.TorusGeometry(0.46, 0.028, 4, 8)), ringMat);
+  ring.position.y = cy - 0.34 * s; ring.rotation.x = Math.PI / 2; ring.scale.setScalar(s);
+  const ringGlyphs = [];
+  for (let i = 0; i < 4; i++) {
+    const a = (i / 4) * Math.PI * 2;
+    const gl = m(cone(0.045 * s, 0.16 * s, 3), glow);
+    gl.position.set(Math.cos(a) * 0.46 * s, cy - 0.34 * s, Math.sin(a) * 0.46 * s);
+    gl.rotation.z = -a; ring.add ? null : null; g.add(gl); ringGlyphs.push(gl);
+  }
+
+  g.add(shell, core, spark, thorax, head, eye, eyeCore, fangL, fangR, ring);
 
   g.userData.anim = (grp, now) => {
-    // counter-rotating rings
-    r1.rotation.z = now / 900;
-    r2.rotation.z = 0.4 - now / 1300;
-    r3.rotation.y = 0.3 + now / 1100;
-    // pulsing eye + bob
-    const p = Math.sin(now / 380);
-    core.scale.setScalar(1 + p * 0.3);
-    eyeBall.scale.setScalar(s * (1 + p * 0.08));
-    const y = cx + Math.sin(now / 700) * 0.06;
-    eyeBall.position.y = y; iris.position.y = y; core.position.y = y;
-    r1.position.y = y; r2.position.y = y; r3.position.y = y;
-    for (let i = 0; i < shards.length; i++) shards[i].position.y = y;
+    // hover bob
+    const y = cy + Math.sin(now / 720) * 0.05 * s;
+    const dy = y - cy;
+    shell.position.y = y; core.position.y = y; spark.position.y = y;
+    thorax.position.y = cy - 0.02 * s + dy; head.position.y = cy - 0.02 * s + dy;
+    eye.position.y = cy + 0.02 * s + dy; eyeCore.position.y = cy + 0.02 * s + dy;
+    fangL.position.y = cy - 0.08 * s + dy; fangR.position.y = cy - 0.08 * s + dy;
+
+    // pulsing hot core + eye flare
+    const p = Math.sin(now / 360);
+    core.scale.setScalar(s * (1 + p * 0.18));
+    coreMat.opacity = 0.75 + (p * 0.5 + 0.5) * 0.25;
+    spark.scale.setScalar(1 + p * 0.4);
+    eye.scale.setScalar(s * (1 + p * 0.1));
+
+    // slow ring spin + glyph orbit
+    ring.rotation.z = now / 1400;
+    ring.position.y = cy - 0.34 * s + dy * 0.5;
+    for (let i = 0; i < ringGlyphs.length; i++) {
+      const a = (i / 4) * Math.PI * 2 + now / 1400;
+      ringGlyphs[i].position.set(Math.cos(a) * 0.46 * s, cy - 0.34 * s + dy * 0.5, Math.sin(a) * 0.46 * s);
+      ringGlyphs[i].rotation.y = a;
+    }
+
+    // legs weave + glowing knees twitch (carried with body bob)
+    for (let i = 0; i < legs.length; i++) {
+      const lp = Math.sin(now / 240 + legs[i].userData.ph);
+      legs[i].rotation.x = lp * 0.1;
+      legs[i].position.y = cy - 0.04 * s + dy + Math.abs(lp) * 0.015 * s;
+      legs[i].userData.knee.scale.setScalar(s * (0.9 + Math.abs(lp) * 0.25));
+    }
   };
   return g;
 }
 
+// Strengthened: open fanged maw + bristling additive spine ridge + glowing eyes/throat/heart core, heavier stance, pulsing-glow prowl anim.
 export function buildEnemy_beast(opts) {
   const c = (opts && opts.color) || '#7a2230';
   const g = new T.Group();
   const body = mat(c, 0.5);
   const dark = mat(c, 0.34);
-  const eyeMat = matAdd((opts && opts.eye) || '#ff5a2a');
-  // Lean spine/torso, slightly raised hindquarters -> menacing crouch.
-  const torso = m(box(0.36, 0.3, 0.86), body); torso.position.set(0, 0.5, 0.02);
-  const haunch = m(box(0.42, 0.36, 0.34), dark); haunch.position.set(0, 0.52, -0.34);
-  const chest = m(box(0.4, 0.34, 0.3), body); chest.position.set(0, 0.5, 0.36);
-  // Neck angled forward + snouted head at the +Z end.
-  const neck = m(box(0.26, 0.24, 0.28), dark); neck.position.set(0, 0.56, 0.5); neck.rotation.x = -0.35;
-  const head = m(box(0.3, 0.26, 0.3), body); head.position.set(0, 0.62, 0.66);
-  const snout = m(box(0.16, 0.15, 0.26), dark); snout.position.set(0, 0.56, 0.88);
-  const jaw = m(box(0.14, 0.07, 0.2), mat(c, 0.42)); jaw.position.set(0, 0.49, 0.86);
-  // Glowing eyes + pointed ears.
-  const eyeL = m(box(0.06, 0.06, 0.04), eyeMat); eyeL.position.set(-0.09, 0.66, 0.82);
-  const eyeR = m(box(0.06, 0.06, 0.04), eyeMat); eyeR.position.set(0.09, 0.66, 0.82);
-  const earL = m(cone(0.07, 0.2, 4), dark); earL.position.set(-0.1, 0.82, 0.6);
-  const earR = m(cone(0.07, 0.2, 4), dark); earR.position.set(0.1, 0.82, 0.6);
-  // Four legs (faceted boxes). Group each so anim can swing from the hip.
+  const darker = mat(c, 0.26);
+  const eyeHex = (opts && opts.eye) || '#ff5a2a';
+  // Unique animated glow materials (pulse) — must NOT use shared matAdd cache.
+  const eyeMat = new T.MeshBasicMaterial({ color: new T.Color(eyeHex), transparent: true, opacity: 0.95, blending: T.AdditiveBlending, depthWrite: false });
+  const mawMat = new T.MeshBasicMaterial({ color: new T.Color(eyeHex), transparent: true, opacity: 0.6, blending: T.AdditiveBlending, depthWrite: false });
+  const coreMat = new T.MeshBasicMaterial({ color: new T.Color(eyeHex), transparent: true, opacity: 0.55, blending: T.AdditiveBlending, depthWrite: false });
+  const fangMat = matAdd('#fff2e0', 0.85);
+  const spineMat = matAdd(eyeHex, 0.7);
+
+  // --- Core mass: low forequarters, raised haunches = predatory crouch.
+  const torso = m(box(0.4, 0.34, 0.9), body); torso.position.set(0, 0.5, 0.02);
+  const haunch = m(box(0.48, 0.42, 0.36), dark); haunch.position.set(0, 0.54, -0.36);
+  const chest = m(box(0.46, 0.4, 0.34), body); chest.position.set(0, 0.48, 0.38);
+  // Glowing heart-core set into the chest.
+  const core = m(box(0.16, 0.18, 0.06), coreMat); core.position.set(0, 0.46, 0.55);
+
+  // --- Neck angled down + forward into a big, low, lunging head.
+  const neck = m(box(0.3, 0.28, 0.3), dark); neck.position.set(0, 0.54, 0.54); neck.rotation.x = -0.42;
+  const head = new T.Group(); head.position.set(0, 0.56, 0.72);
+  const skull = m(box(0.34, 0.3, 0.32), body); skull.position.set(0, 0.06, 0);
+  const browL = m(box(0.12, 0.07, 0.14), dark); browL.position.set(-0.1, 0.15, 0.12);
+  const browR = m(box(0.12, 0.07, 0.14), dark); browR.position.set(0.1, 0.15, 0.12);
+  // Open fanged maw: upper snout + dropped lower jaw with a glowing gullet between.
+  const upper = m(box(0.22, 0.12, 0.3), dark); upper.position.set(0, 0.0, 0.24);
+  const lower = m(box(0.2, 0.1, 0.26), darker); lower.position.set(0, -0.14, 0.22);
+  const gullet = m(box(0.16, 0.1, 0.12), mawMat); gullet.position.set(0, -0.06, 0.26);
+  const fang = (x, up) => { const f = m(cone(0.03, 0.11, 4), fangMat); f.position.set(x, up ? -0.04 : -0.08, 0.34); f.rotation.x = up ? Math.PI : 0; return f; };
+  const fangs = [fang(-0.07, true), fang(0.07, true), fang(-0.06, false), fang(0.06, false)];
+  // Big forward-blazing eyes.
+  const eyeL = m(box(0.07, 0.07, 0.05), eyeMat); eyeL.position.set(-0.1, 0.1, 0.18);
+  const eyeR = m(box(0.07, 0.07, 0.05), eyeMat); eyeR.position.set(0.1, 0.1, 0.18);
+  // Swept horn-ears.
+  const earL = m(cone(0.07, 0.24, 4), dark); earL.position.set(-0.12, 0.26, -0.04); earL.rotation.set(0.4, 0, -0.3);
+  const earR = m(cone(0.07, 0.24, 4), dark); earR.position.set(0.12, 0.26, -0.04); earR.rotation.set(0.4, 0, 0.3);
+  head.add(skull, browL, browR, upper, lower, gullet, eyeL, eyeR, earL, earR, ...fangs);
+
+  // --- Bristling additive spine ridge: cone spikes shoulders -> hindquarters.
+  const spine = new T.Group();
+  const spineZ = [0.42, 0.22, 0.0, -0.2, -0.42];
+  const spineH = [0.16, 0.22, 0.26, 0.24, 0.18];
+  for (let i = 0; i < spineZ.length; i++) {
+    const s = m(cone(0.05, spineH[i], 4), spineMat);
+    s.position.set(0, 0.72 + spineH[i] * 0.4, spineZ[i]);
+    s.rotation.x = -0.15;
+    spine.add(s);
+  }
+
+  // --- Four heavier legs. Group each so anim swings from the hip.
   function leg(x, z, fwd) {
     const lg = new T.Group(); lg.position.set(x, 0.42, z);
-    const upper = m(box(0.11, 0.34, 0.13), dark); upper.position.set(0, -0.17, 0);
-    const paw = m(box(0.13, 0.08, 0.18), body); paw.position.set(0, -0.36, 0.03);
-    lg.add(upper, paw); lg.userData.fwd = fwd; return lg;
+    const upperL = m(box(0.13, 0.36, 0.15), dark); upperL.position.set(0, -0.18, 0);
+    const paw = m(box(0.15, 0.09, 0.2), body); paw.position.set(0, -0.38, 0.04);
+    const claw = m(box(0.14, 0.04, 0.06), darker); claw.position.set(0, -0.4, 0.16);
+    lg.add(upperL, paw, claw); lg.userData.fwd = fwd; return lg;
   }
-  const flL = leg(-0.15, 0.42, true);
-  const flR = leg(0.15, 0.42, false);
-  const blL = leg(-0.16, -0.4, false);
-  const blR = leg(0.16, -0.4, true);
-  // Low, stiff tail trailing -Z, pivot group for sway.
-  const tail = new T.Group(); tail.position.set(0, 0.5, -0.5);
-  const t1 = m(box(0.09, 0.09, 0.26), dark); t1.position.set(0, 0.02, -0.13);
-  const t2 = m(cone(0.06, 0.22, 4), body); t2.position.set(0, 0.04, -0.32); t2.rotation.x = Math.PI / 2;
-  tail.add(t1, t2);
-  g.add(torso, haunch, chest, neck, head, snout, jaw, eyeL, eyeR, earL, earR, flL, flR, blL, blR, tail);
+  const flL = leg(-0.18, 0.44, true);
+  const flR = leg(0.18, 0.44, false);
+  const blL = leg(-0.2, -0.42, false);
+  const blR = leg(0.2, -0.42, true);
+
+  // --- Stiff tail trailing -Z, pivot group for sway.
+  const tail = new T.Group(); tail.position.set(0, 0.52, -0.54);
+  const t1 = m(box(0.1, 0.1, 0.28), dark); t1.position.set(0, 0.0, -0.14);
+  const t2 = m(cone(0.07, 0.26, 4), body); t2.position.set(0, 0.02, -0.36); t2.rotation.x = Math.PI / 2;
+  const tTip = m(cone(0.05, 0.14, 4), spineMat); tTip.position.set(0, 0.02, -0.52); tTip.rotation.x = Math.PI / 2;
+  tail.add(t1, t2, tTip);
+
+  g.add(torso, haunch, chest, core, neck, head, spine, flL, flR, blL, blR, tail);
   g.userData.legs = [flL, flR, blL, blR];
   g.userData.tail = tail;
   g.userData.head = head;
@@ -393,407 +569,669 @@ export function buildEnemy_beast(opts) {
     const legs = grp.userData.legs;
     for (let i = 0; i < legs.length; i++) {
       const ph = legs[i].userData.fwd ? 0 : Math.PI;
-      legs[i].rotation.x = Math.sin(t + ph) * 0.5;
+      legs[i].rotation.x = Math.sin(t + ph) * 0.55;
     }
-    grp.userData.tail.rotation.y = Math.sin(now / 400) * 0.45;
-    grp.userData.tail.rotation.x = -0.15 + Math.sin(now / 520) * 0.1;
-    grp.userData.head.position.y = 0.62 + Math.sin(now / 500) * 0.02;
+    grp.userData.tail.rotation.y = Math.sin(now / 400) * 0.5;
+    grp.userData.tail.rotation.x = -0.15 + Math.sin(now / 520) * 0.12;
+    const h = grp.userData.head;
+    h.position.y = 0.56 + Math.sin(now / 500) * 0.025;
+    h.rotation.x = Math.sin(now / 760) * 0.08;
+    grp.position.y = Math.sin(now / 300) * 0.012;
+    const pulse = 0.7 + Math.sin(now / 240) * 0.3;
+    eyeMat.opacity = pulse;
+    mawMat.opacity = 0.45 + Math.sin(now / 200) * 0.2;
+    coreMat.opacity = 0.4 + Math.sin(now / 300) * 0.2;
   };
   return g;
 }
 
 export function buildEnemy_spider(opts) {
+  // Strengthened: fatter faceted abdomen with a bright additive dorsal stripe + glow underbelt,
+  // bolder radially-splayed 3-joint legs (thicker upper struts, clearer plant), and a brighter
+  // 5-eye cluster with a glowing maw line. Unique animated mat per build; refined scuttle anim.
   const c = (opts && opts.color) || '#3b2a52';
   const g = new T.Group();
   const body = mat(c, 0.5);
   const dark = mat(c, 0.32);
-  const eyeMat = matAdd((opts && opts.eye) || '#b06cff');
-  // Body sits low and wide so legs can splay down to the ground (feet at y=0).
-  // Bulbous faceted abdomen (rear) + smaller cephalothorax/head (front, +Z).
-  const abdomen = m(box(0.5, 0.34, 0.56), body); abdomen.position.set(0, 0.36, -0.22);
-  const hump = m(cone(0.28, 0.26, 5), dark); hump.position.set(0, 0.52, -0.26); hump.rotation.x = Math.PI;
-  const head = m(box(0.3, 0.24, 0.3), dark); head.position.set(0, 0.32, 0.24);
-  // Two fangs jutting forward.
-  const fangL = m(cone(0.04, 0.14, 4), body); fangL.position.set(-0.07, 0.24, 0.42); fangL.rotation.x = Math.PI / 2;
-  const fangR = m(cone(0.04, 0.14, 4), body); fangR.position.set(0.07, 0.24, 0.42); fangR.rotation.x = Math.PI / 2;
-  // Glowing eye cluster on the head front.
-  const eyePos = [[-0.08, 0.38, 0.39], [0.08, 0.38, 0.39], [-0.04, 0.32, 0.4], [0.04, 0.32, 0.4]];
+  const eyeCol = (opts && opts.eye) || '#b06cff';
+  const eyeMat = matAdd(eyeCol);
+  // Unique additive material for the pulsing dorsal mark / underglow (animated -> must not share cache).
+  const glowMat = new T.MeshBasicMaterial({ color: new T.Color(eyeCol), transparent: true, opacity: 0.7, blending: T.AdditiveBlending, depthWrite: false });
+
+  // --- Body: fat faceted abdomen (rear) + smaller cephalothorax/head (front, +Z) ---
+  const abdomen = m(box(0.56, 0.4, 0.62), body); abdomen.position.set(0, 0.38, -0.24);
+  const humpTop = m(cone(0.32, 0.34, 5), dark); humpTop.position.set(0, 0.56, -0.28); humpTop.rotation.x = Math.PI;
+  // Bright additive dorsal stripe down the abdomen — a strong top-down read.
+  const stripe = m(geo('spiderStripe', () => box(0.1, 0.04, 0.5)), glowMat); stripe.position.set(0, 0.6, -0.26);
+  // Glow underbelt where legs meet body — anchors the radial splay visually.
+  const belt = m(geo('spiderBelt', () => cyl(0.34, 0.34, 0.06, 8)), glowMat); belt.position.set(0, 0.34, -0.18);
+
+  const head = m(box(0.34, 0.26, 0.32), dark); head.position.set(0, 0.33, 0.26);
+  // Two fangs jutting forward + a bright maw line beneath the eyes.
+  const fangL = m(cone(0.045, 0.16, 4), body); fangL.position.set(-0.08, 0.24, 0.44); fangL.rotation.x = Math.PI / 2;
+  const fangR = m(cone(0.045, 0.16, 4), body); fangR.position.set(0.08, 0.24, 0.44); fangR.rotation.x = Math.PI / 2;
+  const maw = m(geo('spiderMaw', () => box(0.18, 0.03, 0.02)), eyeMat); maw.position.set(0, 0.28, 0.43);
+
+  // --- Bright 5-eye cluster on the head front (two big lead eyes + cluster) ---
+  const eyePos = [[-0.09, 0.4, 0.41, 0.06], [0.09, 0.4, 0.41, 0.06], [0, 0.43, 0.42, 0.045], [-0.05, 0.35, 0.42, 0.035], [0.05, 0.35, 0.42, 0.035]];
   for (let i = 0; i < eyePos.length; i++) {
-    const sz = i < 2 ? 0.05 : 0.035;
+    const sz = eyePos[i][3];
     const e = m(box(sz, sz, 0.03), eyeMat); e.position.set(eyePos[i][0], eyePos[i][1], eyePos[i][2]); g.add(e);
   }
-  // Eight angular legs: hip group at body height; upper box angles out, lower cone drops to the floor.
-  // The leg group's baseY is the body joint; the lower cone reaches down to y~=0 so feet touch the tile.
+
+  // --- Eight bold radially-splayed legs: thick upper strut angles out+up, lower cone plants on the floor ---
   const baseY = 0.36;
   const legs = [];
   function buildLeg(side, z, spread) {
-    const lg = new T.Group(); lg.position.set(0.16 * side, baseY, z);
-    // Upper segment angles outward and slightly up at the knee.
-    const upper = m(box(0.07, 0.06, 0.28), dark);
-    upper.position.set(0.16 * side, 0.05, 0);
-    upper.rotation.z = -0.5 * side;
+    const lg = new T.Group(); lg.position.set(0.18 * side, baseY, z);
+    // Upper strut: thicker so the splay reads at small size.
+    const upper = m(box(0.085, 0.075, 0.32), dark);
+    upper.position.set(0.17 * side, 0.06, 0);
+    upper.rotation.z = -0.55 * side;
     upper.rotation.y = spread * side;
-    // Lower segment is a downward-pointing cone whose tip plants on the ground (group-local y ~= -baseY).
-    const lower = m(cone(0.045, 0.4, 4), body);
-    lower.position.set(0.3 * side, -baseY + 0.2, spread * 0.16 * side);
-    lower.rotation.z = 0.32 * side;
-    lg.add(upper, lower); return lg;
+    // Lower leg: downward cone whose tip plants on the ground (group-local y ~= -baseY).
+    const lower = m(cone(0.05, 0.44, 4), body);
+    lower.position.set(0.34 * side, -baseY + 0.22, spread * 0.18 * side);
+    lower.rotation.z = 0.34 * side;
+    // Tiny bright foot tip to punctuate the radial points.
+    const foot = m(geo('spiderFoot', () => box(0.05, 0.05, 0.05)), eyeMat);
+    foot.position.set(0.34 * side + 0.06 * side, -baseY + 0.01, spread * 0.18 * side);
+    lg.add(upper, lower, foot); return lg;
   }
-  const cfg = [[-1, 0.22, 0.5], [1, 0.22, 0.5], [-1, 0.06, 0.18], [1, 0.06, 0.18], [-1, -0.1, -0.18], [1, -0.1, -0.18], [-1, -0.26, -0.5], [1, -0.26, -0.5]];
+  const cfg = [[-1, 0.24, 0.55], [1, 0.24, 0.55], [-1, 0.07, 0.2], [1, 0.07, 0.2], [-1, -0.1, -0.2], [1, -0.1, -0.2], [-1, -0.28, -0.55], [1, -0.28, -0.55]];
   for (let i = 0; i < cfg.length; i++) {
     const lg = buildLeg(cfg[i][0], cfg[i][1], cfg[i][2]);
     lg.userData.ph = i * 0.8; legs.push(lg); g.add(lg);
   }
-  g.add(abdomen, hump, head, fangL, fangR);
+
+  g.add(abdomen, humpTop, stripe, belt, head, fangL, fangR, maw);
   g.userData.legs = legs;
+  g.userData.glow = glowMat;
   g.userData.anim = (grp, now) => {
     const lg = grp.userData.legs;
     for (let i = 0; i < lg.length; i++) {
       const s = Math.sin(now / 130 + lg[i].userData.ph);
-      lg[i].rotation.x = s * 0.16;
-      lg[i].position.y = 0.36 + Math.abs(s) * 0.02;
+      lg[i].rotation.x = s * 0.18;
+      lg[i].position.y = baseY + Math.abs(s) * 0.025;
     }
+    if (grp.userData.glow) grp.userData.glow.opacity = 0.5 + 0.3 * (0.5 + 0.5 * Math.sin(now / 320));
   };
   return g;
 }
 
+// Strengthened: WIDE custom membrane-wing geo with bright additive vein edges + glow core for a bold, bright silhouette; refined dual-phase flap.
 export function buildEnemy_bat(opts) {
   const c = (opts && opts.color) || '#4a3a66';
   const g = new T.Group();
-  const body = mat(c, 0.46);
-  const memb = mat(c, 0.6);
-  const eyeMat = matAdd((opts && opts.eye) || '#ff3860');
+  const body = mat(c, 0.5);
+  const memb = mat(c, 0.62);
+  const eyeHex = (opts && opts.eye) || '#ff3860';
+  // Unique additive materials (animated -> must not share the cache).
+  const eyeMat = new T.MeshBasicMaterial({ color: new T.Color(eyeHex), transparent: true, opacity: 0.95, blending: T.AdditiveBlending, depthWrite: false });
+  const veinMat = new T.MeshBasicMaterial({ color: new T.Color(eyeHex), transparent: true, opacity: 0.5, blending: T.AdditiveBlending, depthWrite: false });
+  const coreMat = new T.MeshBasicMaterial({ color: new T.Color(eyeHex), transparent: true, opacity: 0.7, blending: T.AdditiveBlending, depthWrite: false });
   // Crouched bat: lowest geometry sits at y=0. The engine adds its own float/bob.
   const BASE = 0.12;
-  // Tiny faceted body.
-  const torso = m(box(0.16, 0.22, 0.16), body); torso.position.set(0, BASE + 0.11, 0);
-  const head = m(box(0.14, 0.13, 0.14), body); head.position.set(0, BASE + 0.27, 0.05);
-  // Pointed ears.
-  const earL = m(cone(0.04, 0.12, 4), body); earL.position.set(-0.05, BASE + 0.38, 0.04);
-  const earR = m(cone(0.04, 0.12, 4), body); earR.position.set(0.05, BASE + 0.38, 0.04);
-  // Glowing eyes.
-  const eyeL = m(box(0.04, 0.04, 0.03), eyeMat); eyeL.position.set(-0.04, BASE + 0.28, 0.12);
-  const eyeR = m(box(0.04, 0.04, 0.03), eyeMat); eyeR.position.set(0.04, BASE + 0.28, 0.12);
-  // Two large membrane wings: pivot groups so they flap from the shoulder.
+  // Angular body + head.
+  const torso = m(box(0.17, 0.24, 0.16), body); torso.position.set(0, BASE + 0.12, 0);
+  const head = m(box(0.15, 0.14, 0.14), body); head.position.set(0, BASE + 0.29, 0.05);
+  // Tall pointed demon ears.
+  const earL = m(cone(0.045, 0.16, 4), body); earL.position.set(-0.06, BASE + 0.42, 0.03);
+  const earR = m(cone(0.045, 0.16, 4), body); earR.position.set(0.06, BASE + 0.42, 0.03);
+  // Big glowing eyes.
+  const eyeL = m(box(0.05, 0.05, 0.03), eyeMat); eyeL.position.set(-0.045, BASE + 0.30, 0.12);
+  const eyeR = m(box(0.05, 0.05, 0.03), eyeMat); eyeR.position.set(0.045, BASE + 0.30, 0.12);
+  // Glowing chest core -> bright center anchor.
+  const core = m(cone(0.06, 0.12, 4), coreMat); core.position.set(0, BASE + 0.12, 0.075); core.rotation.x = Math.PI / 2;
+  // Custom WIDE membrane: a flat scalloped triangle fanning out from the shoulder.
+  const wingGeo = geo('batWingMembrane', () => {
+    const gm = new T.BufferGeometry();
+    // Root near shoulder (x~0), tip far out (+x), with a swept lower trailing edge.
+    const verts = new Float32Array([
+      // upper panel
+      0.0,  0.10, 0.0,   0.0, -0.06, 0.0,   0.58,  0.14, 0.0,
+      // mid panel
+      0.0, -0.06, 0.0,   0.42, -0.18, 0.0,   0.58,  0.14, 0.0,
+      // lower scallop tip
+      0.0, -0.06, 0.0,   0.30, -0.30, 0.0,   0.42, -0.18, 0.0,
+    ]);
+    gm.setAttribute('position', new T.BufferAttribute(verts, 3));
+    gm.computeVertexNormals();
+    return gm;
+  });
   function wing(side) {
-    const w = new T.Group(); w.position.set(0.07 * side, BASE + 0.15, 0);
-    const inner = m(box(0.3, 0.16, 0.02), memb); inner.position.set(0.18 * side, 0, 0);
-    const outer = m(cone(0.14, 0.34, 3), memb); outer.position.set(0.4 * side, -0.02, 0); outer.rotation.z = Math.PI / 2 * side; outer.scale.set(1, 1, 0.15);
-    const claw = m(cone(0.03, 0.1, 4), body); claw.position.set(0.55 * side, 0.05, 0); claw.rotation.z = -0.4 * side;
-    w.add(inner, outer, claw); return w;
+    const w = new T.Group(); w.position.set(0.075 * side, BASE + 0.17, 0);
+    const mem = m(wingGeo, memb); mem.scale.x = side; mem.material = memb;
+    mem.side = side;
+    // Bright additive vein bones along the wing -> reads as glowing ribs.
+    const armBone = m(box(0.6, 0.02, 0.02), veinMat); armBone.position.set(0.29 * side, 0.07, 0.012);
+    armBone.rotation.z = 0.13 * side;
+    const ribBone = m(box(0.46, 0.018, 0.018), veinMat); ribBone.position.set(0.21 * side, -0.07, 0.012);
+    ribBone.rotation.z = -0.32 * side;
+    // Wing-tip claw.
+    const claw = m(cone(0.03, 0.11, 4), body); claw.position.set(0.59 * side, 0.13, 0); claw.rotation.z = -0.5 * side;
+    w.add(mem, armBone, ribBone, claw); return w;
   }
   const wL = wing(-1);
   const wR = wing(1);
   // Small feet tucked under, resting at the ground.
-  const feet = m(box(0.12, 0.05, 0.08), body); feet.position.set(0, BASE - 0.085, -0.02);
-  g.add(torso, head, earL, earR, eyeL, eyeR, wL, wR, feet);
+  const feet = m(box(0.12, 0.05, 0.09), body); feet.position.set(0, BASE - 0.095, -0.02);
+  g.add(torso, head, earL, earR, eyeL, eyeR, core, wL, wR, feet);
   g.userData.wL = wL; g.userData.wR = wR;
   g.userData.anim = (grp, now) => {
     const f = Math.sin(now / 90);
-    grp.userData.wL.rotation.z = -f * 0.9;
-    grp.userData.wR.rotation.z = f * 0.9;
+    const f2 = Math.sin(now / 90 - 0.6); // wingtip lag -> membrane snap
+    grp.userData.wL.rotation.z = -f * 0.95;
+    grp.userData.wR.rotation.z = f * 0.95;
+    grp.userData.wL.rotation.y = -f2 * 0.18;
+    grp.userData.wR.rotation.y = f2 * 0.18;
+    const glow = 0.5 + 0.45 * Math.abs(f);
+    eyeMat.opacity = 0.6 + 0.35 * glow;
+    veinMat.opacity = 0.3 + 0.35 * Math.abs(f);
   };
   return g;
 }
 
+// Strengthened: taller swept horns, jagged bat-wing membranes, a big bright pulsing chest core + bigger glowing eyes, hovering bob + flap anim.
 export function buildEnemy_imp(opts) {
   const c = (opts && opts.color) || '#a8324a';
   const g = new T.Group();
   const skin = mat(c, 0.5);
-  const skinDark = mat(c, 0.32);
-  const horn = mat('#6b5a44');
+  const skinDark = mat(c, 0.3);
+  const horn = mat('#caa86e');
   const eye = matAdd('#ffd24a', 1);
   const fang = matAdd('#fff0d8', 0.9);
+
+  // unique animated core material (pulses) — must not be the shared cache
+  const coreMat = new T.MeshBasicMaterial({ color: new T.Color('#ff5a2a'), transparent: true, opacity: 0.95, blending: T.AdditiveBlending, depthWrite: false });
+
   // squat legs
-  const lL = m(box(0.12, 0.18, 0.13), skinDark); lL.position.set(-0.11, 0.09, 0.02);
-  const rL = m(box(0.12, 0.18, 0.13), skinDark); rL.position.set(0.11, 0.09, 0.02);
-  // pot-bellied body
+  const lL = m(box(0.13, 0.18, 0.14), skinDark); lL.position.set(-0.11, 0.09, 0.02);
+  const rL = m(box(0.13, 0.18, 0.14), skinDark); rL.position.set(0.11, 0.09, 0.02);
+
+  // pot-bellied body (angular)
   const body = m(box(0.36, 0.3, 0.3), skin); body.position.set(0, 0.4, 0);
-  const belly = m(cone(0.2, 0.22, 5), skin); belly.position.set(0, 0.36, 0.1); belly.rotation.x = Math.PI / 2;
+  const belly = m(cone(0.21, 0.24, 5), skin); belly.position.set(0, 0.36, 0.11); belly.rotation.x = Math.PI / 2;
+
+  // BIG bright chest core — the signature glow (faceted gem)
+  const core = m(geo('impCore', () => new T.OctahedronGeometry(0.12)), coreMat);
+  core.position.set(0, 0.43, 0.18);
+  const coreHalo = m(box(0.16, 0.16, 0.03), matAdd('#ff8a3a', 0.5)); coreHalo.position.set(0, 0.43, 0.16);
+
   // hunched little head
-  const head = m(box(0.26, 0.22, 0.24), skin); head.position.set(0, 0.64, 0.03);
-  // two glowing eyes
-  const eyeL = m(box(0.06, 0.06, 0.03), eye); eyeL.position.set(-0.07, 0.66, 0.16);
-  const eyeR = m(box(0.06, 0.06, 0.03), eye); eyeR.position.set(0.07, 0.66, 0.16);
+  const head = m(box(0.27, 0.23, 0.25), skin); head.position.set(0, 0.65, 0.03);
+  const brow = m(box(0.28, 0.05, 0.06), skinDark); brow.position.set(0, 0.72, 0.13);
+
+  // two big glowing eyes + halo glow
+  const eyeL = m(box(0.08, 0.07, 0.03), eye); eyeL.position.set(-0.07, 0.65, 0.17);
+  const eyeR = m(box(0.08, 0.07, 0.03), eye); eyeR.position.set(0.07, 0.65, 0.17);
+
   // fanged grin
-  const f1 = m(box(0.03, 0.05, 0.02), fang); f1.position.set(-0.04, 0.57, 0.15);
-  const f2 = m(box(0.03, 0.05, 0.02), fang); f2.position.set(0.04, 0.57, 0.15);
-  // two curved horns (stacked cones angled outward)
-  const hL = m(cone(0.05, 0.18, 4), horn); hL.position.set(-0.1, 0.82, 0); hL.rotation.set(0.2, 0, 0.5);
-  const hR = m(cone(0.05, 0.18, 4), horn); hR.position.set(0.1, 0.82, 0); hR.rotation.set(0.2, 0, -0.5);
-  // tiny bat wings
-  const wL = m(cone(0.16, 0.34, 3), skinDark); wL.position.set(-0.24, 0.46, -0.08); wL.rotation.set(Math.PI / 2, 0, 0.7); wL.scale.set(1, 0.28, 1);
-  const wR = m(cone(0.16, 0.34, 3), skinDark); wR.position.set(0.24, 0.46, -0.08); wR.rotation.set(Math.PI / 2, 0, -0.7); wR.scale.set(1, 0.28, 1);
+  const f1 = m(box(0.035, 0.06, 0.02), fang); f1.position.set(-0.05, 0.56, 0.16);
+  const f2 = m(box(0.035, 0.06, 0.02), fang); f2.position.set(0.05, 0.56, 0.16);
+
+  // TALL swept horns — two-segment for a bold curved silhouette
+  const hLg = geo('impHorn', () => cone(0.055, 0.26, 4));
+  const hL = m(hLg, horn); hL.position.set(-0.11, 0.86, -0.01); hL.rotation.set(-0.25, 0, 0.55);
+  const hR = m(hLg, horn); hR.position.set(0.11, 0.86, -0.01); hR.rotation.set(-0.25, 0, -0.55);
+  const hLt = m(cone(0.03, 0.13, 4), horn); hLt.position.set(-0.2, 1.0, -0.05); hLt.rotation.set(-0.5, 0, 0.95);
+  const hRt = m(cone(0.03, 0.13, 4), horn); hRt.position.set(0.2, 1.0, -0.05); hRt.rotation.set(-0.5, 0, -0.95);
+
+  // bat wings — pivot groups so they flap from the shoulders
+  const wingGeo = geo('impWing', () => cone(0.2, 0.42, 3));
+  const wLp = new T.Group(); wLp.position.set(-0.18, 0.5, -0.06);
+  const wRp = new T.Group(); wRp.position.set(0.18, 0.5, -0.06);
+  const wL = m(wingGeo, skinDark); wL.position.set(-0.18, 0, 0); wL.rotation.set(Math.PI / 2, 0, 0.7); wL.scale.set(1, 0.26, 1);
+  const wR = m(wingGeo, skinDark); wR.position.set(0.18, 0, 0); wR.rotation.set(Math.PI / 2, 0, -0.7); wR.scale.set(1, 0.26, 1);
+  // bright leading-edge struts to make the wings read
+  const wLe = m(box(0.34, 0.02, 0.02), matAdd(c, 0.4)); wLe.position.set(-0.18, 0.02, 0.02); wLe.rotation.z = 0.35;
+  const wRe = m(box(0.34, 0.02, 0.02), matAdd(c, 0.4)); wRe.position.set(0.18, 0.02, 0.02); wRe.rotation.z = -0.35;
+  wLp.add(wL, wLe); wRp.add(wR, wRe);
+
   // little arms
-  const aL = m(box(0.08, 0.2, 0.09), skinDark); aL.position.set(-0.22, 0.42, 0.04);
-  const aR = m(box(0.08, 0.2, 0.09), skinDark); aR.position.set(0.22, 0.42, 0.04);
-  g.add(lL, rL, body, belly, head, eyeL, eyeR, f1, f2, hL, hR, wL, wR, aL, aR);
+  const aL = m(box(0.08, 0.21, 0.09), skinDark); aL.position.set(-0.22, 0.42, 0.05);
+  const aR = m(box(0.08, 0.21, 0.09), skinDark); aR.position.set(0.22, 0.42, 0.05);
+
+  // pointed tail
+  const tail = m(cone(0.05, 0.3, 4), skinDark); tail.position.set(0, 0.3, -0.22); tail.rotation.x = -1.0;
+  const tailTip = m(cone(0.06, 0.1, 3), matAdd(c, 0.55)); tailTip.position.set(0, 0.18, -0.34); tailTip.rotation.x = -2.0;
+
+  g.add(lL, rL, body, belly, core, coreHalo, head, brow, eyeL, eyeR, f1, f2, hL, hR, hLt, hRt, wLp, wRp, aL, aR, tail, tailTip);
+
   g.userData.anim = (grp, now) => {
-    const f = Math.sin(now / 160) * 0.4;
-    wL.rotation.z = 0.7 + f; wR.rotation.z = -0.7 - f;
+    const flap = Math.sin(now / 130) * 0.6;
+    wLp.rotation.z = flap; wRp.rotation.z = -flap;
+    wLp.rotation.y = 0.2 + flap * 0.3; wRp.rotation.y = -0.2 - flap * 0.3;
+    // hover bob
+    grp.position.y = Math.sin(now / 320) * 0.025;
+    // pulsing chest core + eyes
+    const pulse = 0.7 + 0.3 * (0.5 + 0.5 * Math.sin(now / 200));
+    coreMat.opacity = pulse;
+    const s = 0.9 + 0.18 * Math.sin(now / 200);
+    core.scale.setScalar(s);
   };
   return g;
 }
 
+// Strengthened: massive layered shoulder pauldrons + huge fists, shrunk head, and a BRIGHT pulsing weak-point core (animated) anchoring the chest silhouette.
 export function buildEnemy_giant(opts) {
   const c = (opts && opts.color) || '#5f7d96';
   const g = new T.Group();
   const hide = mat(c, 0.5);
   const hideDark = mat(c, 0.32);
-  const plate = mat(c, 0.6);
+  const plate = mat(c, 0.62);
+  const plateLit = mat(c, 0.78);
   const eye = matAdd('#bff0ff', 1);
+  const coreGlow = matAdd('#ffe27a', 0.5);
+
   // thick legs
-  const lL = m(box(0.26, 0.56, 0.28), hideDark); lL.position.set(-0.2, 0.28, 0);
-  const rL = m(box(0.26, 0.56, 0.28), hideDark); rL.position.set(0.2, 0.28, 0);
+  const lL = m(box(0.28, 0.54, 0.3), hideDark); lL.position.set(-0.21, 0.27, 0);
+  const rL = m(box(0.28, 0.54, 0.3), hideDark); rL.position.set(0.21, 0.27, 0);
   // heavy boots
-  const bL = m(box(0.3, 0.14, 0.34), hide); bL.position.set(-0.2, 0.07, 0.03);
-  const bR = m(box(0.3, 0.14, 0.34), hide); bR.position.set(0.2, 0.07, 0.03);
-  // massive torso (tapered up to broad shoulders)
-  const torso = m(box(0.62, 0.56, 0.42), hide); torso.position.set(0, 0.86, 0);
-  const chestPlate = m(box(0.5, 0.34, 0.1), plate); chestPlate.position.set(0, 0.92, 0.22);
-  // broad angular shoulders
-  const shL = m(cone(0.22, 0.3, 4), plate); shL.position.set(-0.42, 1.12, 0); shL.rotation.z = 0.6;
-  const shR = m(cone(0.22, 0.3, 4), plate); shR.position.set(0.42, 1.12, 0); shR.rotation.z = -0.6;
+  const bL = m(box(0.34, 0.16, 0.38), hide); bL.position.set(-0.21, 0.08, 0.03);
+  const bR = m(box(0.34, 0.16, 0.38), hide); bR.position.set(0.21, 0.08, 0.03);
+
+  // massive torso (broad, tapering toward small neck)
+  const torso = m(box(0.66, 0.58, 0.46), hide); torso.position.set(0, 0.86, 0);
+  const upperTorso = m(box(0.78, 0.22, 0.5), plate); upperTorso.position.set(0, 1.12, 0);
+  const chestPlate = m(box(0.56, 0.4, 0.12), plate); chestPlate.position.set(0, 0.92, 0.24);
+
+  // GLOWING WEAK-POINT CORE on the chest (bold, bright, animated)
+  const coreRing = m(box(0.26, 0.26, 0.06), plateLit); coreRing.position.set(0, 0.92, 0.3);
+  const coreMat = new T.MeshBasicMaterial({ color: new T.Color('#ffd24a'), transparent: true, opacity: 0.95, blending: T.AdditiveBlending, depthWrite: false });
+  const core = m(geo('giantCore', () => box(0.16, 0.16, 0.1)), coreMat); core.position.set(0, 0.92, 0.33);
+  const coreHalo = m(geo('giantCoreHalo', () => plane(0.46, 0.46)), coreGlow); coreHalo.position.set(0, 0.92, 0.31);
+
+  // MASSIVE layered shoulder pauldrons (broadest part of the silhouette)
+  const shL = m(cone(0.3, 0.42, 4), plate); shL.position.set(-0.52, 1.16, 0); shL.rotation.z = 0.55;
+  const shR = m(cone(0.3, 0.42, 4), plate); shR.position.set(0.52, 1.16, 0); shR.rotation.z = -0.55;
+  const capL = m(box(0.34, 0.18, 0.42), plateLit); capL.position.set(-0.5, 1.24, 0); capL.rotation.z = 0.3;
+  const capR = m(box(0.34, 0.18, 0.42), plateLit); capR.position.set(0.5, 1.24, 0); capR.rotation.z = -0.3;
+
   // thick arms
-  const aL = m(box(0.2, 0.5, 0.22), hideDark); aL.position.set(-0.46, 0.82, 0.02);
-  const aR = m(box(0.2, 0.5, 0.22), hideDark); aR.position.set(0.46, 0.82, 0.02);
-  // heavy fists
-  const fL = m(box(0.26, 0.24, 0.26), hide); fL.position.set(-0.46, 0.5, 0.06);
-  const fR = m(box(0.26, 0.24, 0.26), hide); fR.position.set(0.46, 0.5, 0.06);
-  // small sunken head
-  const head = m(box(0.26, 0.24, 0.26), hide); head.position.set(0, 1.24, 0.02);
-  const eyeL = m(box(0.05, 0.04, 0.03), eye); eyeL.position.set(-0.06, 1.26, 0.15);
-  const eyeR = m(box(0.05, 0.04, 0.03), eye); eyeR.position.set(0.06, 1.26, 0.15);
-  g.add(lL, rL, bL, bR, torso, chestPlate, shL, shR, aL, aR, fL, fR, head, eyeL, eyeR);
+  const aL = m(box(0.24, 0.52, 0.26), hideDark); aL.position.set(-0.54, 0.8, 0.02);
+  const aR = m(box(0.24, 0.52, 0.26), hideDark); aR.position.set(0.54, 0.8, 0.02);
+  // HUGE fists
+  const fL = m(box(0.36, 0.34, 0.36), hide); fL.position.set(-0.54, 0.44, 0.07);
+  const fR = m(box(0.36, 0.34, 0.36), hide); fR.position.set(0.54, 0.44, 0.07);
+
+  // tiny sunken head
+  const head = m(box(0.22, 0.2, 0.22), hide); head.position.set(0, 1.32, 0.02);
+  const eyeL = m(box(0.05, 0.04, 0.03), eye); eyeL.position.set(-0.05, 1.33, 0.13);
+  const eyeR = m(box(0.05, 0.04, 0.03), eye); eyeR.position.set(0.05, 1.33, 0.13);
+
+  g.add(lL, rL, bL, bR, torso, upperTorso, chestPlate, coreRing, core, coreHalo,
+    shL, shR, capL, capR, aL, aR, fL, fR, head, eyeL, eyeR);
+
   g.userData.anim = (grp, now) => {
-    const s = Math.sin(now / 520) * 0.07;
+    const s = Math.sin(now / 520) * 0.08;
     aL.rotation.x = s; aR.rotation.x = -s;
-    fL.position.x = -0.46 + Math.sin(now / 520) * 0.01;
+    fL.position.y = 0.44 + Math.sin(now / 520) * 0.02;
+    fR.position.y = 0.44 - Math.sin(now / 520) * 0.02;
+    // pulsing weak-point core
+    const p = 0.6 + Math.sin(now / 240) * 0.4;
+    coreMat.opacity = p;
+    const sc = 1 + Math.sin(now / 240) * 0.12;
+    core.scale.set(sc, sc, 1);
+    coreHalo.scale.set(sc, sc, 1);
   };
   return g;
 }
 
 export function buildEnemy_plant(opts) {
+  // Strengthened: bigger flared petal-crown + huge bright glowing maw core & throat ring,
+  // bolder fang ring and brighter eyes, thicker rooted stalk + splayed root claws; richer anim (bloom pulse, throb, sway).
   const c = (opts && opts.color) || '#5fae4a';
   const boss = !!(opts && opts.boss);
   const s = boss ? 1.5 : 1;
   const g = new T.Group();
   const body = mat(c, 0.45);
-  const dark = mat(c, 0.28);
-  const thorn = mat(c, 0.6);
-  const maw = matAdd('#ff5a2a', 0.9);
-  const eye = matAdd('#ffd14a', 1);
+  const dark = mat(c, 0.26);
+  const thorn = mat(c, 0.62);
+  // unique animated glow materials (NOT cached — they breathe)
+  const mawMat = new T.MeshBasicMaterial({ color: new T.Color('#ff5a2a'), transparent: true, opacity: 0.95, blending: T.AdditiveBlending, depthWrite: false });
+  const coreMat = new T.MeshBasicMaterial({ color: new T.Color('#ffec5a'), transparent: true, opacity: 1, blending: T.AdditiveBlending, depthWrite: false });
+  const eyeMat = new T.MeshBasicMaterial({ color: new T.Color('#ffd14a'), transparent: true, opacity: 1, blending: T.AdditiveBlending, depthWrite: false });
+  const ring = matAdd('#ff7a2a', 0.85);
 
-  // rooted base — squat bulb/pod fused to the ground (base sits exactly at y=0)
-  const root = m(cone(0.42 * s, 0.3 * s, 5), dark); root.position.y = 0.15 * s; root.rotation.y = 0.4;
-  const bulb = m(cyl(0.34 * s, 0.42 * s, 0.42 * s, 6), body); bulb.position.y = 0.42 * s;
+  // rooted base — splayed root claws gripping the ground, fused stalk
+  const root = m(cone(0.46 * s, 0.32 * s, 5), dark); root.position.y = 0.16 * s; root.rotation.y = 0.4;
+  const roots = [];
+  for (let i = 0; i < 4; i++) {
+    const a = (i / 4) * Math.PI * 2 + 0.5;
+    const rc = m(cone(0.07 * s, 0.34 * s, 3), dark);
+    rc.position.set(Math.cos(a) * 0.4 * s, 0.06 * s, Math.sin(a) * 0.4 * s);
+    rc.rotation.set(Math.PI / 1.7, a, 0);
+    roots.push(rc);
+  }
+  const stalk = m(cyl(0.22 * s, 0.32 * s, 0.5 * s, 6), body); stalk.position.y = 0.5 * s;
+  const bulb = m(cyl(0.4 * s, 0.3 * s, 0.34 * s, 6), body); bulb.position.y = 0.82 * s;
 
-  // fanged maw — two angular jaw halves splitting open, glowing throat between
-  const throat = m(cone(0.2 * s, 0.34 * s, 5), maw); throat.position.y = 0.74 * s; throat.rotation.x = Math.PI;
-  const jawTop = m(cone(0.3 * s, 0.3 * s, 5), body); jawTop.position.y = 0.96 * s; jawTop.rotation.x = -0.35;
-  const jawBot = m(cone(0.3 * s, 0.26 * s, 5), body); jawBot.position.y = 0.66 * s; jawBot.rotation.x = Math.PI + 0.35;
-  // fangs ring around the maw
+  // PETAL CROWN — bold flared petals ringing the maw (the signature silhouette)
+  const petals = [];
+  for (let i = 0; i < 6; i++) {
+    const a = (i / 6) * Math.PI * 2;
+    const p = m(cone(0.16 * s, 0.46 * s, 3), thorn);
+    p.position.set(Math.cos(a) * 0.34 * s, 1.0 * s, Math.sin(a) * 0.34 * s);
+    p.rotation.set(-Math.PI / 2.2, -a, 0);
+    p.scale.set(1, 1, 0.4);
+    petals.push(p);
+  }
+
+  // glowing maw — big bright throat cup + blazing inner core
+  const throat = m(cone(0.3 * s, 0.42 * s, 6), mawMat); throat.position.y = 1.04 * s; throat.rotation.x = Math.PI;
+  const rim = m(cyl(0.3 * s, 0.34 * s, 0.06 * s, 8), ring); rim.position.y = 1.16 * s;
+  const core = m(cone(0.16 * s, 0.26 * s, 5), coreMat); core.position.y = 1.0 * s; core.rotation.x = Math.PI;
+
+  // fang ring around the maw — bolder, taller teeth
   const fangs = [];
-  for (let i = 0; i < 5; i++) {
-    const a = (i / 5) * Math.PI * 2;
-    const f = m(cone(0.045 * s, 0.16 * s, 3), thorn);
-    f.position.set(Math.cos(a) * 0.24 * s, 0.8 * s, Math.sin(a) * 0.24 * s);
-    f.rotation.x = Math.PI; f.rotation.z = Math.cos(a) * 0.3;
+  for (let i = 0; i < 7; i++) {
+    const a = (i / 7) * Math.PI * 2;
+    const f = m(cone(0.06 * s, 0.22 * s, 3), thorn);
+    f.position.set(Math.cos(a) * 0.3 * s, 1.14 * s, Math.sin(a) * 0.3 * s);
+    f.rotation.set(0.5, 0, Math.cos(a) * 0.35);
     fangs.push(f);
   }
-  // glowing eye spots flanking the maw
-  const eL = m(box(0.05 * s, 0.06 * s, 0.03 * s), eye); eL.position.set(-0.16 * s, 0.86 * s, 0.26 * s);
-  const eR = m(box(0.05 * s, 0.06 * s, 0.03 * s), eye); eR.position.set(0.16 * s, 0.86 * s, 0.26 * s);
 
-  // thorny vines / leaves splaying out from the pod
+  // glowing eye spots flanking the maw
+  const eL = m(box(0.07 * s, 0.08 * s, 0.04 * s), eyeMat); eL.position.set(-0.22 * s, 1.06 * s, 0.3 * s);
+  const eR = m(box(0.07 * s, 0.08 * s, 0.04 * s), eyeMat); eR.position.set(0.22 * s, 1.06 * s, 0.3 * s);
+
+  // thorny vines splaying low from the stalk + barbed thorns
   const leaves = [];
   for (let i = 0; i < 4; i++) {
     const a = (i / 4) * Math.PI * 2 + 0.7;
-    const leaf = m(cone(0.09 * s, 0.5 * s, 3), mat(c, 0.5));
-    leaf.position.set(Math.cos(a) * 0.4 * s, 0.4 * s, Math.sin(a) * 0.4 * s);
+    const leaf = m(cone(0.1 * s, 0.56 * s, 3), mat(c, 0.5));
+    leaf.position.set(Math.cos(a) * 0.42 * s, 0.42 * s, Math.sin(a) * 0.42 * s);
     leaf.rotation.set(Math.PI / 2.4, a, 0.5);
     leaf.scale.set(1, 1, 0.35);
     leaves.push(leaf);
   }
-  // a couple of barbed thorns on the bulb
-  const t1 = m(cone(0.05 * s, 0.18 * s, 3), thorn); t1.position.set(-0.3 * s, 0.5 * s, 0.18 * s); t1.rotation.set(0.4, 0, 1.1);
-  const t2 = m(cone(0.05 * s, 0.18 * s, 3), thorn); t2.position.set(0.32 * s, 0.46 * s, -0.1 * s); t2.rotation.set(-0.3, 0, -1.2);
+  const t1 = m(cone(0.05 * s, 0.2 * s, 3), thorn); t1.position.set(-0.32 * s, 0.6 * s, 0.18 * s); t1.rotation.set(0.4, 0, 1.1);
+  const t2 = m(cone(0.05 * s, 0.2 * s, 3), thorn); t2.position.set(0.34 * s, 0.56 * s, -0.1 * s); t2.rotation.set(-0.3, 0, -1.2);
 
-  g.add(root, bulb, throat, jawTop, jawBot, eL, eR, t1, t2);
+  g.add(root, stalk, bulb, throat, rim, core, eL, eR, t1, t2);
+  for (const r of roots) g.add(r);
+  for (const p of petals) g.add(p);
   for (const f of fangs) g.add(f);
   for (const l of leaves) g.add(l);
 
-  // rooted: it does not walk. Idle = maw breathing open/shut + a slow sway of vines.
-  const jt0 = jawTop.rotation.x, jb0 = jawBot.rotation.x;
+  // rooted: it does not walk. Idle = maw bloom/throb + petal flare + vine sway.
+  const pr0 = petals.map(p => p.rotation.x);
   g.userData.anim = (grp, now) => {
-    const o = (Math.sin(now / 520) + 1) * 0.5; // 0..1 bite cycle
-    jawTop.rotation.x = jt0 - o * 0.3;
-    jawBot.rotation.x = jb0 + o * 0.3;
-    throat.scale.setScalar(0.85 + o * 0.4);
-    const sw = Math.sin(now / 700) * 0.1;
-    for (let i = 0; i < leaves.length; i++) leaves[i].rotation.z = 0.5 + Math.sin(now / 640 + i) * 0.12;
-    grp.rotation.z = sw * 0.15;
+    const o = (Math.sin(now / 520) + 1) * 0.5; // 0..1 bloom cycle
+    // petals flare open & shut
+    for (let i = 0; i < petals.length; i++) petals[i].rotation.x = pr0[i] + o * 0.34;
+    // throat & core pulse + brighten
+    throat.scale.set(0.85 + o * 0.5, 1 + o * 0.3, 0.85 + o * 0.5);
+    core.scale.setScalar(0.7 + o * 0.9);
+    mawMat.opacity = 0.7 + o * 0.3;
+    coreMat.opacity = 0.6 + o * 0.4;
+    const pulse = (Math.sin(now / 240) + 1) * 0.5;
+    eyeMat.opacity = 0.55 + pulse * 0.45;
+    rim.rotation.y = now / 1400;
+    // vine sway + whole-body lean
+    for (let i = 0; i < leaves.length; i++) leaves[i].rotation.z = 0.5 + Math.sin(now / 640 + i) * 0.13;
+    grp.rotation.z = Math.sin(now / 700) * 0.02;
   };
   return g;
 }
 
 export function buildEnemy_orb(opts) {
+  // Strengthened: bold bright eye-orb (pulsing core + flat iris ring + dark pupil) with a few BIGGER orbiting shards; clearer iconic eye silhouette, kept float/anim.
   const c = (opts && opts.color) || '#7fd0ff';
   const boss = !!(opts && opts.boss);
   const s = boss ? 1.5 : 1;
   const g = new T.Group();
-  const core = matAdd(c, 0.95);
-  const coreHot = matAdd('#ffffff', 0.9);
-  const shard = matAdd(c, 0.55);
+  const hover = 0.62 * s;
 
-  // floating bright core — a small faceted icosahedron, NO body, hovers up
-  const hover = 0.6 * s;
-  const ic = m(geo('orbCore', () => new T.IcosahedronGeometry(0.18, 0)), core);
-  ic.position.y = hover;
-  const inner = m(geo('orbInner', () => new T.IcosahedronGeometry(0.09, 0)), coreHot);
-  inner.position.y = hover;
-  // faint outer haze (additive) reads as a wisp glow
-  const haze = m(geo('orbHaze', () => new T.IcosahedronGeometry(0.3, 0)), matAdd(c, 0.18));
+  // unique animated materials (so pulsing doesn't bleed across instances)
+  const coreMat = new T.MeshBasicMaterial({ color: new T.Color(c), transparent: true, opacity: 0.95, blending: T.AdditiveBlending, depthWrite: false });
+  const hotMat = new T.MeshBasicMaterial({ color: new T.Color('#ffffff'), transparent: true, opacity: 0.95, blending: T.AdditiveBlending, depthWrite: false });
+  const hazeMat = new T.MeshBasicMaterial({ color: new T.Color(c), transparent: true, opacity: 0.16, blending: T.AdditiveBlending, depthWrite: false });
+
+  // BOLD bright core — faceted sphere of light
+  const core = m(geo('orbCore', () => new T.IcosahedronGeometry(0.2, 0)), coreMat);
+  core.position.y = hover;
+
+  // hot white center reads as the "lens" highlight
+  const hot = m(geo('orbHot', () => new T.IcosahedronGeometry(0.085, 0)), hotMat);
+  hot.position.set(0, hover, 0.06);
+
+  // signature: a flat front-facing IRIS RING (bright) + dark PUPIL — the eye read
+  const iris = m(geo('orbIris', () => new T.RingGeometry(0.11, 0.2, 16)), matAdd(c, 0.85));
+  iris.position.set(0, hover, 0.205);
+  const pupil = m(geo('orbPupil', () => new T.CircleGeometry(0.11, 14)), mat('#171c27'));
+  pupil.position.set(0, hover, 0.2);
+
+  // soft outer haze halo (vertical bias = looming eye)
+  const haze = m(geo('orbHaze', () => new T.IcosahedronGeometry(0.34, 0)), hazeMat);
   haze.position.y = hover;
+  haze.scale.set(1, 1.15, 1);
 
-  g.add(haze, ic, inner);
+  g.add(haze, core, hot, pupil, iris);
 
-  // a few orbiting motes / shards circling the core
+  // fewer but BIGGER orbiting shards — bold tumbling chips of light
   const motes = [];
-  const N = boss ? 5 : 3;
+  const N = boss ? 4 : 3;
   for (let i = 0; i < N; i++) {
     const a = (i / N) * Math.PI * 2;
-    const mo = m(geo('orbMote', () => new T.OctahedronGeometry(0.055, 0)), shard);
+    const mo = m(geo('orbShard', () => new T.OctahedronGeometry(0.085, 0)), matAdd(c, 0.6));
     mo.userData.a = a;
-    mo.userData.r = (0.28 + (i % 2) * 0.08) * s;
-    mo.userData.yoff = ((i % 3) - 1) * 0.1 * s;
-    // initial placement so motes don't pop from the origin before anim runs
+    mo.userData.r = (0.34 + (i % 2) * 0.07) * s;
+    mo.userData.yoff = ((i % 3) - 1) * 0.12 * s;
     mo.position.set(Math.cos(a) * mo.userData.r, hover + mo.userData.yoff, Math.sin(a) * mo.userData.r);
     motes.push(mo);
     g.add(mo);
   }
 
   g.userData.anim = (grp, now) => {
-    const bob = Math.sin(now / 600) * 0.07 * s;
-    ic.position.y = hover + bob;
-    inner.position.y = hover + bob;
-    haze.position.y = hover + bob;
-    ic.rotation.y = now / 900;
-    ic.rotation.x = now / 1300;
-    inner.scale.setScalar(0.8 + Math.sin(now / 240) * 0.35);
-    haze.scale.setScalar(1 + Math.sin(now / 700) * 0.18);
-    const spin = now / 700;
+    const bob = Math.sin(now / 600) * 0.08 * s;
+    const y = hover + bob;
+    core.position.y = y;
+    hot.position.y = y;
+    iris.position.y = y;
+    pupil.position.y = y;
+    haze.position.y = y;
+    // slow ominous tumble of the core
+    core.rotation.y = now / 950;
+    core.rotation.x = now / 1400;
+    // pulsing brightness of the core + center highlight
+    const pulse = 0.78 + Math.sin(now / 300) * 0.22;
+    coreMat.opacity = 0.7 + pulse * 0.28;
+    hotMat.opacity = 0.6 + Math.sin(now / 200) * 0.4;
+    hot.scale.setScalar(0.85 + Math.sin(now / 240) * 0.3);
+    // iris stares toward the player, with a subtle scan drift
+    const drift = Math.sin(now / 1100) * 0.5;
+    iris.rotation.z = drift;
+    pupil.position.x = Math.sin(now / 1300) * 0.03;
+    haze.scale.set(1 + Math.sin(now / 700) * 0.14, 1.15 + Math.sin(now / 700) * 0.14, 1 + Math.sin(now / 700) * 0.14);
+    hazeMat.opacity = 0.12 + (pulse - 0.78) * 0.18 + 0.06;
+    const spin = now / 750;
     for (let i = 0; i < motes.length; i++) {
       const mo = motes[i];
       const a = mo.userData.a + spin;
       const r = mo.userData.r;
-      mo.position.set(Math.cos(a) * r, hover + bob + mo.userData.yoff + Math.sin(now / 500 + a) * 0.05, Math.sin(a) * r);
+      mo.position.set(Math.cos(a) * r, y + mo.userData.yoff + Math.sin(now / 500 + a) * 0.06, Math.sin(a) * r);
       mo.rotation.y = a * 2;
+      mo.rotation.x = now / 600 + a;
     }
   };
   return g;
 }
 
+// Strengthened: brighter pulsing core + bold radial shard burst (jagged silhouette), taller crown spire, brighter facet edges; preserved signature, eye, floating-shard hands & anim hook.
 export function buildEnemy_crystal(opts) {
   const c = (opts && opts.color) || '#9a8cff';
   const boss = !!(opts && opts.boss);
   const s = boss ? 1.55 : 1;
   const g = new T.Group();
   const facet = mat(c, 0.5);
-  const facetDk = mat(c, 0.32);
-  const edge = matAdd(c, 0.6);
-  const core = matAdd('#ffffff', 0.95);
+  const facetDk = mat(c, 0.34);
+  const edge = matAdd(c, 0.7);
   const eye = matAdd(c, 1);
+  // unique animated core material (pulses) — must not be the shared cache
+  const coreMat = new T.MeshBasicMaterial({ color: new T.Color('#ffffff'), transparent: true, opacity: 0.95, blending: T.AdditiveBlending, depthWrite: false });
 
   // crystalline legs — two stout faceted prisms
-  const lL = m(cone(0.13 * s, 0.4 * s, 4), facetDk); lL.position.set(-0.16 * s, 0.2 * s, 0); lL.rotation.y = 0.6;
-  const rL = m(cone(0.13 * s, 0.4 * s, 4), facetDk); rL.position.set(0.16 * s, 0.2 * s, 0); rL.rotation.y = 0.6;
-  // torso — a big upward octahedron prism, hollow-lit core inside
-  const torso = m(geo('crysTorso', () => new T.OctahedronGeometry(0.34, 0)), facet);
-  torso.position.y = 0.74 * s; torso.scale.set(1 * s, 1.5 * s, 1 * s); torso.rotation.y = Math.PI / 4;
-  const ccore = m(geo('crysCore', () => new T.IcosahedronGeometry(0.12, 0)), core);
+  const lL = m(cone(0.14 * s, 0.42 * s, 4), facetDk); lL.position.set(-0.17 * s, 0.21 * s, 0); lL.rotation.y = 0.6;
+  const rL = m(cone(0.14 * s, 0.42 * s, 4), facetDk); rL.position.set(0.17 * s, 0.21 * s, 0); rL.rotation.y = 0.6;
+
+  // torso — a big upward octahedron prism with hollow-lit core
+  const torso = m(geo('crysTorso', () => new T.OctahedronGeometry(0.35, 0)), facet);
+  torso.position.y = 0.74 * s; torso.scale.set(1 * s, 1.55 * s, 1 * s); torso.rotation.y = Math.PI / 4;
+  // bright vertical seam prism overlaid on torso for a glowing spine
+  const seam = m(cone(0.06 * s, 0.62 * s, 3), edge); seam.position.y = 0.76 * s; seam.scale.y = 1.05;
+
+  // glowing central core (animated pulse)
+  const ccore = m(geo('crysCore', () => new T.IcosahedronGeometry(0.14, 0)), coreMat);
   ccore.position.y = 0.92 * s;
-  // sharp crown/head shard with glowing eye
-  const head = m(cone(0.16 * s, 0.42 * s, 4), facet); head.position.y = 1.22 * s; head.rotation.y = Math.PI / 4;
-  const eEye = m(box(0.07 * s, 0.07 * s, 0.04 * s), eye); eEye.position.set(0, 1.18 * s, 0.16 * s);
-  // back/shoulder spikes
-  const sp1 = m(cone(0.08 * s, 0.34 * s, 4), facet); sp1.position.set(-0.28 * s, 1.0 * s, -0.1 * s); sp1.rotation.set(0.2, 0, 0.6);
-  const sp2 = m(cone(0.08 * s, 0.34 * s, 4), facet); sp2.position.set(0.28 * s, 1.0 * s, -0.1 * s); sp2.rotation.set(0.2, 0, -0.6);
-  // glowing seams along the torso
-  const seam = m(cone(0.05 * s, 0.5 * s, 3), edge); seam.position.y = 0.74 * s; seam.scale.y = 1.1;
+
+  // tall sharp crown spire with glowing eye
+  const head = m(cone(0.17 * s, 0.5 * s, 4), facet); head.position.y = 1.3 * s; head.rotation.y = Math.PI / 4;
+  const eEye = m(box(0.08 * s, 0.08 * s, 0.05 * s), eye); eEye.position.set(0, 1.2 * s, 0.17 * s);
+
+  // RADIAL SHARD BURST — bright angular shards fanning out for a jagged silhouette
+  const shards = [];
+  const N = 8;
+  const cy = 0.86 * s;
+  for (let i = 0; i < N; i++) {
+    const a = (i / N) * Math.PI * 2;
+    const up = (i % 2 === 0) ? 1 : -1;        // alternate tilt for jaggedness
+    const len = (i % 2 === 0 ? 0.46 : 0.34) * s;
+    const rad = (i % 2 === 0 ? 0.4 : 0.32) * s;
+    const sh = m(cone(0.07 * s, len, 4), facet);
+    sh.position.set(Math.cos(a) * rad, cy + up * 0.18 * s, Math.sin(a) * rad);
+    // point the cone outward/up-down from the core
+    sh.rotation.z = -Math.cos(a) * (up > 0 ? 1.0 : 0.5) - (up > 0 ? 0 : Math.PI);
+    sh.rotation.x = Math.sin(a) * (up > 0 ? 1.0 : 0.5);
+    sh.rotation.y = a;
+    const sc = m(geo('crysShardTip', () => new T.OctahedronGeometry(0.05, 0)), edge);
+    sc.position.copy(sh.position);
+    shards.push(sh, sc);
+  }
+
+  // back/shoulder spikes — taller for bolder profile
+  const sp1 = m(cone(0.09 * s, 0.42 * s, 4), facet); sp1.position.set(-0.3 * s, 1.04 * s, -0.12 * s); sp1.rotation.set(0.2, 0, 0.6);
+  const sp2 = m(cone(0.09 * s, 0.42 * s, 4), facet); sp2.position.set(0.3 * s, 1.04 * s, -0.12 * s); sp2.rotation.set(0.2, 0, -0.6);
 
   // floating shard 'hands' — detached crystals hovering at the sides
-  const handL = m(geo('crysHand', () => new T.OctahedronGeometry(0.11, 0)), facet);
-  handL.position.set(-0.42 * s, 0.7 * s, 0.12 * s);
-  const handR = m(geo('crysHand', () => new T.OctahedronGeometry(0.11, 0)), facet);
-  handR.position.set(0.42 * s, 0.7 * s, 0.12 * s);
-  const handLc = m(geo('crysHandC', () => new T.OctahedronGeometry(0.05, 0)), edge); handLc.position.copy(handL.position);
-  const handRc = m(geo('crysHandC', () => new T.OctahedronGeometry(0.05, 0)), edge); handRc.position.copy(handR.position);
+  const handL = m(geo('crysHand', () => new T.OctahedronGeometry(0.12, 0)), facet);
+  handL.position.set(-0.46 * s, 0.72 * s, 0.13 * s);
+  const handR = m(geo('crysHand', () => new T.OctahedronGeometry(0.12, 0)), facet);
+  handR.position.set(0.46 * s, 0.72 * s, 0.13 * s);
+  const handLc = m(geo('crysHandC', () => new T.OctahedronGeometry(0.055, 0)), edge); handLc.position.copy(handL.position);
+  const handRc = m(geo('crysHandC', () => new T.OctahedronGeometry(0.055, 0)), edge); handRc.position.copy(handR.position);
 
-  g.add(lL, rL, torso, ccore, seam, head, eEye, sp1, sp2, handL, handR, handLc, handRc);
+  g.add(lL, rL, torso, seam, ccore, head, eEye, sp1, sp2, handL, handR, handLc, handRc);
+  for (const sh of shards) g.add(sh);
 
   const hy = handL.position.y;
   g.userData.anim = (grp, now) => {
-    ccore.scale.setScalar(0.85 + Math.sin(now / 300) * 0.3);
+    const pulse = 0.85 + Math.sin(now / 300) * 0.35;
+    ccore.scale.setScalar(pulse);
+    coreMat.opacity = 0.7 + Math.abs(Math.sin(now / 300)) * 0.3;
     torso.rotation.y = Math.PI / 4 + Math.sin(now / 1400) * 0.08;
+    // slow shard-burst rotation for a shimmering halo
     const f = Math.sin(now / 600);
-    handL.position.y = hy + f * 0.08 * s; handLc.position.y = handL.position.y;
-    handR.position.y = hy - f * 0.08 * s; handRc.position.y = handR.position.y;
+    handL.position.y = hy + f * 0.09 * s; handLc.position.y = handL.position.y;
+    handR.position.y = hy - f * 0.09 * s; handRc.position.y = handR.position.y;
     handL.rotation.y = now / 800; handR.rotation.y = -now / 800;
     handLc.rotation.y = -now / 600; handRc.rotation.y = now / 600;
   };
   return g;
 }
 
+// Strengthened: bolder dark mass + bright void-rift crack-blades + reaching tendrils + 3 glowing eyes; richer eldritch motion.
 export function buildEnemy_void(opts) {
   const c = (opts && opts.color) || '#5a2d8a';
   const g = new T.Group();
-  const bodyDark = mat(c, 0.4);
-  const bodyMid = mat(c, 0.6);
-  const core = matAdd(c, 0.95);
-  const glint = matAdd('#ffffff', 0.9);
+  const bodyDark = mat(c, 0.45);
+  const bodyMid = mat(c, 0.7);
+  // Unique animated materials (must NOT use shared cache — they pulse).
+  const riftMat = new T.MeshBasicMaterial({ color: new T.Color('#c8a6ff'), transparent: true, opacity: 0.95, blending: T.AdditiveBlending, depthWrite: false });
+  const coreMat = new T.MeshBasicMaterial({ color: new T.Color('#e6d4ff'), transparent: true, opacity: 0.95, blending: T.AdditiveBlending, depthWrite: false });
+  const eyeMat = new T.MeshBasicMaterial({ color: new T.Color('#ffffff'), transparent: true, opacity: 1.0, blending: T.AdditiveBlending, depthWrite: false });
 
-  // Clustered angular mass (faceted prisms, not a smooth blob).
-  // Lowered so the lowest spikes reach y~0 (no floating gap under the feet).
-  const m1 = m(box(0.42,0.38,0.4), bodyDark); m1.position.set(0,0.46,0); m1.rotation.set(0.3,0.4,0.2);
-  const m2 = m(box(0.34,0.34,0.3), bodyMid); m2.position.set(-0.16,0.64,0.05); m2.rotation.set(0.5,0.2,0.6);
-  const m3 = m(box(0.3,0.3,0.32), bodyDark); m3.position.set(0.18,0.6,-0.06); m3.rotation.set(0.2,0.7,0.4);
-  const m4 = m(box(0.26,0.24,0.26), bodyMid); m4.position.set(0.02,0.84,0.02); m4.rotation.set(0.6,0.3,0.3);
+  // --- Dark shifting mass: a few BIG faceted prisms for a strong clustered silhouette. ---
+  const m1 = m(box(0.5,0.46,0.46), bodyDark); m1.position.set(0,0.5,0); m1.rotation.set(0.3,0.4,0.2);
+  const m2 = m(box(0.4,0.4,0.34), bodyMid); m2.position.set(-0.19,0.72,0.05); m2.rotation.set(0.5,0.2,0.6);
+  const m3 = m(box(0.36,0.36,0.36), bodyDark); m3.position.set(0.21,0.66,-0.07); m3.rotation.set(0.2,0.7,0.4);
+  const m4 = m(box(0.3,0.28,0.3), bodyMid); m4.position.set(0.02,0.96,0.02); m4.rotation.set(0.6,0.3,0.3);
 
-  // Glowing core peeking through the mass + a hot white glint (gothic eye signal).
-  const coreMesh = m(cone(0.12,0.22,5), core); coreMesh.position.set(0,0.66,0.12); coreMesh.rotation.x = Math.PI;
-  const eye = m(box(0.07,0.07,0.04), glint); eye.position.set(0,0.66,0.2);
+  // --- Bright void-rifts: thin tall glowing crack-blades slicing through the mass (the signature pop). ---
+  const rifts = [];
+  const riftGeo = geo('void_riftBlade', () => box(0.05, 0.5, 0.16));
+  const riftDefs = [
+    [ 0.0,  0.66,  0.16,  0.0,  0.0,  0.15],
+    [-0.16, 0.6,  -0.02,  0.4,  0.5, -0.4],
+    [ 0.18, 0.74, -0.04, -0.3, -0.6,  0.5],
+    [ 0.05, 0.92,  0.06,  0.2,  0.3, -0.2]
+  ];
+  for (let i=0;i<riftDefs.length;i++){
+    const d = riftDefs[i];
+    const r = m(riftGeo, riftMat);
+    r.position.set(d[0],d[1],d[2]);
+    r.rotation.set(d[3],d[4],d[5]);
+    rifts.push(r); g.add(r);
+  }
 
-  // Erratic spikes jutting out; two point down to anchor the silhouette to the ground.
+  // --- Glowing core peeking through + a hot triangular maw-light. ---
+  const coreMesh = m(cone(0.14,0.26,5), coreMat); coreMesh.position.set(0,0.7,0.16); coreMesh.rotation.x = Math.PI;
+
+  // --- Three glowing eyes (eldritch cluster) — bold bright signal. ---
+  const eyes = [];
+  const eyeDefs = [ [0,0.78,0.26,0.06], [-0.13,0.68,0.22,0.045], [0.12,0.66,0.22,0.045] ];
+  for (let i=0;i<eyeDefs.length;i++){
+    const d = eyeDefs[i];
+    const e = m(box(d[3],d[3],0.03), eyeMat);
+    e.position.set(d[0],d[1],d[2]);
+    eyes.push(e); g.add(e);
+  }
+
+  // --- Reaching tendrils: tapered cones clawing out + two anchoring the silhouette to the ground. ---
   const sp = [];
   const spDefs = [
-    [ 0.0, 0.99,  0.0, -0.1,  0.0],
-    [-0.24,0.69,  0.1,  0.9, -0.5],
-    [ 0.26,0.64, -0.05,-1.0,  0.3],
-    [ 0.1, 0.34,  0.18, Math.PI - 0.3, 0.0],
-    [-0.12,0.34, -0.16, Math.PI + 0.3, 0.0]
+    [ 0.0, 1.16,  0.0, -0.1,  0.0, 0.36],
+    [-0.3, 0.78,  0.12,  0.8, -0.6, 0.34],
+    [ 0.32,0.72, -0.06,-0.9,  0.4, 0.34],
+    [-0.34,0.46, -0.04,  1.4, -0.9, 0.3],
+    [ 0.12, 0.34,  0.2, Math.PI - 0.3, 0.0, 0.34],
+    [-0.14, 0.34, -0.18, Math.PI + 0.3, 0.0, 0.34]
   ];
   for (let i=0;i<spDefs.length;i++){
     const d=spDefs[i];
-    const s=m(cone(0.06,0.3,4), bodyMid);
+    const s=m(cone(0.07, d[5], 4), bodyMid);
     s.position.set(d[0],d[1],d[2]);
     s.rotation.set(d[3],0,d[4]);
     sp.push(s); g.add(s);
   }
 
-  g.add(m1,m2,m3,m4,coreMesh,eye);
+  g.add(m1,m2,m3,m4,coreMesh);
   g.userData.spikes = sp;
+  g.userData.rifts = rifts;
   g.userData.core = coreMesh;
-  g.userData.eye = eye;
+  g.userData.eyes = eyes;
+  g.userData.eye = eyes[0];
   g.userData.anim = (g, now) => {
     const arr = g.userData.spikes;
     for (let i=0;i<arr.length;i++){
-      const s = 1 + 0.35 * Math.sin(now/180 + i*1.7);
+      const s = 1 + 0.4 * Math.sin(now/170 + i*1.7);
       arr[i].scale.set(1, s, 1);
     }
-    const p = 1 + 0.12 * Math.sin(now/140);
+    const rf = g.userData.rifts;
+    for (let i=0;i<rf.length;i++){
+      const s = 1 + 0.5 * Math.sin(now/130 + i*2.1);
+      rf[i].scale.set(1, s, 1);
+      rf[i].material.opacity = 0.7 + 0.3 * Math.abs(Math.sin(now/150 + i*1.3));
+    }
+    const p = 1 + 0.16 * Math.sin(now/140);
     g.userData.core.scale.setScalar(p);
-    g.userData.eye.scale.setScalar(1 + 0.18 * Math.sin(now/120));
+    g.userData.core.material.opacity = 0.75 + 0.25 * Math.abs(Math.sin(now/160));
+    const ey = g.userData.eyes;
+    for (let i=0;i<ey.length;i++){
+      ey[i].scale.setScalar(1 + 0.22 * Math.sin(now/120 + i*2.0));
+    }
   };
   return g;
 }
@@ -4562,35 +5000,82 @@ export function buildEnemy_wyrm(opts){
 
 // Treasure Goblin — a hunched gold-laden imp with a bulging treasure sack that
 // flees the player. opts.color = treasure-gold accent.
+// Goblin: bolder hunched silhouette, oversized ears/nose, pulsing beady eyes + clutched glowing dagger and coin sack.
 export function buildEnemy_goblin(opts) {
   const c = (opts && opts.color) || '#ffd24a';
   const g = new T.Group();
-  const skin = mat('#5b7a3a'), skinDark = mat('#39501f'), sack = mat('#6b4a2a');
-  const gold = matAdd(c, 0.95), eye = matAdd('#ffe24a', 1);
-  const lL = m(box(0.1, 0.22, 0.1), skinDark); lL.position.set(-0.1, 0.11, 0);
-  const rL = m(box(0.1, 0.22, 0.1), skinDark); rL.position.set(0.1, 0.11, 0);
-  const body = m(box(0.34, 0.3, 0.28), skin); body.position.set(0, 0.36, 0.02); body.rotation.x = 0.25;
-  const bag = m(geo('gobBag', () => new T.IcosahedronGeometry(0.28, 0)), sack); bag.position.set(0, 0.5, -0.22); bag.scale.set(1, 1.15, 1);
-  const tie = m(box(0.12, 0.08, 0.12), skinDark); tie.position.set(0, 0.74, -0.22);
-  const coin1 = m(geo('gobCoin', () => new T.OctahedronGeometry(0.05, 0)), gold); coin1.position.set(-0.06, 0.8, -0.2);
-  const coin2 = m(geo('gobCoin', () => new T.OctahedronGeometry(0.05, 0)), gold); coin2.position.set(0.07, 0.83, -0.24);
-  const coin3 = m(geo('gobCoin', () => new T.OctahedronGeometry(0.05, 0)), gold); coin3.position.set(0, 0.86, -0.18);
-  const lA = m(box(0.07, 0.3, 0.07), skinDark); lA.position.set(-0.2, 0.34, 0.1); lA.rotation.x = 0.5;
-  const rA = m(box(0.07, 0.3, 0.07), skinDark); rA.position.set(0.2, 0.34, 0.1); rA.rotation.x = 0.5;
-  const head = m(box(0.24, 0.2, 0.22), skin); head.position.set(0, 0.6, 0.1);
-  const earL = m(cone(0.06, 0.18, 4), skin); earL.position.set(-0.15, 0.66, 0.06); earL.rotation.z = 1.0;
-  const earR = m(cone(0.06, 0.18, 4), skin); earR.position.set(0.15, 0.66, 0.06); earR.rotation.z = -1.0;
-  const nose = m(cone(0.04, 0.12, 4), skin); nose.position.set(0, 0.58, 0.22); nose.rotation.x = Math.PI / 2;
-  const eyeL = m(box(0.05, 0.05, 0.03), eye); eyeL.position.set(-0.06, 0.64, 0.21);
-  const eyeR = m(box(0.05, 0.05, 0.03), eye); eyeR.position.set(0.06, 0.64, 0.21);
-  const grin = m(box(0.14, 0.03, 0.02), matAdd('#ffffff', 0.8)); grin.position.set(0, 0.55, 0.22);
-  g.add(lL, rL, body, bag, tie, coin1, coin2, coin3, lA, rA, head, earL, earR, nose, eyeL, eyeR, grin);
+  const skin = mat('#6f9442'), skinDark = mat('#3c5320'), cloth = mat('#5a3c22'), sack = mat('#6b4a2a');
+  const gold = matAdd(c, 0.95);
+  // unique animated additive materials (eyes + dagger edge throb) — must NOT use shared cache
+  const eyeMat = new T.MeshBasicMaterial({ color: new T.Color('#ffe24a'), transparent: true, opacity: 1, blending: T.AdditiveBlending, depthWrite: false });
+  const bladeMat = new T.MeshBasicMaterial({ color: new T.Color('#bfe9ff'), transparent: true, opacity: 0.9, blending: T.AdditiveBlending, depthWrite: false });
+
+  // --- legs (short, bowed) ---
+  const lL = m(box(0.11, 0.2, 0.12), skinDark); lL.position.set(-0.11, 0.1, 0); lL.rotation.z = 0.12;
+  const rL = m(box(0.11, 0.2, 0.12), skinDark); rL.position.set(0.11, 0.1, 0); rL.rotation.z = -0.12;
+  const lF = m(box(0.13, 0.06, 0.18), skinDark); lF.position.set(-0.12, 0.03, 0.04);
+  const rF = m(box(0.13, 0.06, 0.18), skinDark); rF.position.set(0.12, 0.03, 0.04);
+
+  // --- hunched torso: forward-leaning chest + big tapered back hump ---
+  const body = m(box(0.36, 0.32, 0.3), skin); body.position.set(0, 0.36, 0.04); body.rotation.x = 0.42;
+  const belly = m(box(0.3, 0.18, 0.22), skin); belly.position.set(0, 0.26, 0.14); belly.rotation.x = 0.3;
+  const loin = m(box(0.32, 0.14, 0.26), cloth); loin.position.set(0, 0.2, 0.05);
+  const hump = m(cone(0.26, 0.34, 5), skin); hump.position.set(0, 0.52, -0.16); hump.rotation.x = -0.5;
+
+  // --- coin sack slung on the hump ---
+  const bag = m(geo('gobBag', () => new T.IcosahedronGeometry(0.22, 0)), sack); bag.position.set(0.04, 0.58, -0.24); bag.scale.set(1, 1.2, 1);
+  const tie = m(box(0.1, 0.07, 0.1), cloth); tie.position.set(0.04, 0.74, -0.22);
+  const coin1 = m(geo('gobCoin', () => new T.OctahedronGeometry(0.055, 0)), gold); coin1.position.set(-0.04, 0.8, -0.2);
+  const coin2 = m(geo('gobCoin', () => new T.OctahedronGeometry(0.055, 0)), gold); coin2.position.set(0.1, 0.83, -0.25);
+
+  // --- head thrust forward & low (hunched) ---
+  const neck = m(box(0.12, 0.1, 0.12), skin); neck.position.set(0, 0.5, 0.14);
+  const head = m(box(0.26, 0.22, 0.24), skin); head.position.set(0, 0.56, 0.22);
+  const brow = m(box(0.26, 0.07, 0.1), skinDark); brow.position.set(0, 0.62, 0.32);
+
+  // --- oversized swept-back ears ---
+  const earL = m(cone(0.08, 0.28, 4), skin); earL.position.set(-0.2, 0.6, 0.14); earL.rotation.set(0, 0, 1.15); earL.rotation.x = -0.4;
+  const earR = m(cone(0.08, 0.28, 4), skin); earR.position.set(0.2, 0.6, 0.14); earR.rotation.set(0, 0, -1.15); earR.rotation.x = -0.4;
+
+  // --- long hooked nose ---
+  const nose = m(cone(0.06, 0.2, 4), skin); nose.position.set(0, 0.54, 0.38); nose.rotation.x = 1.9;
+
+  // --- bright beady eyes + sharp grin ---
+  const eyeL = m(box(0.06, 0.06, 0.04), eyeMat); eyeL.position.set(-0.07, 0.6, 0.34);
+  const eyeR = m(box(0.06, 0.06, 0.04), eyeMat); eyeR.position.set(0.07, 0.6, 0.34);
+  const grin = m(box(0.15, 0.035, 0.03), matAdd('#ffffff', 0.85)); grin.position.set(0, 0.49, 0.35);
+
+  // --- arms: clutching the dagger forward ---
+  const lA = m(box(0.08, 0.3, 0.08), skinDark); lA.position.set(-0.22, 0.36, 0.16); lA.rotation.x = 0.9;
+  const rA = m(box(0.08, 0.3, 0.08), skinDark); rA.position.set(0.22, 0.36, 0.16); rA.rotation.x = 0.9;
+  const fistR = m(box(0.1, 0.1, 0.1), skinDark); fistR.position.set(0.22, 0.32, 0.34);
+
+  // --- clutched dagger (group so it can be brandished) ---
+  const dag = new T.Group(); dag.position.set(0.22, 0.32, 0.34);
+  const hilt = m(box(0.04, 0.12, 0.04), cloth); hilt.position.set(0, 0, 0);
+  const guard = m(box(0.14, 0.04, 0.05), gold); guard.position.set(0, 0.07, 0);
+  const blade = m(cone(0.05, 0.3, 4), bladeMat); blade.position.set(0, 0.24, 0); 
+  dag.add(hilt, guard, blade); dag.rotation.x = -0.5;
+
+  g.add(lL, rL, lF, rF, body, belly, loin, hump, bag, tie, coin1, coin2,
+        neck, head, brow, earL, earR, nose, eyeL, eyeR, grin, lA, rA, fistR, dag);
+
   g.userData.anim = (grp, now) => {
-    const j = Math.sin(now / 90) * 0.04;
-    body.position.y = 0.36 + j; head.position.y = 0.6 + j;
-    bag.position.y = 0.5 + Math.sin(now / 120) * 0.03;
+    const j = Math.sin(now / 90) * 0.045;          // creeping crouch-bob
+    const sway = Math.sin(now / 140) * 0.06;
+    body.position.y = 0.36 + j; belly.position.y = 0.26 + j;
+    head.position.y = 0.56 + j; head.rotation.y = sway;
+    brow.position.y = 0.62 + j; neck.position.y = 0.5 + j;
+    eyeL.position.y = 0.6 + j; eyeR.position.y = 0.6 + j;
+    nose.position.y = 0.54 + j; grin.position.y = 0.49 + j;
+    hump.position.y = 0.52 + j;
+    bag.position.y = 0.58 + Math.sin(now / 120) * 0.03;
     coin1.position.y = 0.8 + Math.sin(now / 100) * 0.02;
     coin2.position.y = 0.83 + Math.sin(now / 100 + 1) * 0.02;
+    dag.position.y = 0.32 + j; dag.rotation.x = -0.5 + Math.sin(now / 110) * 0.18; // little jabs
+    fistR.position.y = 0.32 + j;
+    const pulse = 0.7 + Math.abs(Math.sin(now / 130)) * 0.3;
+    eyeMat.opacity = pulse; bladeMat.opacity = 0.6 + Math.abs(Math.sin(now / 160)) * 0.4;
   };
   return g;
 }
