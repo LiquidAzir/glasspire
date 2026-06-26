@@ -632,7 +632,14 @@
     fury:    { name: 'Shrine of Fury',    color: '#ff6644', icon: '⚔', duration: 30, effect: 'damage', desc: '2× Damage 30s' },
     arcane:  { name: 'Shrine of Arcana',  color: '#6df1ff', icon: '✦', duration: 30, effect: 'mana',   desc: 'Full MP + 2× regen 30s' },
     warding: { name: 'Shrine of Warding', color: '#ffd166', icon: '◇', duration: 15, effect: 'invuln', desc: 'Invulnerable 15s' },
+    // ===== PYLONS — powerful, flashier surges =====
+    conduit:    { name: 'Conduit Pylon',    color: '#bff0ff', icon: '⚡', duration: 20, effect: 'conduit',    desc: 'Lightning auto-arcs to nearby foes 20s' },
+    channeling: { name: 'Channeling Pylon', color: '#c489ff', icon: '∞', duration: 18, effect: 'channeling', desc: 'Free skills — no mana, no cooldown 18s' },
+    frenzy:     { name: 'Frenzy Pylon',     color: '#ff9a3c', icon: '»', duration: 24, effect: 'frenzy',     desc: '+40% Attack & Move Speed 24s' },
+    bloodthirst:{ name: 'Bloodthirst Pylon',color: '#ff5577', icon: '✚', duration: 20, effect: 'regen',      desc: 'Regenerate 4% Life/sec 20s' },
   };
+  // effect -> short label for the fade toast
+  const SHRINE_LABEL = { damage: 'Fury', mana: 'Arcana', invuln: 'Warding', conduit: 'Conduit', channeling: 'Channeling', frenzy: 'Frenzy', regen: 'Bloodthirst' };
 
   // affixes by rarity tier
   const AFFIXES = [
@@ -1284,6 +1291,9 @@
     aspd  = aspd  * aspdMul;
     hpMax = Math.floor(hpMax * hpMul);
     mpMax = Math.floor(mpMax * mpMul);
+    // Frenzy Pylon: +40% attack speed (move-speed bonus added to the returned ms below)
+    let frenzyMs = 0;
+    if (game.activeBuffs && game.activeBuffs.frenzy > 0) { aspd *= 1.4; frenzyMs = 40; }
 
     // War Cry buff: +50% damage
     const warcry = (game.world && game.world.player && game.world.player.warcryBuff > 0);
@@ -1310,7 +1320,7 @@
 
     // Glass Cannon power: trade max life for raw damage.
     if (charPowers(char).has('glasscannon')) { dmg = Math.floor(dmg * 1.3); hpMax = Math.floor(hpMax * 0.75); }
-    return { dmg, def, hpMax, mpMax, crit, aspd, res: Math.min(75, res), dr: Math.min(60, te.dr || 0), ms: te.ms || 0, bonusStats, breakdown };
+    return { dmg, def, hpMax, mpMax, crit, aspd, res: Math.min(75, res), dr: Math.min(60, te.dr || 0), ms: (te.ms || 0) + frenzyMs, bonusStats, breakdown };
   }
 
   // Count how many pieces of each set the player has equipped, return summed bonus
@@ -1808,7 +1818,8 @@
       const gx = Math.floor(sx), gy = Math.floor(sy);
       if (gx <= 0 || gx >= W - 1 || gy <= 0 || gy >= H - 1) return;
       if (grid[gy][gx] !== 0) grid[gy][gx] = 0; // clear any feature
-      shrines.push({ x: sx, y: sy, type: shrineTypeIds[irand(0, shrineTypeIds.length - 1)], used: false });
+      const st = shrineTypeIds[irand(0, shrineTypeIds.length - 1)];
+      shrines.push({ x: sx, y: sy, type: st, used: false, color: (SHRINES[st] && SHRINES[st].color) || '#9be8ff' });
     }
     const arenaRoom = rooms.find(r => r.special === 'arena');
     if (arenaRoom) placeShrine(arenaRoom.cx + 0.5, arenaRoom.cy + 0.5);
@@ -2844,10 +2855,12 @@
     // Nullweaver silence check
     if (p.silenced && p.silenced > 0) { showHudToast('SILENCED!'); return; }
     const echoing = !!game._echoing;   // a free Echo recast bypasses cost + cooldown
-    if (!echoing && p.skillCd > 0) { showHudToast(`Skill cooling: ${p.skillCd.toFixed(1)}s`); return; }
+    // Channeling Pylon: skills are free (no mana, no cooldown) for its duration
+    const free = echoing || !!(game.activeBuffs && game.activeBuffs.channeling > 0);
+    if (!free && p.skillCd > 0) { showHudToast(`Skill cooling: ${p.skillCd.toFixed(1)}s`); return; }
     const rune = getSkillRune(skillId);
     const cost = Math.round((skill.cost || cls.activeSkillCost) * (rune ? (rune.costMul || 1) : 1));
-    if (!echoing) {
+    if (!free) {
       if (c.mp < cost) { showHudToast('Not enough mana'); return; }
       c.mp -= cost;
       p.skillCd = skill.cooldown * (rune ? (rune.cdMul || 1) : 1);
@@ -4667,13 +4680,33 @@
         game.activeBuffs[k] -= dt;
         if (game.activeBuffs[k] <= 0) {
           delete game.activeBuffs[k];
-          // Recompute stats when damage buff ends so damage drops back
-          if (k === 'damage') applyDerivedToChar();
-          showHudToast(`${k === 'damage' ? 'Fury' : k === 'mana' ? 'Arcana' : 'Warding'} shrine faded.`);
+          // Recompute stats when a stat buff ends so it drops back
+          if (k === 'damage' || k === 'frenzy') applyDerivedToChar();
+          showHudToast(`${SHRINE_LABEL[k] || k} shrine faded.`);
         }
       }
     }
 
+    // Conduit Pylon: lightning auto-arcs to up to 3 nearby foes on a short interval
+    if (game.activeBuffs && game.activeBuffs.conduit > 0) {
+      game._conduitT = (game._conduitT || 0) - dt;
+      if (game._conduitT <= 0) {
+        game._conduitT = 0.35;
+        const d = derived(game.char);
+        const zap = Math.floor(d.dmg * 0.7);
+        const near = game.enemies.filter(e => dist(e, p) <= 5.5).sort((a, b) => dist(a, p) - dist(b, p)).slice(0, 3);
+        let last = p;
+        for (const e of near) {
+          for (let i = 0; i < 5; i++) pushParticle(lerp(last.x, e.x, i / 5), lerp(last.y, e.y, i / 5), i % 2 ? '#ffffff' : '#bff0ff', 0.22);
+          hitEnemy(e, zap, d.crit);
+          last = e;
+        }
+      }
+    }
+    // Bloodthirst Pylon: regenerate 4% Life/sec
+    if (game.activeBuffs && game.activeBuffs.regen > 0 && game.char.hp < game.char.hpMax) {
+      game.char.hp = Math.min(game.char.hpMax, game.char.hp + dt * game.char.hpMax * 0.04);
+    }
     // War Cry buff countdown
     if (p.warcryBuff !== undefined && p.warcryBuff > 0) {
       p.warcryBuff -= dt;

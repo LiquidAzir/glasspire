@@ -510,7 +510,7 @@ const portalLayer = makeLayer(
 );
 const shrineLayer = makeLayer(
   e => 'shrine' + (e.type || '') + (e.used ? 'U' : ''),
-  e => ({ fn: 'buildProp_shrine', opts: { color: e.used ? '#5a6470' : '#9be8ff' } }),
+  e => ({ fn: 'buildProp_shrine', opts: { color: e.used ? '#5a6470' : (e.color || '#9be8ff') } }),
   (slot, e, now) => { place(slot, e, now, 0, 0); if (e.used) slot.obj.scale.setScalar(0.85); }
 );
 const npcLayer = makeLayer(
