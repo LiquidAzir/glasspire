@@ -2511,7 +2511,11 @@
       pushParticle(lerp(p.x, nx, i / 10), lerp(p.y, ny, i / 10), '#6df1ff', 0.4);
     }
     p.x = nx; p.y = ny;
-    p.dashCd = 2.0;
+    p.dashCd = 1.5;
+    // Dodge-roll: brief invulnerability (i-frames) — slip through attacks.
+    p.iframes = 0.4;
+    floatText('DODGE', p.x, p.y - 0.6, 'heal');
+    sfx('uiBack');
   }
 
   // ============================================================
@@ -4157,6 +4161,11 @@
   // ============================================================
   function damagePlayer(rawDmg, element) {
     if (game.char.hp <= 0) return; // already dead — prevent multiple death triggers
+    // Dodge-roll i-frames: slip through the hit entirely.
+    if (game.world.player.iframes && game.world.player.iframes > 0) {
+      floatText('DODGE', game.world.player.x, game.world.player.y - 0.4, 'heal');
+      return;
+    }
     // Shrine of Warding: total invulnerability
     if (game.activeBuffs && game.activeBuffs.invuln > 0) {
       floatText('WARDED', game.world.player.x, game.world.player.y - 0.4, 'heal');
@@ -4319,6 +4328,7 @@
 
     p.skillCd = Math.max(0, p.skillCd - dt);
     if (p.dashCd !== undefined) p.dashCd = Math.max(0, p.dashCd - dt);
+    if (p.iframes) p.iframes = Math.max(0, p.iframes - dt);
     p.attackingFor = Math.max(0, p.attackingFor - dt);
     // advance the cast body-animation timer; clear when finished
     if (p.castAnim) { p.castAnim.t += dt; if (p.castAnim.t >= p.castAnim.dur) p.castAnim = null; }
