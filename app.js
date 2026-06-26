@@ -702,6 +702,73 @@
   // Fast lookup for the active character — refreshed in applyDerivedToChar on equip changes.
   function hasPower(id) { return !!(game._powers && game._powers.has(id)); }
 
+  // ============================================================
+  // PASSIVE TALENT TREE — spend a point earned each level into 4 branches.
+  // A node unlocks once the node above it in its branch has ≥1 rank.
+  // ============================================================
+  const TALENT_BRANCHES = [
+    { id: 'off', name: 'Offense',  color: '#ff6a4d' },
+    { id: 'def', name: 'Defense',  color: '#8fb7ff' },
+    { id: 'utl', name: 'Utility',  color: '#7dffb0' },
+    { id: 'mas', name: 'Mastery',  color: '#ffd27a' },
+  ];
+  const TALENTS = {
+    // OFFENSE
+    o_sharp:  { name: 'Sharpened',   br: 'off', row: 0, key: 'dmgPct', per: 6,  max: 3 },
+    o_deadly: { name: 'Deadly Aim',  br: 'off', row: 1, key: 'crit',   per: 3,  max: 3 },
+    o_frenzy: { name: 'Frenzy',      br: 'off', row: 2, key: 'aspd',   per: 5,  max: 2 },
+    o_savage: { name: 'Savagery',    br: 'off', row: 3, key: 'dmgPct', per: 8,  max: 2 },
+    o_annih:  { name: 'Annihilator', br: 'off', row: 4, key: 'dmgPct', per: 15, max: 1 },
+    // DEFENSE
+    d_hardy:  { name: 'Hardy',       br: 'def', row: 0, key: 'hp',    per: 25, max: 3 },
+    d_plated: { name: 'Plated',      br: 'def', row: 1, key: 'def',   per: 18, max: 3 },
+    d_warded: { name: 'Warded',      br: 'def', row: 2, key: 'res',   per: 6,  max: 3 },
+    d_stout:  { name: 'Stalwart',    br: 'def', row: 3, key: 'dr',    per: 8,  max: 2 },
+    d_bulwk:  { name: 'Bulwark',     br: 'def', row: 4, key: 'hpPct', per: 15, max: 1 },
+    // UTILITY
+    u_focus:  { name: 'Focused',     br: 'utl', row: 0, key: 'mp',     per: 20, max: 3 },
+    u_fleet:  { name: 'Fleet',       br: 'utl', row: 1, key: 'ms',     per: 5,  max: 2 },
+    u_avar:   { name: 'Avarice',     br: 'utl', row: 2, key: 'goldPct',per: 12, max: 2 },
+    u_insig:  { name: 'Insight',     br: 'utl', row: 3, key: 'xpPct',  per: 12, max: 2 },
+    u_fortn:  { name: 'Fortune',     br: 'utl', row: 4, key: 'mf',     per: 20, max: 1 },
+    // MASTERY
+    m_might:  { name: 'Might',       br: 'mas', row: 0, key: 'str',    per: 2,  max: 3 },
+    m_wisd:   { name: 'Wisdom',      br: 'mas', row: 1, key: 'int',    per: 2,  max: 3 },
+    m_grace:  { name: 'Grace',       br: 'mas', row: 2, key: 'dex',    per: 2,  max: 3 },
+    m_vigor:  { name: 'Vigor',       br: 'mas', row: 3, key: 'vit',    per: 2,  max: 3 },
+    m_ascend: { name: 'Ascendant',   br: 'mas', row: 4, key: 'allStat',per: 3,  max: 1 },
+  };
+  const TALENT_LABELS = {
+    dmgPct: '% Damage', crit: '% Crit', aspd: '% Attack Speed', hp: 'Life', def: 'Armor',
+    res: '% Elem Resist', dr: '% Damage Reduction', hpPct: '% Maximum Life', mp: 'Mana',
+    ms: '% Move Speed', goldPct: '% Gold Found', xpPct: '% Experience', mf: '% Magic Find',
+    str: 'Strength', int: 'Intellect', dex: 'Dexterity', vit: 'Vitality', allStat: 'to All Attributes',
+  };
+  function talentNodeAbove(id) {
+    const n = TALENTS[id]; if (!n || n.row === 0) return null;
+    for (const k in TALENTS) if (TALENTS[k].br === n.br && TALENTS[k].row === n.row - 1) return k;
+    return null;
+  }
+  function talentRanks(char, id) { return (char && char.talents && char.talents[id]) || 0; }
+  function canAllocTalent(char, id) {
+    const n = TALENTS[id]; if (!n) return false;
+    if (talentRanks(char, id) >= n.max) return false;
+    if ((char.talentPoints || 0) <= 0) return false;
+    const above = talentNodeAbove(id);
+    return !above || talentRanks(char, above) >= 1;   // node above must be started
+  }
+  // Sum every allocated node's effect into a { key: total } map.
+  function talentEffects(char) {
+    const e = {};
+    const t = char && char.talents; if (!t) return e;
+    for (const id in t) {
+      const n = TALENTS[id]; const r = t[id];
+      if (!n || !r) continue;
+      e[n.key] = (e[n.key] || 0) + n.per * r;
+    }
+    return e;
+  }
+
   const RARITY_TIERS = ['common', 'magic', 'rare', 'unique', 'mythic'];
   const RARITY_WEIGHTS = [[ 'common', 70 ], [ 'magic', 22 ], [ 'rare', 7 ], [ 'unique', 1 ], [ 'mythic', 0.2 ]];
   // Rank used to compare rarities (e.g. for "is this an upgrade" glow, mythic > unique).
@@ -896,6 +963,8 @@
         sanctuaryScrolls: 0,  // consumable: warp to town from anywhere
         tomes: 0,             // currency for passive skill unlocks
         passives: {},         // unlocked passives map: { [passiveId]: true }
+        talents: {},          // talent tree: { [nodeId]: ranks }
+        talentPoints: 0,      // unspent talent points (earn 1 per level)
         glassTears: 0,        // consumable: reroll an item's affixes at vendor
         craftDust: 0,         // crafting material from salvaging items at the Keeper
         paragonLevel: 0,      // post-cap progression level
@@ -983,6 +1052,9 @@
       // migrate: add tomes/passives for old saves
       if (obj.char && obj.char.tomes === undefined) obj.char.tomes = 0;
       if (obj.char && !obj.char.passives) obj.char.passives = {};
+      // Talent tree: grant existing characters their retroactive points (1 per level).
+      if (obj.char && !obj.char.talents) obj.char.talents = {};
+      if (obj.char && obj.char.talentPoints === undefined) obj.char.talentPoints = Math.max(0, (obj.char.level || 1) - 1);
       // migrate: ensure worldState/savedDungeon fields exist
       if (obj.worldState === undefined) obj.worldState = null;
       if (obj.savedDungeon === undefined) obj.savedDungeon = null;
@@ -1131,6 +1203,19 @@
     applyItem(char.equip.ring);
     applyItem(char.equip.amulet);
 
+    // ===== Talent tree — additive bonuses (folded in before stat-derived totals) =====
+    const te = talentEffects(char);
+    if (te.allStat) { bonusStats.str += te.allStat; bonusStats.int += te.allStat; bonusStats.dex += te.allStat; bonusStats.vit += te.allStat; }
+    if (te.str) bonusStats.str += te.str;
+    if (te.int) bonusStats.int += te.int;
+    if (te.dex) bonusStats.dex += te.dex;
+    if (te.vit) bonusStats.vit += te.vit;
+    if (te.crit) crit += te.crit;
+    if (te.def)  def  += te.def;
+    if (te.res)  res  += te.res;
+    if (te.mp)   mpMax += te.mp;
+    if (te.hp)   hpMax += te.hp;
+
     // Paragon stat bonuses (added on top of base + gear bonuses)
     const para = char.paragonStats || { str: 0, int: 0, dex: 0, vit: 0 };
     const totalStr = char.stats.str + bonusStats.str + para.str;
@@ -1157,6 +1242,10 @@
     if (passives.ferocity)   dmgMul *= 1.15;
     if (passives.fortify)    def  += 30;
     if (passives.alacrity)   aspdMul *= 1.15;
+    // Talent tree — multiplicative bonuses.
+    if (te.dmgPct) dmgMul  *= 1 + te.dmgPct / 100;
+    if (te.aspd)   aspdMul *= 1 + te.aspd / 100;
+    if (te.hpPct)  hpMul   *= 1 + te.hpPct / 100;
 
     // ===== Item set bonuses (3-piece) =====
     const setB = computeSetBonuses(char);
@@ -1203,7 +1292,7 @@
 
     // Glass Cannon power: trade max life for raw damage.
     if (charPowers(char).has('glasscannon')) { dmg = Math.floor(dmg * 1.3); hpMax = Math.floor(hpMax * 0.75); }
-    return { dmg, def, hpMax, mpMax, crit, aspd, res: Math.min(75, res), bonusStats, breakdown };
+    return { dmg, def, hpMax, mpMax, crit, aspd, res: Math.min(75, res), dr: Math.min(60, te.dr || 0), ms: te.ms || 0, bonusStats, breakdown };
   }
 
   // Count how many pieces of each set the player has equipped, return summed bonus
@@ -1245,6 +1334,7 @@
   function applyDerivedToChar() {
     game._powers = charPowers(game.char);   // refresh active legendary powers
     const d = derived(game.char);
+    game._msMul = 1 + (d.ms || 0) / 100;     // cached talent move-speed multiplier
     game.char.hpMax = d.hpMax;
     game.char.mpMax = d.mpMax;
     if (game.char.hp > d.hpMax) game.char.hp = d.hpMax;
@@ -1278,6 +1368,7 @@
         c.level += 1;
         sfx('levelup');
         c.statPoints += 3;
+        c.talentPoints = (c.talentPoints || 0) + 1;   // one talent point per level
         applyDerivedToChar();
         c.hp = c.hpMax;
         c.mp = c.mpMax;
@@ -3452,6 +3543,10 @@
     let gold = Math.floor(irand(e.goldRange[0], e.goldRange[1]) * (e.boss ? 3 : 1) * (diff.lootMul || 1));
     if (passives.scholar) xp = Math.floor(xp * 1.3);
     if (passives.greedy)  gold = Math.floor(gold * 1.3);
+    // Talent tree — Insight (xp) + Avarice (gold).
+    const _te = talentEffects(game.char);
+    if (_te.xpPct)   xp   = Math.floor(xp   * (1 + _te.xpPct / 100));
+    if (_te.goldPct) gold = Math.floor(gold * (1 + _te.goldPct / 100));
     // Midas Touch upgrade — +15% gold per level
     const gf = upgradeLevel('goldfind');
     if (gf > 0) gold = Math.floor(gold * (1 + 0.15 * gf));
@@ -3536,9 +3631,9 @@
         addParticle({ x: e.x, y: e.y, vx: Math.cos(a) * spd, vy: Math.sin(a) * spd,
           color: pick(['#ffc857', '#ffaa00', '#c77dff', '#6df1ff']), life: 0.8 + Math.random() * 0.5, age: 0, size: 3 });
       }
-    } else if (roll(0.09)) {
+    } else if (roll(0.09 * (1 + (talentEffects(game.char).mf || 0) / 100))) {
       // Normal-enemy drop — rarer overall, and most common (white) junk is discarded
-      // so the inventory stays clean. Magic-and-better always drop.
+      // so the inventory stays clean. Magic-and-better always drop. (Fortune talent raises the rate.)
       const item = rollItem(Math.max(1, e.ilvl + dropIlvlBonus), null);
       if (item && (item.rarity !== 'common' || roll(0.2))) {
         game.items.push({ x: e.x, y: e.y, item, age: 0 });
@@ -4175,6 +4270,8 @@
     let dmg = Math.max(1, Math.floor(rawDmg - d.def * 0.5));
     // Elemental resistance cuts incoming elemental damage (dungeon-monster attacks).
     if (element && element !== 'physical' && d.res > 0) dmg = Math.max(1, Math.floor(dmg * (1 - d.res / 100)));
+    // Talent damage reduction (Stalwart) cuts ALL incoming damage.
+    if (d.dr > 0) dmg = Math.max(1, Math.floor(dmg * (1 - d.dr / 100)));
     // Shield Wall: 70% damage reduction
     const p = game.world.player;
     if (p.shieldWall && p.shieldWall > 0) {
@@ -4317,7 +4414,7 @@
       if (mx !== 0 || my !== 0) {
         p.lastDir.x = mx; p.lastDir.y = my;
         const slowMul = (p.curses && p.curses.slow > 0) ? 0.5 : 1;  // Crippling curse
-        const sp = CFG.playerSpeed * dt * slowMul;
+        const sp = CFG.playerSpeed * dt * slowMul * (game._msMul || 1);
         tryMove(p, mx * sp, my * sp);
       }
       // Only consume impulse when keys are released AND no tap queued
@@ -7509,6 +7606,7 @@
     if (id === 'character') renderCharacter();
     if (id === 'skills') renderSkills();
     if (id === 'passives') renderPassives();
+    if (id === 'talents') renderTalents();
     if (id === 'gem-socket') renderGemSocket();
     if (id === 'mystery-vendor') renderMysteryVendor();
     if (id === 'quests') renderQuests();
@@ -7876,6 +7974,35 @@
       sec.innerHTML = `<div class="skill-header">Rune — ${aS.name}:</div><div class="rune-chips">${chips}</div>`;
       el.appendChild(sec);
     }
+  }
+
+  function renderTalents() {
+    const c = game.char; if (!c) return;
+    if (!c.talents) c.talents = {};
+    const pe = $('talent-points'); if (pe) pe.textContent = c.talentPoints || 0;
+    const cont = $('talents-content'); if (!cont) return;
+    let html = '<p class="sync-help">Spend a point (earned each level) into 4 branches. A node unlocks once the one above it is started.</p>';
+    for (const br of TALENT_BRANCHES) {
+      html += `<div class="sync-section"><h3 style="color:${br.color}">${br.name}</h3>`;
+      const nodes = Object.keys(TALENTS).filter(id => TALENTS[id].br === br.id).sort((a, b) => TALENTS[a].row - TALENTS[b].row);
+      for (const id of nodes) {
+        const n = TALENTS[id];
+        const ranks = talentRanks(c, id);
+        const above = talentNodeAbove(id);
+        const locked = !!above && talentRanks(c, above) < 1;
+        const canAlloc = canAllocTalent(c, id);
+        const lbl = TALENT_LABELS[n.key] || n.key;
+        const eff = lbl.charAt(0) === '%' ? `+${n.per}${lbl}` : `+${n.per} ${lbl}`;
+        const stateCls = ranks >= n.max ? 'talent-maxed' : locked ? 'disabled' : canAlloc ? '' : 'disabled';
+        const act = canAlloc ? ` data-action="talent-alloc" data-node="${id}"` : '';
+        html += `<button class="nav-item focusable ${stateCls}"${act} style="display:flex;justify-content:space-between;align-items:center;text-align:left;">` +
+                `<span>${n.name} <span style="opacity:.7;font-size:11px;">${eff}${locked ? ' · 🔒' : ''}</span></span>` +
+                `<span style="opacity:.85;">${ranks}/${n.max}</span></button>`;
+      }
+      html += '</div>';
+    }
+    html += '<button class="nav-item focusable danger" data-action="talent-reset" style="margin-top:10px;">Reset Talents (refund all)</button>';
+    cont.innerHTML = html;
   }
 
   function renderPassives() {
@@ -8597,6 +8724,29 @@
       }
       case 'menu-skills': navigateTo('skills'); return;
       case 'menu-passives': navigateTo('passives'); return;
+      case 'menu-talents': navigateTo('talents'); return;
+      case 'talent-alloc': {
+        const id = el.dataset.node;
+        if (canAllocTalent(game.char, id)) {
+          game.char.talents[id] = (game.char.talents[id] || 0) + 1;
+          game.char.talentPoints -= 1;
+          applyDerivedToChar();
+          sfx('ui'); saveGame(); renderTalents();
+        }
+        return;
+      }
+      case 'talent-reset': {
+        let refund = 0;
+        for (const k in (game.char.talents || {})) refund += game.char.talents[k];
+        if (refund <= 0) { showHudToast('No talents to reset.'); return; }
+        game.char.talents = {};
+        game.char.talentPoints = (game.char.talentPoints || 0) + refund;
+        applyDerivedToChar();
+        if (game.char.hp > game.char.hpMax) game.char.hp = game.char.hpMax;
+        showHudToast(`Talents reset — ${refund} points refunded.`);
+        sfx('uiBack'); saveGame(); renderTalents();
+        return;
+      }
       case 'menu-quests': navigateTo('quests'); return;
       case 'menu-bestiary': navigateTo('bestiary'); return;
       case 'menu-upgrades': navigateTo('upgrades'); return;
