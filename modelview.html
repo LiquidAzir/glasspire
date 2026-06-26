@@ -1,0 +1,96 @@
+<!doctype html>
+<!-- DEV-ONLY model viewer. Renders a single builder to a canvas and exposes an
+     ASCII-luminance readback so the model silhouette can be inspected without a
+     WebGL screenshot (which hangs in the preview harness). Not shipped/linked. -->
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>html,body{margin:0;background:#000}#c{display:block}</style>
+  <script type="importmap">
+  { "imports": { "three": "./vendor/three-0.169.0.module.js" } }
+  </script>
+</head>
+<body>
+  <canvas id="c" width="520" height="520"></canvas>
+  <script type="module">
+    import * as THREE from 'three';
+    const canvas = document.getElementById('c');
+    const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true, preserveDrawingBuffer: true });
+    renderer.setPixelRatio(1); renderer.setSize(520, 520, false);
+    renderer.setClearColor(0x000000, 1);
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    const scene = new THREE.Scene();
+    const cam = new THREE.PerspectiveCamera(32, 1, 0.1, 100);
+
+    let current = null;
+    window.__ready = false;
+
+    // Build a model by builder name (fresh, cache-busted import each call so edits show).
+    window.__build = async function (name, opts) {
+      const Builders = await import('./builders.js?v=' + Math.random().toString(36).slice(2));
+      Builders.setTHREE(THREE);
+      if (current) scene.remove(current);
+      const fn = Builders[name];
+      if (!fn) return 'NO_BUILDER:' + name;
+      current = fn(opts || {});
+      // optional live recolor (engine does this in-game)
+      if (opts && opts.body && current.userData && current.userData.bodyMat) current.userData.bodyMat.color.set(opts.body);
+      if (opts && opts.trim && current.userData && current.userData.trimMat) current.userData.trimMat.color.set(opts.trim);
+      scene.add(current);
+      frame(opts && opts.view);
+      renderer.render(scene, cam);
+      window.__ready = true;
+      return 'OK';
+    };
+
+    function frame(view) {
+      // Frame the model's bounding box. Default = a hero 3/4 front view.
+      const box = new THREE.Box3().setFromObject(current);
+      const c = new THREE.Vector3(), s = new THREE.Vector3();
+      box.getCenter(c); box.getSize(s);
+      const r = Math.max(s.x, s.y, s.z) * 0.5 + 0.4;
+      const d = r / Math.tan((cam.fov * Math.PI / 180) / 2) * 1.15;
+      let az = 0.5, el = 0.42;                 // radians: slight 3/4 turn + above
+      if (view === 'front') { az = 0; el = 0.18; }
+      if (view === 'side')  { az = 1.45; el = 0.22; }
+      if (view === 'top')   { az = 0.2; el = 1.1; }
+      cam.position.set(c.x + Math.sin(az) * Math.cos(el) * d, c.y + Math.sin(el) * d, c.z + Math.cos(az) * Math.cos(el) * d);
+      cam.lookAt(c.x, c.y, c.z);
+    }
+
+    // Run the model's per-frame anim hook at a chosen time, then re-render.
+    window.__anim = function (now, moving) {
+      if (current && current.userData && current.userData.anim) {
+        try { current.userData.anim(current, now == null ? 1000 : now, !!moving); } catch (e) {}
+      }
+      renderer.render(scene, cam);
+      return 'OK';
+    };
+
+    // ASCII-luminance readback. Downsamples the GL canvas to cols x rows and maps
+    // brightness to a ramp. Black (transparent on-device) reads as space.
+    window.__grid = function (cols, rows) {
+      cols = cols || 56; rows = rows || 40;
+      const tmp = document.createElement('canvas'); tmp.width = cols; tmp.height = rows;
+      const tx = tmp.getContext('2d');
+      tx.drawImage(canvas, 0, 0, cols, rows);
+      const px = tx.getImageData(0, 0, cols, rows).data;
+      const ramp = ' .:-=+*#%@';
+      let out = '';
+      for (let y = 0; y < rows; y++) {
+        let line = '';
+        for (let x = 0; x < cols; x++) {
+          const i = (y * cols + x) * 4;
+          const lum = (px[i] * 0.3 + px[i + 1] * 0.59 + px[i + 2] * 0.11) / 255;
+          line += ramp[Math.min(ramp.length - 1, Math.max(0, Math.round(lum * (ramp.length - 1))))];
+        }
+        out += line + '\n';
+      }
+      return out;
+    };
+
+    // Count meshes (prim budget check).
+    window.__prims = function () { let n = 0; if (current) current.traverse(o => { if (o.isMesh) n++; }); return n; };
+  </script>
+</body>
+</html>

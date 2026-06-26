@@ -2795,10 +2795,11 @@ export function buildPlayer_warrior(opts){
   // chest plates angle to a center ridge - side bevels
   const lBevel = m(box(0.16,0.44,0.10), steel);    lBevel.position.set(-0.30,0.84,0.18); lBevel.rotation.y=0.5; g.add(lBevel);
   const rBevel = m(box(0.16,0.44,0.10), steel);    rBevel.position.set( 0.30,0.84,0.18); rBevel.rotation.y=-0.5; g.add(rBevel);
-  // central emblem ridge (vertical keel) + glowing emblem
+  // central emblem ridge (vertical keel) + glowing emblem (bold cross sigil)
   const ridge = m(box(0.10,0.44,0.10), steel);     ridge.position.set(0,0.84,0.205);  g.add(ridge);
-  const emblem = m(box(0.14,0.20,0.06), trimMat);  emblem.position.set(0,0.89,0.24);  g.add(emblem);
-  const emblemBar = m(box(0.26,0.05,0.05), trimMat); emblemBar.position.set(0,0.83,0.24); g.add(emblemBar);
+  const emblem = m(box(0.16,0.26,0.06), trimMat);  emblem.position.set(0,0.90,0.24);  g.add(emblem);
+  const emblemBar = m(box(0.30,0.07,0.05), trimMat); emblemBar.position.set(0,0.86,0.24); g.add(emblemBar);
+  const emblemGem = m(cone(0.08,0.12,4), trimMat); emblemGem.position.set(0,0.99,0.25); emblemGem.rotation.x = Math.PI/2; g.add(emblemGem);
   // gorget (neck guard)
   const gorget = m(box(0.34,0.12,0.32), dark);     gorget.position.set(0,1.10,0);    g.add(gorget);
 
@@ -2845,11 +2846,13 @@ export function buildPlayer_warrior(opts){
   // central crest fin
   const crest = m(box(0.05,0.18,0.20), bodyMat); crest.position.set(0,0.30,-0.02); head.add(crest);
   const crestRune = m(box(0.06,0.16,0.04), trimMat); crestRune.position.set(0,0.30,0.10); head.add(crestRune);
-  // HORNS (curved out + up, two cones each)
+  // HORNS (sweeping out + up, three cones each) — bigger, more dramatic helm crown
   function horn(side){
     const grp = new T.Group(); grp.position.set(side*0.15,0.20,0);
-    const base = m(cone(0.07,0.18,4), steel); base.position.set(side*0.06,0.04,0); base.rotation.z=side*-1.0; grp.add(base);
-    const tip  = m(cone(0.05,0.18,4), bodyMat); tip.position.set(side*0.17,0.14,0); tip.rotation.z=side*-0.35; grp.add(tip);
+    const base = m(cone(0.08,0.22,4), steel);   base.position.set(side*0.07,0.05,0); base.rotation.z=side*-1.0; grp.add(base);
+    const mid  = m(cone(0.06,0.22,4), bodyMat);  mid.position.set(side*0.21,0.16,0); mid.rotation.z=side*-0.55; grp.add(mid);
+    const tip  = m(cone(0.04,0.20,4), bodyMat);  tip.position.set(side*0.34,0.34,0); tip.rotation.z=side*-0.15; grp.add(tip);
+    const tipRune = m(cone(0.025,0.10,4), trimMat); tipRune.position.set(side*0.40,0.46,0); tipRune.rotation.z=side*-0.10; grp.add(tipRune);
     return grp;
   }
   head.add(horn(-1)); head.add(horn(1));
@@ -2938,6 +2941,11 @@ export function buildPlayer_mage(opts){
   hood.position.set(0, 1.46, -0.03);
   hood.rotation.x = -0.12;
   g.add(hood);
+  // crowning arcane gem at the hood tip — a bright top accent that anchors the wizard read
+  const hoodGem = m(geo('mage_hoodgem', ()=>cone(0.075, 0.18, 4)), trimMat);
+  hoodGem.position.set(0, 1.74, -0.08); hoodGem.rotation.x = -0.12; g.add(hoodGem);
+  const hoodGemCore = m(geo('mage_hoodgemcore', ()=>box(0.06,0.06,0.06)), eyeMat);
+  hoodGemCore.position.set(0, 1.70, -0.07); g.add(hoodGemCore);
 
   // shadow inside the hood opening (face cavity) -> dim void (visible on additive)
   const hoodVoid = m(geo('mage_void', ()=>cone(0.155, 0.30, 6)), shadeMat);
@@ -2997,11 +3005,13 @@ export function buildPlayer_mage(opts){
   sash.position.set(0, 0.84, 0.18);
   sash.rotation.z = 0.42;
   g.add(sash);
-  // glowing focus stone set into the sash (chest front)
-  const focus = m(geo('mage_focus', ()=>box(0.11, 0.13, 0.06)), trimMat);
+  // glowing focus stone set into the sash (chest front) — bold diamond that reads small
+  const focus = m(geo('mage_focus', ()=>box(0.15, 0.17, 0.06)), trimMat);
   focus.position.set(0.04, 0.78, 0.215);
   focus.rotation.z = 0.78; // diamond
   g.add(focus);
+  const focusCore = m(geo('mage_focuscore', ()=>box(0.07,0.08,0.07)), eyeMat);
+  focusCore.position.set(0.04, 0.78, 0.235); focusCore.rotation.z = 0.78; g.add(focusCore);
 
   // ===================== FLOATING ARCANE MOTES (orbit in anim) =====================
   const mote1 = m(geo('mage_mote', ()=>box(0.06, 0.06, 0.06)), trimMat);
@@ -3102,8 +3112,15 @@ export function buildPlayer_ranger(opts){
   strapA.position.set(0,0.86,0.135); strapA.rotation.z = 0.42; g.add(strapA);
   const strapB = m(box(0.07,0.50,0.05), midLeather);
   strapB.position.set(0,0.86,0.135); strapB.rotation.z = -0.42; g.add(strapB);
+  // BRIGHT glowing rune line down each strap so the chest-X reads at small render size
+  const strapGlowA = m(box(0.028,0.50,0.05), trimMat); strapGlowA.position.set(0,0.86,0.15); strapGlowA.rotation.z = 0.42; g.add(strapGlowA);
+  const strapGlowB = m(box(0.028,0.50,0.05), trimMat); strapGlowB.position.set(0,0.86,0.15); strapGlowB.rotation.z = -0.42; g.add(strapGlowB);
   // small glowing harness clasp where straps cross
-  const clasp = m(box(0.07,0.07,0.04), trimMat); clasp.position.set(0,0.86,0.16); g.add(clasp);
+  const clasp = m(box(0.085,0.085,0.04), trimMat); clasp.position.set(0,0.86,0.17); g.add(clasp);
+  // pointed leather shoulder caps — a touch more shoulder line on the lean frame
+  const capL = m(cone(0.10,0.16,4), bodyMat); capL.position.set(-0.27,1.06,0); capL.rotation.z = 0.6; g.add(capL);
+  const capR = m(cone(0.10,0.16,4), bodyMat); capR.position.set( 0.27,1.06,0); capR.rotation.z =-0.6; g.add(capR);
+  const capGlowR = m(box(0.10,0.022,0.13), trimMat); capGlowR.position.set(0.27,1.0,0.01); g.add(capGlowR);
 
   // ---------- LAYERED SHORT CLOAK over ONE (left) shoulder ----------
   const cloak = new T.Group();
@@ -3145,6 +3162,8 @@ export function buildPlayer_ranger(opts){
   // forward peak/brow that casts the face into shadow (juts toward +Z)
   const hoodPeak = m(box(0.22,0.14,0.14), bodyMat);
   hoodPeak.position.set(0,1.255,0.10); hoodPeak.rotation.x = -0.42; g.add(hoodPeak);
+  // sharp forward hood point — a crisp, instantly-readable archer-hood silhouette
+  const hoodTip = m(cone(0.11,0.26,4), bodyMat); hoodTip.position.set(0,1.31,0.05); hoodTip.rotation.x = 0.55; g.add(hoodTip);
   // dark inner cowl (the shadowed face opening)
   const cowl = m(box(0.165,0.16,0.07), darkLeather); cowl.position.set(0,1.205,0.105); g.add(cowl);
   // hood back drape onto shoulders
@@ -3265,20 +3284,28 @@ export function buildPlayer_summoner(opts){
   // glowing rune ring at collar base (accent)
   const collarRune = m(geo('summCollarRune', ()=>cyl(0.215,0.215,0.04,6)), trimMat);
   collarRune.position.y = 0.95; g.add(collarRune);
+  // BOLD shoulder bone-horns (jut up & out) — gives the small-render silhouette a
+  // strong, instantly-readable necromancer shoulder line.
+  const shoulderHorn = geo('summShoulderHorn', ()=>cone(0.10,0.40,4));
+  const shL = m(shoulderHorn, bone); shL.position.set(-0.34,1.02,0.02); shL.rotation.z = 0.7; g.add(shL);
+  const shR = m(shoulderHorn, bone); shR.position.set( 0.34,1.02,0.02); shR.rotation.z =-0.7; g.add(shR);
+  const shTipL = m(geo('summHornRune', ()=>cone(0.05,0.12,4)), trimMat); shTipL.position.set(-0.50,1.16,0.02); shTipL.rotation.z = 0.7; g.add(shTipL);
+  const shTipR = m(geo('summHornRune', ()=>cone(0.05,0.12,4)), trimMat); shTipR.position.set( 0.50,1.16,0.02); shTipR.rotation.z =-0.7; g.add(shTipR);
 
   // ================= SKELETAL CHEST / RIB ACCENTS =================
-  // Exposed ribcage over the robe front (glowing accent bones).
-  const ribGeo = geo('summRib', ()=>box(0.30,0.035,0.05));
-  for(let i=0;i<4;i++){
-    const ry = 0.62 + i*0.075;
+  // Exposed ribcage over the robe front (glowing accent bones). BOLD so it reads
+  // as the iconic necromancer chest even at small on-glasses render size.
+  const ribGeo = geo('summRib', ()=>box(0.34,0.055,0.06));
+  for(let i=0;i<5;i++){
+    const ry = 0.58 + i*0.072;
     const rib = m(ribGeo, trimMat);
-    rib.position.set(0, ry, 0.19);
-    rib.scale.x = 1 - i*0.13; // taper toward bottom (chest -> belly)
-    g.add(rib);
+    rib.position.set(0, ry, 0.20);
+    rib.scale.x = 1 - i*0.11; // taper toward bottom (chest -> belly)
+    rib.rotation.z = 0; g.add(rib);
   }
-  // sternum bar
-  const sternum = m(geo('summSternum', ()=>box(0.04,0.30,0.05)), trimMat);
-  sternum.position.set(0,0.71,0.195); g.add(sternum);
+  // bright sternum/spine column down the chest
+  const sternum = m(geo('summSternum', ()=>box(0.055,0.40,0.06)), trimMat);
+  sternum.position.set(0,0.73,0.205); g.add(sternum);
 
   // ================= HEAD: BONE SKULL HALF-MASK =================
   const headGroup = new T.Group(); g.add(headGroup);
@@ -3288,11 +3315,11 @@ export function buildPlayer_summoner(opts){
   const cowlShadow = m(geo('summCowlInner', ()=>cyl(0.135,0.155,0.22,6)), dark);
   cowlShadow.position.set(0,1.16,0.04); headGroup.add(cowlShadow);
 
-  // Skull cranium (bone, opaque)
-  const skull = m(geo('summSkull', ()=>box(0.20,0.21,0.19)), bone);
-  skull.position.set(0,1.14,0.06); headGroup.add(skull);
+  // Skull cranium (bone, opaque) — enlarged so the face anchors the silhouette
+  const skull = m(geo('summSkull', ()=>box(0.23,0.24,0.21)), bone);
+  skull.position.set(0,1.15,0.06); headGroup.add(skull);
   // angular jaw / lower face
-  const jaw = m(geo('summJaw', ()=>box(0.16,0.09,0.16)), bone);
+  const jaw = m(geo('summJaw', ()=>box(0.18,0.10,0.17)), bone);
   jaw.position.set(0,1.02,0.07); headGroup.add(jaw);
   // brow ridge (dark recess above eyes)
   const browShadow = m(geo('summBrow', ()=>box(0.20,0.045,0.02)), dark);
