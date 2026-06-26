@@ -1239,6 +1239,7 @@ export function buildMinion(opts) {
 // armor cosmetics, legendary/mythic auras + tier kit. Authored by workflow.
 // =============================================================
 
+// Strengthened: broader fullered blade with a full-length BRIGHT fx-tinted fuller + twin edge-outline lines, a bolder heavier crossguard (now fx-tinted at all tiers), and a bright core glint at the guard so the silhouette reads big & glowing at small render size.
 export function buildWeapon_sword(opts) {
   const o = opts || {};
   const c = o.color || '#c8d0e0';
@@ -1247,15 +1248,19 @@ export function buildWeapon_sword(opts) {
   const prism = !!o.prismatic;
   const g = new T.Group();
 
-  // tier-driven proportions: blade grows longer + wider with rarity
-  const bw = 0.06 + tier * 0.012;            // blade width
-  const bh = 0.62 + tier * 0.1;              // blade length
+  // element tint for the bright glowing edge/fuller (falls back to blade color)
+  const FXC = { fire: '#ff6a1a', ice: '#bfeaff', void: '#9a3cff', spark: '#a8e0ff', smoke: '#aab0c0', wisp: c };
+  const edgeC = (fx && FXC[fx]) || c;
+
+  // tier-driven proportions: blade grows longer + BROADER with rarity (bolder silhouette)
+  const bw = 0.085 + tier * 0.016;           // blade width (broadened for a bolder read)
+  const bh = 0.66 + tier * 0.1;              // blade length
   const by = 0.12 + bh / 2;                  // blade centre (grip at origin, ~0.1 hilt stack below)
   const topY = 0.12 + bh;                    // blade tip-base (business end)
 
   // cached static materials (NEVER mutated)
-  const steel = mat(c, 0.9 + tier * 0.04);
-  const guard = mat(tier >= 2 ? '#b8a256' : '#8a8f9c', tier >= 2 ? 0.9 : 1); // ornate brass at t2+
+  const steel = mat(c, 0.95 + tier * 0.04);
+  const guard = mat(tier >= 2 ? '#c8ad5c' : '#9aa0ae', tier >= 2 ? 1 : 1); // ornate brass at t2+
   const gripMat = mat('#2a2018');
 
   // unique additive emissive parts (so prismatic can recolor them per-frame; these are NEVER cached)
@@ -1264,66 +1269,82 @@ export function buildWeapon_sword(opts) {
   const fxParts = [];     // animated fx pieces {mesh, kind, base, phase}
   function glow(mesh, op) { glowParts.push({ mesh, base: op }); return mesh; }
 
-  // --- blade ---
-  const blade = m(box(bw, bh, 0.02), steel); blade.position.y = by;
+  // --- blade body (broad, flat, gothic) ---
+  const blade = m(box(bw, bh, 0.024), steel); blade.position.y = by;
   g.add(blade);
-  const tip = m(cone(bw * 0.85, 0.16 + tier * 0.02, 4), steel); tip.position.y = topY + 0.07;
+  const tip = m(cone(bw * 0.9, 0.2 + tier * 0.02, 4), steel); tip.position.y = topY + 0.085;
   g.add(tip);
 
-  // glowing centre fuller (t0 already gets a faint accent line)
-  const fullerMat = mkGlow(c, 0.55 + tier * 0.08);
-  const fuller = m(box(bw * 0.34, bh * 0.82, 0.025), fullerMat); fuller.position.y = by;
+  // BRIGHT full-length fuller down the centre — the dominant glowing stroke
+  const fullerMat = mkGlow(edgeC, 0.7 + tier * 0.06);
+  const fuller = m(box(bw * 0.4, bh * 0.86, 0.03), fullerMat); fuller.position.set(0, by, 0.006);
   g.add(fuller); glow(fuller, fullerMat.opacity);
 
-  // t1+: a brighter accent edge line near the tip
-  if (tier >= 1) {
-    const accMat = mkGlow(c, 0.9);
-    const acc = m(box(bw * 0.16, bh * 0.5, 0.03), accMat); acc.position.set(0, by + bh * 0.12, 0.012);
-    g.add(acc); glow(acc, accMat.opacity);
+  // twin bright EDGE-OUTLINE lines down each side of the blade (defines the silhouette)
+  const edgeOp = 0.55 + tier * 0.07;
+  for (let s = -1; s <= 1; s += 2) {
+    const em = mkGlow(edgeC, edgeOp);
+    const edge = m(box(bw * 0.12, bh * 0.92, 0.032), em);
+    edge.position.set(s * (bw * 0.5 - bw * 0.06), by, 0.004);
+    g.add(edge); glow(edge, edgeOp);
+    fxParts.push({ mesh: edge, kind: 'rune', base: edgeOp, phase: s > 0 ? 0.9 : 0 });
   }
 
-  // --- crossguard / fittings ---
+  // t1+: a brighter concentrated accent near the tip (the "business end" flare)
+  if (tier >= 1) {
+    const accMat = mkGlow(edgeC, 0.95);
+    const acc = m(box(bw * 0.28, bh * 0.42, 0.036), accMat); acc.position.set(0, by + bh * 0.18, 0.014);
+    g.add(acc); glow(acc, accMat.opacity);
+    fxParts.push({ mesh: acc, kind: 'rune', base: accMat.opacity, phase: 2.0 });
+  }
+
+  // --- crossguard / fittings (bold, wide, fx-tinted glow underlay) ---
+  const guardGlowMat = mkGlow(edgeC, 0.5);
   if (tier >= 2) {
-    // ornate winged guard: a bar + two upswept quillon prongs + fittings
-    const cross = m(box(0.34, 0.06, 0.07), guard); cross.position.y = 0.1;
+    // ornate winged guard: a heavy bar + two upswept quillon prongs + fittings
+    const cross = m(box(0.42, 0.075, 0.085), guard); cross.position.y = 0.1;
     g.add(cross);
-    const qL = m(cone(0.04, 0.16, 4), guard); qL.position.set(-0.17, 0.15, 0); qL.rotation.z = 0.7;
-    const qR = m(cone(0.04, 0.16, 4), guard); qR.position.set(0.17, 0.15, 0); qR.rotation.z = -0.7;
+    const gb = m(box(0.44, 0.04, 0.05), guardGlowMat); gb.position.set(0, 0.1, 0.045);
+    g.add(gb); glow(gb, guardGlowMat.opacity);
+    const qL = m(cone(0.05, 0.2, 4), guard); qL.position.set(-0.21, 0.16, 0); qL.rotation.z = 0.7;
+    const qR = m(cone(0.05, 0.2, 4), guard); qR.position.set(0.21, 0.16, 0); qR.rotation.z = -0.7;
     g.add(qL, qR);
     // centre gem set in the guard
-    const gemMat = mkGlow(c, 0.95);
-    const gem = m(geo('swGem', () => new T.OctahedronGeometry(0.05, 0)), gemMat); gem.position.set(0, 0.1, 0.06);
-    g.add(gem); glow(gem, gemMat.opacity); fxParts.push({ mesh: gem, kind: 'gem', base: 0.05, phase: 0 });
+    const gemMat = mkGlow(edgeC, 0.98);
+    const gem = m(geo('swGem', () => new T.OctahedronGeometry(0.06, 0)), gemMat); gem.position.set(0, 0.1, 0.075);
+    g.add(gem); glow(gem, gemMat.opacity); fxParts.push({ mesh: gem, kind: 'gem', base: 0.06, phase: 0 });
   } else {
-    const cross = m(box(0.28, 0.06, 0.06), guard); cross.position.y = 0.1;
+    const cross = m(box(0.36, 0.07, 0.075), guard); cross.position.y = 0.1;
     g.add(cross);
+    const gb = m(box(0.38, 0.035, 0.045), guardGlowMat); gb.position.set(0, 0.1, 0.04);
+    g.add(gb); glow(gb, guardGlowMat.opacity);
   }
 
   // --- grip + pommel ---
-  const grip = m(box(0.05, 0.16, 0.05), gripMat); grip.position.y = 0;
+  const grip = m(box(0.055, 0.16, 0.055), gripMat); grip.position.y = 0;
   g.add(grip);
-  const pommel = m(box(0.08, 0.08, 0.08), guard); pommel.position.y = -0.09;
+  const pommel = m(box(0.095, 0.095, 0.095), guard); pommel.position.y = -0.1;
   g.add(pommel);
   if (tier >= 3) {
     // legendary pommel jewel
-    const pjMat = mkGlow(c, 0.95);
-    const pj = m(geo('swPom', () => new T.OctahedronGeometry(0.045, 0)), pjMat); pj.position.y = -0.09;
+    const pjMat = mkGlow(edgeC, 0.95);
+    const pj = m(geo('swPom', () => new T.OctahedronGeometry(0.05, 0)), pjMat); pj.position.y = -0.1;
     g.add(pj); glow(pj, pjMat.opacity);
   }
 
   // --- t3 LEGENDARY: glowing runes along the blade + ornamental side prongs ---
   if (tier >= 3) {
-    const runeMat = mkGlow(c, 0.9);
+    const runeMat = mkGlow(edgeC, 0.92);
     const nR = 3;
     for (let i = 0; i < nR; i++) {
-      const r = m(box(bw * 0.5, 0.04, 0.028), runeMat);
-      r.position.set(0, by - bh * 0.3 + i * (bh * 0.28), 0.013);
+      const r = m(box(bw * 0.55, 0.05, 0.034), runeMat);
+      r.position.set(0, by - bh * 0.3 + i * (bh * 0.28), 0.016);
       g.add(r); glow(r, runeMat.opacity);
       fxParts.push({ mesh: r, kind: 'rune', base: runeMat.opacity, phase: i * 1.3 });
     }
     // ornamental prongs flanking the lower blade (elaborate silhouette)
-    const prL = m(cone(0.035, 0.2, 4), guard); prL.position.set(-bw * 0.5 - 0.05, by - bh * 0.28, 0); prL.rotation.z = 0.35;
-    const prR = m(cone(0.035, 0.2, 4), guard); prR.position.set(bw * 0.5 + 0.05, by - bh * 0.28, 0); prR.rotation.z = -0.35;
+    const prL = m(cone(0.04, 0.24, 4), guard); prL.position.set(-bw * 0.5 - 0.05, by - bh * 0.28, 0); prL.rotation.z = 0.35;
+    const prR = m(cone(0.04, 0.24, 4), guard); prR.position.set(bw * 0.5 + 0.05, by - bh * 0.28, 0); prR.rotation.z = -0.35;
     g.add(prL, prR);
   }
 
@@ -1334,17 +1355,17 @@ export function buildWeapon_sword(opts) {
     if (fx === 'fire') {
       const cols = ['#ff6a1a', '#ffb648', '#ff3010'];
       for (let i = 0; i < 3; i++) {
-        const fm = mkGlow(cols[i], 0.8);
-        const fl = m(cone(0.05 * fxScale, (0.18 + i * 0.05) * fxScale, 4), fm);
+        const fm = mkGlow(cols[i], 0.85);
+        const fl = m(cone(0.055 * fxScale, (0.2 + i * 0.05) * fxScale, 4), fm);
         fl.position.set((i - 1) * 0.04, fxY + i * 0.04, 0);
         g.add(fl); glow(fl, fm.opacity);
-        fxParts.push({ mesh: fl, kind: 'fire', base: (0.18 + i * 0.05) * fxScale, phase: i * 2.1 });
+        fxParts.push({ mesh: fl, kind: 'fire', base: (0.2 + i * 0.05) * fxScale, phase: i * 2.1 });
       }
     } else if (fx === 'ice') {
       for (let i = 0; i < 4; i++) {
-        const im = mkGlow('#bfeaff', 0.7); // one unique material per crystal so opacity anim never touches a shared mat
+        const im = mkGlow('#bfeaff', 0.75); // one unique material per crystal so opacity anim never touches a shared mat
         const a = (i / 4) * Math.PI * 2;
-        const cr = m(cone(0.03 * fxScale, (0.14 + (i % 2) * 0.06) * fxScale, 3), im);
+        const cr = m(cone(0.034 * fxScale, (0.15 + (i % 2) * 0.06) * fxScale, 3), im);
         cr.position.set(Math.cos(a) * 0.05, fxY - 0.02 + Math.sin(a) * 0.03, Math.sin(a) * 0.03);
         cr.rotation.set(0.5, a, Math.cos(a) * 0.5);
         g.add(cr); glow(cr, im.opacity);
@@ -1352,21 +1373,21 @@ export function buildWeapon_sword(opts) {
       }
     } else if (fx === 'void') {
       for (let i = 0; i < 2; i++) {
-        const vm = mkGlow('#6a18c8', 0.7);
-        const orb = m(geo('swVoid', () => new T.IcosahedronGeometry(0.07, 0)), vm);
+        const vm = mkGlow('#6a18c8', 0.75);
+        const orb = m(geo('swVoid', () => new T.IcosahedronGeometry(0.075, 0)), vm);
         orb.position.set((i ? 0.05 : -0.05), fxY + i * 0.08, 0);
         g.add(orb); glow(orb, vm.opacity);
-        fxParts.push({ mesh: orb, kind: 'void', base: 0.07 * fxScale, phase: i * 3.1 });
+        fxParts.push({ mesh: orb, kind: 'void', base: 0.075 * fxScale, phase: i * 3.1 });
         orb.scale.setScalar(fxScale);
       }
-      const warpMat = mkGlow('#2a0840', 0.45);
-      const warp = m(geo('swWarp', () => new T.OctahedronGeometry(0.13, 0)), warpMat); warp.position.y = fxY + 0.04; warp.scale.setScalar(fxScale);
+      const warpMat = mkGlow('#3a0a58', 0.5);
+      const warp = m(geo('swWarp', () => new T.OctahedronGeometry(0.14, 0)), warpMat); warp.position.y = fxY + 0.04; warp.scale.setScalar(fxScale);
       g.add(warp); glow(warp, warpMat.opacity);
-      fxParts.push({ mesh: warp, kind: 'void', base: 0.13 * fxScale, phase: 1.5 });
+      fxParts.push({ mesh: warp, kind: 'void', base: 0.14 * fxScale, phase: 1.5 });
     } else if (fx === 'spark') {
       for (let i = 0; i < 4; i++) {
-        const sm = mkGlow('#a8e0ff', 0.95);
-        const bit = m(box(0.02 * fxScale, 0.07 * fxScale, 0.02 * fxScale), sm);
+        const sm = mkGlow('#a8e0ff', 0.98);
+        const bit = m(box(0.022 * fxScale, 0.08 * fxScale, 0.022 * fxScale), sm);
         bit.position.set((i % 2 ? 0.05 : -0.05), fxY + (i * 0.05 - 0.05), 0);
         bit.rotation.z = (i % 2 ? 0.6 : -0.6);
         g.add(bit); glow(bit, sm.opacity);
@@ -1374,16 +1395,16 @@ export function buildWeapon_sword(opts) {
       }
     } else if (fx === 'smoke') {
       for (let i = 0; i < 3; i++) {
-        const km = mkGlow('#9aa0b0', 0.28);
-        const pf = m(geo('swSmoke', () => new T.IcosahedronGeometry(0.08, 0)), km);
+        const km = mkGlow('#9aa0b0', 0.32);
+        const pf = m(geo('swSmoke', () => new T.IcosahedronGeometry(0.085, 0)), km);
         pf.position.set((i - 1) * 0.03, fxY + i * 0.07, 0); pf.scale.setScalar(fxScale * (1 + i * 0.2));
         g.add(pf); glow(pf, km.opacity);
         fxParts.push({ mesh: pf, kind: 'smoke', base: fxY + i * 0.07, phase: i * 2.0 });
       }
     } else if (fx === 'wisp') {
       for (let i = 0; i < 3; i++) {
-        const wm = mkGlow(c, 0.9);
-        const mote = m(geo('swMote', () => new T.IcosahedronGeometry(0.035, 0)), wm);
+        const wm = mkGlow(c, 0.92);
+        const mote = m(geo('swMote', () => new T.IcosahedronGeometry(0.038, 0)), wm);
         g.add(mote); glow(mote, wm.opacity);
         fxParts.push({ mesh: mote, kind: 'wisp', base: fxY, phase: (i / 3) * Math.PI * 2, rad: 0.1 * fxScale });
       }
@@ -1393,16 +1414,23 @@ export function buildWeapon_sword(opts) {
   // --- t4 MYTHIC extra drama: orbiting shards + intense core glint ---
   if (tier >= 4) {
     for (let i = 0; i < 3; i++) {
-      const sm = mkGlow(c, 0.85);
-      const shard = m(geo('swShard', () => new T.OctahedronGeometry(0.04, 0)), sm);
+      const sm = mkGlow(c, 0.88);
+      const shard = m(geo('swShard', () => new T.OctahedronGeometry(0.045, 0)), sm);
       g.add(shard); glow(shard, sm.opacity);
       fxParts.push({ mesh: shard, kind: 'shard', base: by + bh * 0.2, phase: (i / 3) * Math.PI * 2, rad: bw + 0.1 });
     }
-    const coreMat = mkGlow('#ffffff', 0.95);
-    const core = m(geo('swCore', () => new T.IcosahedronGeometry(0.05, 0)), coreMat); core.position.y = by;
+    const coreMat = mkGlow('#ffffff', 0.98);
+    const core = m(geo('swCore', () => new T.IcosahedronGeometry(0.055, 0)), coreMat); core.position.y = by;
     g.add(core); glow(core, coreMat.opacity);
-    fxParts.push({ mesh: core, kind: 'core', base: 0.05, phase: 0 });
+    fxParts.push({ mesh: core, kind: 'core', base: 0.055, phase: 0 });
   }
+
+  // bright core glint seated at the guard — anchors a glowing heart to the silhouette at every tier
+  const heartMat = mkGlow(edgeC, 0.85);
+  const heart = m(geo('swHeart', () => new T.OctahedronGeometry(0.05, 0)), heartMat);
+  heart.position.set(0, 0.1 + (tier >= 2 ? 0 : 0.01), -0.05);
+  g.add(heart); glow(heart, heartMat.opacity);
+  fxParts.push({ mesh: heart, kind: 'core', base: 0.05, phase: 1.1 });
 
   g.rotation.z = -0.25;
 
@@ -1462,7 +1490,7 @@ export function buildWeapon_sword(opts) {
             break;
           }
           case 'core':
-            p.mesh.scale.setScalar(1 + (Math.sin(t * 5) * 0.5 + 0.5) * 0.5);
+            p.mesh.scale.setScalar(1 + (Math.sin(t * 5 + p.phase) * 0.5 + 0.5) * 0.5);
             break;
         }
       }
@@ -1472,6 +1500,7 @@ export function buildWeapon_sword(opts) {
   return g;
 }
 
+// Strengthened: BIG bright faceted focus crystal + glowing halo disc + always-on inner core so the head reads as the signature; bolder element-colored accent spine. Interface (signature/opts/userData.anim/origin/lean) preserved exactly.
 export function buildWeapon_staff(opts){
   const o = opts || {};
   const c = o.color || '#9be8ff';
@@ -1513,12 +1542,10 @@ export function buildWeapon_staff(opts){
   const butt = m(cone(shaftR + 0.02, 0.1, 5), metalDk); butt.position.y = -0.06; butt.rotation.x = Math.PI;
   g.add(butt);
 
-  // --- t1+: a glowing accent line running up the shaft ---
-  if (tier >= 1){
-    const line = m(box(0.014, shaftLen * 0.74, 0.014), glowMat(c, 0.9, true));
-    line.position.set(0, shaftLen * 0.5 - 0.02, shaftR + 0.012);
-    g.add(line);
-  }
+  // --- BOLD element-colored accent spine up the shaft (all tiers, brighter at higher) ---
+  const spine = m(box(0.02, shaftLen * 0.78, 0.02), glowMat(c, tier >= 1 ? 0.95 : 0.7, true));
+  spine.position.set(0, shaftLen * 0.5 - 0.02, shaftR + 0.013);
+  g.add(spine);
 
   // --- t2+: ornate collar fittings below the focus + a small gem ---
   if (tier >= 2){
@@ -1534,35 +1561,51 @@ export function buildWeapon_staff(opts){
     g.add(gem);
   }
 
-  // --- top focus: orb (all tiers) growing into a crystal cage at legendary ---
-  const orbMat = glowMat(c, 0.95, true);
-  const orb = m(geo('staffOrb', () => new T.IcosahedronGeometry(0.13, 0)), orbMat);
-  orb.position.y = focusY;
-  if (tall) orb.scale.setScalar(1.18);
-  g.add(orb);
-  // intense inner core at higher tiers
-  let core = null;
-  if (tier >= 3){
-    core = m(geo('staffCore', () => new T.IcosahedronGeometry(0.06, 0)), glowMat('#ffffff', 0.95, false));
-    core.position.y = focusY;
-    g.add(core);
-  }
+  // ============================================================
+  // TOP FOCUS — the signature read. Big bright faceted crystal,
+  // a glowing halo disc behind it, and an always-on white inner core.
+  // ============================================================
+  // halo disc: flat bright glow so the head reads as a beacon at tiny size
+  const haloMat = glowMat(c, 0.34, true);
+  const halo = m(geo('staffHalo', () => new T.CircleGeometry(tall ? 0.34 : 0.28, 16)), haloMat);
+  halo.position.y = focusY;
+  g.add(halo);
 
-  // claw/cage holding the orb. t<3 = a simple cone cradle; t>=3 = ornamental prongs.
+  // main focus crystal — a tall faceted bipyramid (bold gem silhouette, not a fuzzy ball)
+  const orbR = tall ? 0.20 : 0.16;
+  const orbMat = glowMat(c, 0.95, true);
+  const orb = m(geo('staffFocusCrystal', () => {
+    const gg = new T.CylinderGeometry(0, orbR, orbR * 2.2, 5, 1);
+    return gg;
+  }), orbMat);
+  orb.position.y = focusY;
+  g.add(orb);
+  // mirrored lower half so it's a full double-pointed gem
+  const orbLow = m(geo('staffFocusCrystalLow', () => new T.CylinderGeometry(0, orbR, orbR * 1.4, 5, 1)), orbMat);
+  orbLow.position.y = focusY;
+  orbLow.rotation.x = Math.PI;
+  g.add(orbLow);
+
+  // always-on bright white inner core (the "lit from within" punch)
+  const core = m(geo('staffCore', () => new T.IcosahedronGeometry(0.07, 0)), glowMat('#ffffff', 0.95, false));
+  core.position.y = focusY;
+  g.add(core);
+
+  // claw/cage holding the crystal. t<3 = a simple cradle; t>=3 = ornamental prongs.
   const cageProngs = [];
   if (tall){
-    const ring = m(cyl(0.15, 0.17, 0.05, 6), metal); ring.position.y = focusY - 0.16; g.add(ring);
+    const ring = m(cyl(0.16, 0.18, 0.055, 6), metal); ring.position.y = focusY - 0.20; g.add(ring);
     for (let i = 0; i < 4; i++){
       const a = (i / 4) * Math.PI * 2 + Math.PI / 4;
-      const prong = m(cone(0.028, 0.34, 4), metal);
-      prong.position.set(Math.cos(a) * 0.15, focusY + 0.02, Math.sin(a) * 0.15);
-      // bend the prongs inward to cradle the orb
-      prong.rotation.z = -Math.cos(a) * 0.55;
-      prong.rotation.x = Math.sin(a) * 0.55;
+      const prong = m(cone(0.03, 0.40, 4), metal);
+      prong.position.set(Math.cos(a) * 0.16, focusY - 0.04, Math.sin(a) * 0.16);
+      // bend the prongs inward to cradle the crystal
+      prong.rotation.z = -Math.cos(a) * 0.5;
+      prong.rotation.x = Math.sin(a) * 0.5;
       g.add(prong); cageProngs.push(prong);
     }
   } else {
-    const cradle = m(cone(0.14, 0.22, 4), mat(c, 0.6)); cradle.position.y = focusY - 0.04;
+    const cradle = m(cone(0.15, 0.24, 4), mat(c, 0.6)); cradle.position.y = focusY - 0.12;
     g.add(cradle);
   }
 
@@ -1570,8 +1613,8 @@ export function buildWeapon_staff(opts){
   const runes = [];
   if (tier >= 3){
     for (let i = 0; i < 3; i++){
-      const r = m(box(0.03, 0.03, 0.012), glowMat(c, 0.85, true));
-      r.position.set(0, 0.32 + i * 0.22, shaftR + 0.016);
+      const r = m(box(0.035, 0.035, 0.012), glowMat(c, 0.85, true));
+      r.position.set(0, 0.32 + i * 0.22, shaftR + 0.018);
       g.add(r); runes.push(r);
     }
   }
@@ -1586,46 +1629,46 @@ export function buildWeapon_staff(opts){
     if (fx === 'fire'){
       for (let i = 0; i < 4; i++){
         const a = (i / 4) * Math.PI * 2;
-        const tongue = m(cone(0.05 * fxScale, 0.22 * fxScale, 4), glowMat(i & 1 ? '#ff7a1a' : '#ffd24a', 0.85, false));
-        tongue.position.set(Math.cos(a) * 0.1, focusY + 0.14, Math.sin(a) * 0.1);
+        const tongue = m(cone(0.055 * fxScale, 0.26 * fxScale, 4), glowMat(i & 1 ? '#ff7a1a' : '#ffd24a', 0.9, false));
+        tongue.position.set(Math.cos(a) * 0.12, focusY + 0.18, Math.sin(a) * 0.12);
         g.add(tongue); fxParts.push(tongue); fxBase.push(tongue.position.y);
       }
     } else if (fx === 'ice'){
       for (let i = 0; i < 5; i++){
         const a = (i / 5) * Math.PI * 2;
-        const cr = m(cone(0.035 * fxScale, 0.24 * fxScale, 4), glowMat('#bff0ff', 0.7, false));
-        cr.position.set(Math.cos(a) * 0.15, focusY + 0.02, Math.sin(a) * 0.15);
+        const cr = m(cone(0.04 * fxScale, 0.28 * fxScale, 4), glowMat('#bff0ff', 0.75, false));
+        cr.position.set(Math.cos(a) * 0.18, focusY + 0.02, Math.sin(a) * 0.18);
         cr.rotation.z = -Math.cos(a) * 0.7; cr.rotation.x = Math.sin(a) * 0.7;
         g.add(cr); fxParts.push(cr);
       }
     } else if (fx === 'void'){
       for (let i = 0; i < 3; i++){
         const a = (i / 3) * Math.PI * 2;
-        const orbv = m(geo('staffVoidOrb', () => new T.IcosahedronGeometry(0.07, 0)), glowMat('#6a1ea8', 0.8, false));
-        orbv.position.set(Math.cos(a) * 0.2, focusY + 0.04, Math.sin(a) * 0.2);
+        const orbv = m(geo('staffVoidOrb', () => new T.IcosahedronGeometry(0.08, 0)), glowMat('#6a1ea8', 0.85, false));
+        orbv.position.set(Math.cos(a) * 0.22, focusY + 0.04, Math.sin(a) * 0.22);
         g.add(orbv); fxParts.push(orbv);
       }
     } else if (fx === 'spark'){
       for (let i = 0; i < 5; i++){
         const a = (i / 5) * Math.PI * 2;
-        const bit = m(box(0.02, 0.12 * fxScale, 0.02), glowMat('#cdf0ff', 0.9, false));
-        bit.position.set(Math.cos(a) * 0.16, focusY + 0.1, Math.sin(a) * 0.16);
+        const bit = m(box(0.022, 0.14 * fxScale, 0.022), glowMat('#cdf0ff', 0.95, false));
+        bit.position.set(Math.cos(a) * 0.18, focusY + 0.1, Math.sin(a) * 0.18);
         bit.rotation.z = Math.cos(a) * 0.8;
         g.add(bit); fxParts.push(bit); fxBase.push(a);
       }
     } else if (fx === 'smoke'){
       for (let i = 0; i < 3; i++){
-        const w = m(geo('staffSmoke', () => new T.IcosahedronGeometry(0.1, 0)), glowMat(c, 0.16, false));
-        w.position.set((i - 1) * 0.06, focusY + 0.12 + i * 0.08, 0);
+        const w = m(geo('staffSmoke', () => new T.IcosahedronGeometry(0.11, 0)), glowMat(c, 0.18, false));
+        w.position.set((i - 1) * 0.06, focusY + 0.14 + i * 0.08, 0);
         w.scale.set(1, 0.7, 1);
-        g.add(w); fxParts.push(w); fxBase.push(focusY + 0.12 + i * 0.08);
+        g.add(w); fxParts.push(w); fxBase.push(focusY + 0.14 + i * 0.08);
       }
     } else if (fx === 'wisp'){
       for (let i = 0; i < 4; i++){
         const a0 = (i / 4) * Math.PI * 2;
-        const mote = m(geo('staffWisp', () => new T.IcosahedronGeometry(0.035, 0)), glowMat(i & 1 ? c : '#ffffff', 0.9, false));
+        const mote = m(geo('staffWisp', () => new T.IcosahedronGeometry(0.04, 0)), glowMat(i & 1 ? c : '#ffffff', 0.95, false));
         // initial orbit position so it reads on a static frame
-        mote.position.set(Math.cos(a0) * 0.18, focusY, Math.sin(a0) * 0.18);
+        mote.position.set(Math.cos(a0) * 0.20, focusY, Math.sin(a0) * 0.20);
         g.add(mote); fxParts.push(mote); fxBase.push(a0);
       }
     }
@@ -1635,10 +1678,10 @@ export function buildWeapon_staff(opts){
   const shards = [];
   if (tier >= 4){
     for (let i = 0; i < 3; i++){
-      const sh = m(cone(0.04, 0.16, 3), glowMat(c, 0.85, true));
+      const sh = m(cone(0.045, 0.18, 3), glowMat(c, 0.9, true));
       const a0 = (i / 3) * Math.PI * 2;
       // initial orbit position so it reads on a static frame
-      sh.position.set(Math.cos(a0) * 0.26, focusY, Math.sin(a0) * 0.26);
+      sh.position.set(Math.cos(a0) * 0.28, focusY, Math.sin(a0) * 0.28);
       sh.rotation.z = a0;
       g.add(sh); shards.push(sh);
     }
@@ -1649,15 +1692,22 @@ export function buildWeapon_staff(opts){
 
   // private scratch Color — allocated ONCE here (not per frame) for the prismatic cycle
   const tmpC = new T.Color();
+  const baseOrbScale = 1;
 
   // ============================================================
   // ANIMATION — cheap sin, mutate children only, no allocation
   // ============================================================
   g.userData.anim = (grp, now) => {
     const t = now;
-    // breathing orb focus
-    orb.scale.setScalar((tall ? 1.18 : 1) * (1 + Math.sin(t / 220) * 0.12));
-    if (core) core.scale.setScalar(1 + Math.sin(t / 160) * 0.35);
+    // breathing focus crystal + halo pulse + bright core throb
+    const bs = baseOrbScale * (1 + Math.sin(t / 220) * 0.10);
+    orb.scale.set(bs, bs, bs);
+    orbLow.scale.set(bs, bs, bs);
+    orb.rotation.y = t / 900;
+    orbLow.rotation.y = t / 900;
+    core.scale.setScalar(1 + Math.sin(t / 160) * 0.35);
+    haloMat.opacity = 0.24 + (Math.sin(t / 260) * 0.5 + 0.5) * 0.20;
+    halo.scale.setScalar(1 + Math.sin(t / 260) * 0.10);
 
     // prismatic hue cycle on every UNIQUE glow material
     if (prismatic){
@@ -1679,7 +1729,7 @@ export function buildWeapon_staff(opts){
       for (let i = 0; i < fxParts.length; i++){
         const s = 1 + Math.sin(t / 90 + i * 1.3) * 0.35;
         fxParts[i].scale.set(1, s, 1);
-        fxParts[i].position.y = (fxBase[i] || focusY + 0.14) + Math.sin(t / 110 + i) * 0.02;
+        fxParts[i].position.y = (fxBase[i] || focusY + 0.18) + Math.sin(t / 110 + i) * 0.02;
       }
     } else if (fx === 'ice'){
       for (let i = 0; i < fxParts.length; i++) fxParts[i].material.opacity = 0.5 + (Math.sin(t / 400 + i) * 0.5 + 0.5) * 0.4;
@@ -1687,14 +1737,14 @@ export function buildWeapon_staff(opts){
       const rot = t / 600;
       for (let i = 0; i < fxParts.length; i++){
         const a = (i / fxParts.length) * Math.PI * 2 + rot;
-        fxParts[i].position.set(Math.cos(a) * 0.2, focusY + 0.04 + Math.sin(t / 300 + i) * 0.03, Math.sin(a) * 0.2);
+        fxParts[i].position.set(Math.cos(a) * 0.22, focusY + 0.04 + Math.sin(t / 300 + i) * 0.03, Math.sin(a) * 0.22);
         fxParts[i].scale.setScalar(1 + Math.sin(t / 250 + i) * 0.22);
       }
     } else if (fx === 'spark'){
       for (let i = 0; i < fxParts.length; i++){
         const a = fxBase[i];
         const j = Math.sin(t / 40 + i * 2.1) * 0.04;
-        fxParts[i].position.set(Math.cos(a) * (0.16 + j), focusY + 0.1 + Math.sin(t / 55 + i) * 0.03, Math.sin(a) * (0.16 + j));
+        fxParts[i].position.set(Math.cos(a) * (0.18 + j), focusY + 0.1 + Math.sin(t / 55 + i) * 0.03, Math.sin(a) * (0.18 + j));
         fxParts[i].material.opacity = 0.4 + (Math.sin(t / 30 + i * 3) * 0.5 + 0.5) * 0.6;
       }
     } else if (fx === 'smoke'){
@@ -1706,7 +1756,7 @@ export function buildWeapon_staff(opts){
     } else if (fx === 'wisp'){
       for (let i = 0; i < fxParts.length; i++){
         const a = fxBase[i] + t / 700;
-        const rr = 0.18 + Math.sin(t / 500 + i) * 0.03;
+        const rr = 0.20 + Math.sin(t / 500 + i) * 0.03;
         fxParts[i].position.set(Math.cos(a) * rr, focusY + Math.sin(t / 400 + i * 1.7) * 0.1, Math.sin(a) * rr);
       }
     }
@@ -1714,7 +1764,7 @@ export function buildWeapon_staff(opts){
     // mythic orbiting shards
     for (let i = 0; i < shards.length; i++){
       const a = (i / shards.length) * Math.PI * 2 + t / 500;
-      shards[i].position.set(Math.cos(a) * 0.26, focusY + Math.sin(t / 360 + i) * 0.06, Math.sin(a) * 0.26);
+      shards[i].position.set(Math.cos(a) * 0.28, focusY + Math.sin(t / 360 + i) * 0.06, Math.sin(a) * 0.28);
       shards[i].rotation.z = a;
     }
   };
@@ -1722,24 +1772,27 @@ export function buildWeapon_staff(opts){
 }
 
 export function buildWeapon_bow(opts) {
-  // A gothic recurve bow gripped at center, limbs in the Y-Z plane (business
-  // end = the firing line / arrow rest at front +Z). Authored pointing +Y so
-  // the limbs sweep up (+Y) and down (-Y) from the riser at the origin.
+  // STRENGTHENED: fatter bold recurve arcs + a thick double-glow string (bright core +
+  // wide additive halo) + always-on element-tinted glowing nock caps at both limb tips.
   const c = (opts && opts.color) || '#caa15a';
   const tier = (opts && opts.tier) | 0;
   const fx = (opts && opts.fx) || null;
   const prismatic = !!(opts && opts.prismatic);
   const g = new T.Group();
 
+  // element tint for the nock glow / string (falls back to the weapon color)
+  const elemHue = fx === 'fire' ? '#ff9030' : fx === 'ice' ? '#bfe9ff'
+    : fx === 'void' ? '#b060ff' : fx === 'spark' ? '#dff0ff'
+    : fx === 'smoke' ? '#9aa0ac' : fx === 'wisp' ? '#bfffe0' : c;
+
   // cached static materials (NEVER mutated)
   const wood = mat('#2a2018');
-  const limbMat = mat(c, 0.8);
-  const fitMat = mat('#8a8f9c');
-  const accent = matAdd(c, 0.85);
-  const rune = matAdd(c, 0.95);
+  const limbMat = mat(c, 0.95);
+  const fitMat = mat('#9aa0 b0'.replace(' ', '')); // light steel fittings
+  const accent = matAdd(c, 0.95);
+  const rune = matAdd(c, 1);
 
   // unique materials ONLY for things the anim mutates (prismatic shimmer / pulsing FX).
-  // Collected so the prismatic cycle can drive them all from one hue.
   const shimmer = [];
   function uniGlow(hex, opacity) {
     const mm = new T.MeshBasicMaterial({ color: hex, fog: false, transparent: true, opacity: opacity == null ? 1 : opacity, blending: T.AdditiveBlending, depthWrite: false });
@@ -1747,133 +1800,134 @@ export function buildWeapon_bow(opts) {
     return mm;
   }
 
-  // ---- silhouette scale: legendary+ bows are noticeably longer & wider ----
+  // ---- silhouette scale: bolder & longer than before, legendary+ even bigger ----
   const big = tier >= 3;
-  const span = big ? 0.5 : 0.42;   // limb reach along +/-Y
-  const tube = big ? 0.045 : 0.035;
+  const span = big ? 0.54 : 0.46;   // limb reach along +/-Y
+  const tube = big ? 0.058 : 0.048; // FATTER limbs read at small size
 
-  // ---- LIMBS: two curved arcs (upper +Y, lower -Y) meeting at the riser ----
-  // A torus arc bent so its bow belly faces +Z (toward the firing line).
+  // ---- LIMBS: two bold curved arcs (upper +Y, lower -Y) meeting at the riser ----
   const arcGeoKey = `bowArc${big ? 'L' : 'S'}`;
-  const arcGeo = geo(arcGeoKey, () => new T.TorusGeometry(span, tube, 4, 9, Math.PI * 0.92));
+  const arcGeo = geo(arcGeoKey, () => new T.TorusGeometry(span, tube, 5, 11, Math.PI * 0.94));
   const upper = m(arcGeo, limbMat);
-  upper.rotation.z = Math.PI / 2 - Math.PI * 0.46; // sweep starts at grip, curves up & forward
+  upper.rotation.z = Math.PI / 2 - Math.PI * 0.47;
   upper.position.y = span * 0.5;
   const lower = m(arcGeo, limbMat);
-  lower.rotation.z = -(Math.PI / 2 - Math.PI * 0.46);
-  lower.rotation.x = Math.PI; // mirror downward
+  lower.rotation.z = -(Math.PI / 2 - Math.PI * 0.47);
+  lower.rotation.x = Math.PI;
   lower.position.y = -span * 0.5;
 
-  // recurve tips (legendary+): little out-flicked prongs at each limb end
   const nockY = span * 0.96;
+
+  // recurve tips (legendary+): out-flicked prongs at each limb end
   if (tier >= 3) {
-    const tipU = m(cone(tube * 1.6, 0.12, 4), fitMat); tipU.position.set(0, nockY, 0.05); tipU.rotation.x = -0.5;
-    const tipL = m(cone(tube * 1.6, 0.12, 4), fitMat); tipL.position.set(0, -nockY, 0.05); tipL.rotation.x = Math.PI + 0.5;
+    const tipU = m(cone(tube * 1.5, 0.14, 4), fitMat); tipU.position.set(0, nockY, 0.06); tipU.rotation.x = -0.5;
+    const tipL = m(cone(tube * 1.5, 0.14, 4), fitMat); tipL.position.set(0, -nockY, 0.06); tipL.rotation.x = Math.PI + 0.5;
     g.add(tipU, tipL);
   }
 
   // ---- RISER / GRIP at the origin (the hand) ----
-  const grip = m(box(0.06, 0.22, 0.07), wood); grip.position.y = 0;
-  const riser = m(box(0.05, 0.3, 0.05), mat(c, 0.45)); riser.position.set(0, 0, -0.01);
+  const grip = m(box(0.07, 0.24, 0.08), wood); grip.position.y = 0;
+  const riser = m(box(0.06, 0.34, 0.055), mat(c, 0.5)); riser.position.set(0, 0, -0.01);
   g.add(grip, riser, upper, lower);
 
-  // ---- STRING: faint additive line between the two nocks (slightly behind, -Z) ----
+  // ---- BRIGHT GLOWING LIMB-TIP NOCK CAPS (always on, element-tinted) ----
+  // Bold bright dots that bracket the silhouette top & bottom.
+  const nockMat = prismatic ? uniGlow(elemHue, 0.95) : matAdd(elemHue, 0.95);
+  const capGeo = geo('bowNockCap', () => new T.OctahedronGeometry(0.05, 0));
+  const capU = m(capGeo, nockMat); capU.position.set(0, nockY, 0.03);
+  const capL = m(capGeo, nockMat); capL.position.set(0, -nockY, 0.03);
+  g.add(capU, capL);
+
+  // ---- STRING: thick double glow — bright white core + wide tinted halo ----
   const strH = nockY * 2;
-  const strMat = prismatic ? uniGlow(c, 0.4) : matAdd('#ffffff', 0.35);
-  const string = m(box(0.01, strH, 0.01), strMat); string.position.set(0, 0, -0.04);
-  g.add(string);
-  // arrow rest marker at the grip front — the business end where FX anchors
-  const restZ = 0.06;
+  const strCoreMat = prismatic ? uniGlow('#ffffff', 0.85) : matAdd('#ffffff', 0.8);
+  const strHaloMat = prismatic ? uniGlow(elemHue, 0.5) : matAdd(elemHue, 0.5);
+  const strHalo = m(box(0.03, strH, 0.03), strHaloMat); strHalo.position.set(0, 0, -0.05);
+  const string = m(box(0.014, strH, 0.014), strCoreMat); string.position.set(0, 0, -0.05);
+  g.add(strHalo, string);
+  const restZ = 0.07;
 
   // ============ TIER LADDER (cumulative) ============
-  // t1+: a glowing accent line running along the back of each limb
+  // t1+: a bold glowing accent line running along the back of each limb
   if (tier >= 1) {
-    const aMat = prismatic ? uniGlow(c, 0.8) : accent;
-    const accGeo = geo(arcGeoKey + 'acc', () => new T.TorusGeometry(span, tube * 0.4, 4, 9, Math.PI * 0.92));
-    const au = m(accGeo, aMat); au.rotation.copy(upper.rotation); au.position.copy(upper.position); au.position.z -= 0.015;
-    const al = m(accGeo, aMat); al.rotation.copy(lower.rotation); al.position.copy(lower.position); al.position.z -= 0.015;
+    const aMat = prismatic ? uniGlow(c, 0.9) : accent;
+    const accGeo = geo(arcGeoKey + 'acc', () => new T.TorusGeometry(span, tube * 0.55, 4, 11, Math.PI * 0.94));
+    const au = m(accGeo, aMat); au.rotation.copy(upper.rotation); au.position.copy(upper.position); au.position.z -= 0.02;
+    const al = m(accGeo, aMat); al.rotation.copy(lower.rotation); al.position.copy(lower.position); al.position.z -= 0.02;
     g.add(au, al);
   }
-  // t2+: ornate nock fittings on both limb ends + a small gem at the riser
+  // t2+: ornate nock fittings + a bigger gem at the riser
   if (tier >= 2) {
-    const fU = m(box(0.05, 0.06, 0.06), fitMat); fU.position.set(0, nockY, 0.02);
-    const fL = m(box(0.05, 0.06, 0.06), fitMat); fL.position.set(0, -nockY, 0.02);
+    const fU = m(box(0.06, 0.07, 0.07), fitMat); fU.position.set(0, nockY, 0.0);
+    const fL = m(box(0.06, 0.07, 0.07), fitMat); fL.position.set(0, -nockY, 0.0);
     const gemMat = prismatic ? uniGlow(c, 1) : matAdd(c, 1);
-    const gem = m(geo('bowGem', () => new T.OctahedronGeometry(0.05, 0)), gemMat); gem.position.set(0, 0, restZ);
+    const gem = m(geo('bowGem', () => new T.OctahedronGeometry(0.065, 0)), gemMat); gem.position.set(0, 0, restZ);
     g.add(fU, fL, gem);
-    if (!prismatic) g.userData._gem = gem; // breathe at t2/t3 (scale only — material untouched)
+    if (!prismatic) g.userData._gem = gem;
   }
-  // t3 LEGENDARY: glowing runes spaced along the limbs + strong emissive core glow
+  // t3 LEGENDARY: glowing runes along the limbs + strong emissive core glow
   if (tier >= 3) {
-    const rMat = prismatic ? uniGlow(c, 0.95) : rune;
+    const rMat = prismatic ? uniGlow(c, 1) : rune;
     for (let i = 0; i < 6; i++) {
       const up = i < 3;
-      const t = (i % 3 + 1) / 3.6;           // 0..~0.83 along the limb
+      const t = (i % 3 + 1) / 3.6;
       const ry = (up ? 1 : -1) * span * t;
-      const rz = 0.02 + Math.sin(t * Math.PI) * span * 0.42; // follow the belly curve outward
-      const r = m(box(0.03, 0.03, 0.012), rMat); r.position.set(0, ry, rz);
+      const rz = 0.02 + Math.sin(t * Math.PI) * span * 0.44;
+      const r = m(box(0.038, 0.038, 0.014), rMat); r.position.set(0, ry, rz);
       g.add(r);
     }
-    // bright emissive core behind the grip
-    const coreMat = prismatic ? uniGlow(c, 0.6) : matAdd(c, 0.55);
-    const core = m(box(0.1, 0.34, 0.05), coreMat); core.position.set(0, 0, -0.02);
+    const coreMat = prismatic ? uniGlow(c, 0.7) : matAdd(c, 0.65);
+    const core = m(box(0.12, 0.38, 0.06), coreMat); core.position.set(0, 0, -0.02);
     g.add(core);
   }
   // t4 MYTHIC: orbiting shards around the riser + an intense core gem
   const shards = [];
   if (tier >= 4) {
-    const coreMat = uniGlow('#ffffff', 0.95);
-    const mcore = m(geo('bowMcore', () => new T.IcosahedronGeometry(0.07, 0)), coreMat); mcore.position.set(0, 0, restZ);
+    const coreMat = uniGlow('#ffffff', 1);
+    const mcore = m(geo('bowMcore', () => new T.IcosahedronGeometry(0.085, 0)), coreMat); mcore.position.set(0, 0, restZ);
     g.add(mcore);
     g.userData._mcore = mcore;
     for (let i = 0; i < 3; i++) {
       const a = (i / 3) * Math.PI * 2;
-      const sMat = uniGlow(c, 0.8);
-      const sh = m(geo('bowShard', () => new T.OctahedronGeometry(0.045, 0)), sMat);
-      sh.userData.a = a; sh.userData.r = 0.16;
-      sh.position.set(Math.cos(a) * 0.16, Math.sin(a) * 0.16, restZ);
+      const sMat = uniGlow(c, 0.85);
+      const sh = m(geo('bowShard', () => new T.OctahedronGeometry(0.05, 0)), sMat);
+      sh.userData.a = a; sh.userData.r = 0.17;
+      sh.position.set(Math.cos(a) * 0.17, Math.sin(a) * 0.17, restZ);
       shards.push(sh); g.add(sh);
     }
   }
 
   // ============ ELEMENTAL FX — anchored at the arrow rest / along the bow ============
-  // FX anims mutate scale/position/rotation only, so cached matAdd is safe here.
   const fxParts = [];
   if (fx === 'fire') {
-    // flickering warm flame tongues licking up off the arrow rest
-    const f1 = m(cone(0.06, 0.22, 5), matAdd(c, 0.85)); f1.position.set(0, 0.06, restZ);
-    const f2 = m(cone(0.035, 0.15, 4), matAdd('#ffe0a0', 0.95)); f2.position.set(0, 0.05, restZ + 0.01);
+    const f1 = m(cone(0.07, 0.24, 5), matAdd(c, 0.9)); f1.position.set(0, 0.07, restZ);
+    const f2 = m(cone(0.04, 0.16, 4), matAdd('#ffe0a0', 1)); f2.position.set(0, 0.06, restZ + 0.01);
     g.add(f1, f2); fxParts.push({ k: 'fire', a: f1, b: f2 });
   } else if (fx === 'ice') {
-    // jagged frost crystals clustered at the rest, faint cold shimmer
-    const i1 = m(cone(0.04, 0.18, 4), matAdd(c, 0.6)); i1.position.set(0.04, 0.04, restZ); i1.rotation.z = -0.4;
-    const i2 = m(cone(0.035, 0.14, 4), matAdd('#cdebff', 0.7)); i2.position.set(-0.03, 0.07, restZ); i2.rotation.z = 0.5;
-    const i3 = m(cone(0.03, 0.1, 4), matAdd(c, 0.5)); i3.position.set(0.01, -0.02, restZ + 0.01);
+    const i1 = m(cone(0.045, 0.2, 4), matAdd(c, 0.65)); i1.position.set(0.04, 0.04, restZ); i1.rotation.z = -0.4;
+    const i2 = m(cone(0.04, 0.15, 4), matAdd('#cdebff', 0.8)); i2.position.set(-0.03, 0.07, restZ); i2.rotation.z = 0.5;
+    const i3 = m(cone(0.034, 0.11, 4), matAdd(c, 0.55)); i3.position.set(0.01, -0.02, restZ + 0.01);
     g.add(i1, i2, i3); fxParts.push({ k: 'ice', a: i1, b: i2, c: i3 });
   } else if (fx === 'void') {
-    // dark-purple energy orbs pulsing/warping at the rest
-    const v1 = m(geo('bowVoid', () => new T.IcosahedronGeometry(0.08, 0)), matAdd(c, 0.7)); v1.position.set(0, 0.04, restZ + 0.02);
-    const v2 = m(geo('bowVoidC', () => new T.IcosahedronGeometry(0.035, 0)), matAdd('#1a0030', 0.9)); v2.position.set(0, 0.04, restZ + 0.04);
+    const v1 = m(geo('bowVoid', () => new T.IcosahedronGeometry(0.09, 0)), matAdd(c, 0.75)); v1.position.set(0, 0.04, restZ + 0.02);
+    const v2 = m(geo('bowVoidC', () => new T.IcosahedronGeometry(0.04, 0)), matAdd('#1a0030', 0.95)); v2.position.set(0, 0.04, restZ + 0.04);
     g.add(v1, v2); fxParts.push({ k: 'void', a: v1, b: v2 });
   } else if (fx === 'spark') {
-    // small crackling lightning bits jittering along the upper limb + rest
     const sp = [];
     for (let i = 0; i < 4; i++) {
-      const b = m(box(0.018, 0.06, 0.018), matAdd('#eaf4ff', 0.9));
+      const b = m(box(0.02, 0.07, 0.02), matAdd('#eaf4ff', 0.95));
       b.position.set(0, (i - 1.5) * 0.12, restZ); b.userData.ph = i * 1.7;
       g.add(b); sp.push(b);
     }
     fxParts.push({ k: 'spark', list: sp });
   } else if (fx === 'smoke') {
-    // wispy drifting trails, low opacity, slow drift off the rest
-    const s1 = m(plane(0.14, 0.2), matAdd(c, 0.18)); s1.position.set(0, 0.1, restZ);
-    const s2 = m(plane(0.1, 0.16), matAdd(c, 0.12)); s2.position.set(0.02, 0.2, restZ);
+    const s1 = m(plane(0.14, 0.2), matAdd(c, 0.2)); s1.position.set(0, 0.1, restZ);
+    const s2 = m(plane(0.1, 0.16), matAdd(c, 0.14)); s2.position.set(0.02, 0.2, restZ);
     g.add(s1, s2); fxParts.push({ k: 'smoke', a: s1, b: s2 });
   } else if (fx === 'wisp') {
-    // floating motes orbiting the arrow rest
     const w = [];
     for (let i = 0; i < 3; i++) {
-      const mo = m(geo('bowWisp', () => new T.OctahedronGeometry(0.025, 0)), matAdd(c, 0.85));
+      const mo = m(geo('bowWisp', () => new T.OctahedronGeometry(0.028, 0)), matAdd(c, 0.9));
       mo.userData.a = (i / 3) * Math.PI * 2; mo.userData.r = 0.1;
       mo.position.set(Math.cos(mo.userData.a) * 0.1, 0.05 + Math.sin(mo.userData.a) * 0.1, restZ);
       g.add(mo); w.push(mo);
@@ -1886,24 +1940,20 @@ export function buildWeapon_bow(opts) {
   if (hasAnim) {
     const gemRef = g.userData._gem, mcoreRef = g.userData._mcore;
     g.userData.anim = (grp, now) => {
-      // prismatic: cycle every unique material through the rainbow together
       if (prismatic && shimmer.length) {
         const hue = (now / 2600) % 1;
         for (let i = 0; i < shimmer.length; i++) {
           shimmer[i].color.setHSL((hue + i * 0.06) % 1, 0.85, 0.6);
         }
       }
-      // tier gem breathe / mythic core pulse (scale only)
       if (gemRef) gemRef.scale.setScalar(1 + Math.sin(now / 300) * 0.18);
       if (mcoreRef) mcoreRef.scale.setScalar(1 + Math.sin(now / 180) * 0.35);
-      // mythic orbiting shards
       for (let i = 0; i < shards.length; i++) {
         const a = shards[i].userData.a + now / 700;
         const r = shards[i].userData.r;
         shards[i].position.set(Math.cos(a) * r, Math.sin(a) * r, restZ);
         shards[i].rotation.y = now / 200;
       }
-      // elemental FX
       for (let p = 0; p < fxParts.length; p++) {
         const fp = fxParts[p];
         if (fp.k === 'fire') {
@@ -1941,6 +1991,7 @@ export function buildWeapon_bow(opts) {
 }
 
 export function buildWeapon_wand(opts) {
+  // STRENGTHENED: hero crown-gem tip now reads as the brightest, biggest accent (bold pulsing core + glow halo + radiating prongs); ornate head framed by a bright additive ring so the small scepter pops on the additive display.
   const o = opts || {};
   const c = o.color || '#c489ff';
   const tier = o.tier || 0;
@@ -1954,7 +2005,7 @@ export function buildWeapon_wand(opts) {
   const boneDark = mat('#3a352a');                   // jaw / shadowed bone
   const fitting = mat('#8a8f9c');                    // metal fittings (t2+)
   const glow = matAdd(c, tier >= 3 ? 1 : 0.9);       // accent/runes/eyes (static uses)
-  const glowSoft = matAdd(c, 0.5);
+  const glowSoft = matAdd(c, 0.55);
 
   // helper: make a UNIQUE additive material (for anything mutated per-frame)
   const uniq = (hex, op) => new T.MeshBasicMaterial({ color: hex, fog: false, transparent: true, opacity: op == null ? 1 : op, blending: T.AdditiveBlending, depthWrite: false });
@@ -1963,6 +2014,7 @@ export function buildWeapon_wand(opts) {
   const shaftLen = tier >= 3 ? 0.62 : 0.5;
   const shaftTop = shaftLen;            // grip at y=0 -> shaft spans 0..shaftLen
   const headY = shaftTop + 0.1;         // skull/idol head centre, above the shaft
+  const tipY = headY + 0.26;            // HERO crown-gem tip, crowning the scepter
 
   // --- shaft (up +Y, grip at origin) ---
   const shaft = m(cyl(0.035, 0.052, shaftLen, 6), wood); shaft.position.y = shaftLen / 2;
@@ -1998,6 +2050,16 @@ export function buildWeapon_wand(opts) {
   const brow = m(box(0.17, 0.04, 0.04), boneDark); brow.position.set(0, headY + 0.05, 0.075);
   g.add(brow);
 
+  // --- ORNATE CROWN: four claw-prongs cradling the hero tip gem (always present, the signature head) ---
+  const claws = [];
+  for (let i = 0; i < 4; i++) {
+    const a = (i / 4) * Math.PI * 2 + Math.PI / 4;
+    const cl = m(cone(0.026, 0.16, 4), bone);
+    cl.position.set(Math.cos(a) * 0.07, headY + 0.16, Math.sin(a) * 0.07);
+    cl.rotation.set(Math.sin(a) * 0.55, 0, -Math.cos(a) * 0.55);
+    claws.push(cl); g.add(cl);
+  }
+
   // glowing eye sockets (UNIQUE if prismatic, else cached additive)
   let eyeMatL, eyeMatR;
   if (prismatic) { eyeMatL = uniq(c, 1); eyeMatR = uniq(c, 1); }
@@ -2005,6 +2067,46 @@ export function buildWeapon_wand(opts) {
   const eyeL = m(box(0.045, 0.05, 0.03), eyeMatL); eyeL.position.set(-0.045, headY + 0.01, 0.085);
   const eyeR = m(box(0.045, 0.05, 0.03), eyeMatR); eyeR.position.set(0.045, headY + 0.01, 0.085);
   g.add(eyeL, eyeR);
+
+  // ===========================================================
+  // HERO TIP GEM — the single brightest, boldest accent. Big bi-pyramid
+  // crystal core + a soft glow halo + four radiating glow spikes so the
+  // tiny scepter reads strongly on the additive display. ALWAYS present.
+  // UNIQUE materials => animated/prismatic-safe.
+  // ===========================================================
+  const tipCoreMat = uniq('#ffffff', 1);
+  const tipGemMat = uniq(c, 0.95);
+  const tipHaloMat = uniq(c, 0.4);
+  // outer crystal (tier-scaled size — bigger & brighter at higher tier)
+  const gemR = tier >= 3 ? 0.11 : 0.09;
+  const gemH = tier >= 3 ? 0.3 : 0.24;
+  const tipGem = m(geo('wandTipGem', () => new T.ConeGeometry(1, 1, 4)), tipGemMat);
+  tipGem.scale.set(gemR, gemH * 0.5, gemR);
+  tipGem.position.set(0, tipY, 0);
+  g.add(tipGem);
+  const tipGemLow = m(geo('wandTipGemLow', () => new T.ConeGeometry(1, 1, 4)), tipGemMat);
+  tipGemLow.scale.set(gemR, gemH * 0.5, gemR);
+  tipGemLow.position.set(0, tipY - gemH * 0.5, 0);
+  tipGemLow.rotation.z = Math.PI; // mirror -> diamond/octahedron silhouette
+  g.add(tipGemLow);
+  // blazing white inner core
+  const tipCore = m(geo('wandTipCore', () => new T.OctahedronGeometry(0.05, 0)), tipCoreMat);
+  tipCore.position.set(0, tipY, 0);
+  g.add(tipCore);
+  // soft glow halo behind the gem (big, dim, billboard-ish disc -> bloom)
+  const tipHalo = m(geo('wandTipHalo', () => new T.OctahedronGeometry(0.16, 0)), tipHaloMat);
+  tipHalo.scale.set(1, 0.55, 1);
+  tipHalo.position.set(0, tipY, 0);
+  g.add(tipHalo);
+  // four radiating glow spikes -> bold star silhouette
+  const tipRays = [];
+  for (let i = 0; i < 4; i++) {
+    const a = (i / 4) * Math.PI * 2;
+    const ray = m(box(0.016, 0.22, 0.016), tipGemMat);
+    ray.position.set(Math.cos(a) * 0.02, tipY, Math.sin(a) * 0.02);
+    ray.rotation.set(0, a, Math.cos(a) * 0.9);
+    tipRays.push(ray); g.add(ray);
+  }
 
   // --- T3 LEGENDARY: horns/prongs framing the skull + glowing runes along the shaft ---
   const runes = [];
@@ -2025,7 +2127,7 @@ export function buildWeapon_wand(opts) {
     }
   }
 
-  // --- T4 MYTHIC: orbiting shards + an intense core in the maw ---
+  // --- T4 MYTHIC: orbiting shards around the hero tip + an intense core in the maw ---
   const shards = [];
   let coreMat = null, core = null;
   if (tier >= 4) {
@@ -2041,13 +2143,13 @@ export function buildWeapon_wand(opts) {
   }
 
   // ===========================================================
-  // ELEMENTAL FX — gathers at the HEAD (top). Additive, animated.
+  // ELEMENTAL FX — gathers at the HERO TIP (top). Additive, animated.
   // Higher tier => more prominent. When prismatic, FX use UNIQUE
   // mats and shimmer; otherwise cheap cached mats.
   // ===========================================================
   const fxParts = [];
   const big = tier >= 3;
-  const fxY = headY + 0.16; // just above the skull
+  const fxY = tipY + 0.14; // crowning the hero tip gem
   if (fx === 'fire') {
     const n = big ? 4 : 2;
     for (let i = 0; i < n; i++) {
@@ -2118,15 +2220,27 @@ export function buildWeapon_wand(opts) {
     const ef = 0.85 + Math.sin(now / 180) * 0.15;
     eyeL.scale.setScalar(ef); eyeR.scale.setScalar(ef);
 
+    // HERO tip gem — strong throbbing pulse so it's the star of the silhouette
+    const pulse = 0.85 + Math.sin(now / 220) * 0.2;
+    tipCore.scale.setScalar(0.8 + Math.sin(now / 160) * 0.35);
+    tipHalo.scale.set(pulse, pulse * 0.55, pulse);
+    tipHaloMat.opacity = 0.3 + Math.abs(Math.sin(now / 300)) * 0.3;
+    tipGemMat.opacity = 0.75 + Math.abs(Math.sin(now / 260)) * 0.25;
+    for (let i = 0; i < tipRays.length; i++) {
+      const r = tipRays[i];
+      r.scale.y = 0.7 + Math.abs(Math.sin(now / 200 + i * 1.6)) * 0.6;
+    }
+    grp; // (signature parity)
+
     // legendary runes pulse along the shaft
     for (let i = 0; i < runes.length; i++) {
       runes[i].material.opacity = 0.55 + Math.abs(Math.sin(now / 300 + i)) * 0.45;
     }
 
-    // mythic: orbiting shards + breathing core
+    // mythic: orbiting shards around the hero tip + breathing maw core
     for (let i = 0; i < shards.length; i++) {
       const ph = shards[i].userData.ph + now / 600;
-      shards[i].position.set(Math.cos(ph) * 0.18, headY + Math.sin(now / 500 + i) * 0.05, Math.sin(ph) * 0.18 + 0.02);
+      shards[i].position.set(Math.cos(ph) * 0.18, tipY + Math.sin(now / 500 + i) * 0.06, Math.sin(ph) * 0.18);
       shards[i].rotation.y = ph;
     }
     if (core) core.scale.setScalar(1 + Math.sin(now / 200) * 0.25);
@@ -2136,6 +2250,8 @@ export function buildWeapon_wand(opts) {
       const hue = (now / 2600) % 1;
       eyeMatL.color.setHSL(hue, 1, 0.6);
       eyeMatR.color.setHSL((hue + 0.5) % 1, 1, 0.6);
+      tipGemMat.color.setHSL(hue, 1, 0.62);
+      tipHaloMat.color.setHSL((hue + 0.1) % 1, 1, 0.6);
       for (let i = 0; i < runes.length; i++) runes[i].material.color.setHSL((hue + i * 0.12) % 1, 1, 0.6);
       for (let i = 0; i < shards.length; i++) shards[i].material.color.setHSL((hue + 0.33 * i) % 1, 1, 0.62);
       if (coreMat) coreMat.color.setHSL((hue + 0.15) % 1, 0.6, 0.85);
@@ -2192,16 +2308,15 @@ export function buildWeapon_wand(opts) {
 }
 
 export function buildGear_cape(opts) {
+  // Strengthened: wider winged mantle + bolder billowing fall + a continuous BRIGHT glowing hem-line band; richer lagged sway.
   const c = (opts && opts.color) || '#6a2030';
   const prismatic = !!(opts && opts.prismatic);
   const g = new T.Group();
 
   // Flowing cloth panel hanging BACKWARD (-Z) from the upper-back mount.
-  // Built from stacked tapered panels (wide shoulders -> narrowing fall) plus
-  // ragged hem prongs, so the silhouette reads as draped cloth, not a flat card.
-  // On the ADDITIVE display cloth uses translucent additive mats so the stacked
-  // panels layer like fabric. Animated (prismatic) parts get UNIQUE instances;
-  // static parts use the cached additive helper.
+  // Stacked tapered panels (wide winged shoulders -> billowing fall) with a single
+  // bold glowing hem line so the silhouette reads BIG and BRIGHT at glasses scale.
+  // Prismatic (animated) parts get UNIQUE material instances; static parts use cache.
   const clothMats = [];
   function cloth(hex, op) {
     if (prismatic) {
@@ -2210,51 +2325,73 @@ export function buildGear_cape(opts) {
     }
     return matAdd(hex, op);
   }
+  function uniqAdd(hex, op) {
+    const mm = new T.MeshBasicMaterial({ color: hex, fog: false, transparent: true, opacity: op, blending: T.AdditiveBlending, depthWrite: false });
+    clothMats.push(mm); return mm;
+  }
   const trimMat = prismatic
-    ? (() => { const mm = new T.MeshBasicMaterial({ color: c, fog: false, transparent: true, opacity: 0.95, blending: T.AdditiveBlending, depthWrite: false }); clothMats.push(mm); return mm; })()
-    : matAdd(c, 0.9);
+    ? uniqAdd(c, 0.98)
+    : matAdd(c, 0.95);
+  // hem-line band gets its OWN bright instance so it can pulse independently
+  const hemMat = uniqAdd(c, 1.0);
 
-  // shoulder collar -- a raised mantle over the shoulders, spread wide
-  const collar = m(box(0.62, 0.12, 0.1), cloth(c, 0.55));
-  collar.position.set(0, 0.06, -0.04); collar.rotation.x = 0.25;
-  // glowing trim line along the collar edge (rarity accent)
-  const trim = m(box(0.6, 0.03, 0.02), trimMat);
-  trim.position.set(0, 0.11, -0.02); trim.rotation.x = 0.25;
+  // WIDE winged mantle over the shoulders -- the bold top of the silhouette
+  const collar = m(box(0.78, 0.14, 0.11), cloth(c, 0.58));
+  collar.position.set(0, 0.07, -0.04); collar.rotation.x = 0.28;
+  // angled shoulder wings flaring outward for a broader, more heroic top line
+  const wingL = m(box(0.26, 0.12, 0.08), cloth(c, 0.5));
+  wingL.position.set(-0.42, 0.05, -0.05); wingL.rotation.set(0.28, 0, 0.5);
+  const wingR = m(box(0.26, 0.12, 0.08), cloth(c, 0.5));
+  wingR.position.set(0.42, 0.05, -0.05); wingR.rotation.set(0.28, 0, -0.5);
+  // bright trim line along the collar edge (rarity accent)
+  const trim = m(box(0.74, 0.035, 0.02), trimMat);
+  trim.position.set(0, 0.13, -0.02); trim.rotation.x = 0.28;
 
-  // a hanging cloth made of 3 stacked panels, each narrower + dimmer as it falls,
-  // and each tilted a touch further back so it billows out behind the hero.
-  const upper = m(plane(0.56, 0.34), cloth(c, 0.62));
-  upper.position.set(0, -0.16, -0.05); upper.rotation.x = 0.16;
-  const mid = m(plane(0.5, 0.34), cloth(c, 0.48));
-  mid.position.set(0, -0.45, -0.11); mid.rotation.x = 0.1;
-  const low = m(plane(0.42, 0.3), cloth(c, 0.36));
-  low.position.set(0, -0.72, -0.15); low.rotation.x = 0.04;
+  // billowing cloth: 3 stacked panels, wider + bolder than before, each tilted
+  // further back so it fans out behind the hero.
+  const upper = m(plane(0.7, 0.36), cloth(c, 0.66));
+  upper.position.set(0, -0.17, -0.06); upper.rotation.x = 0.18;
+  const mid = m(plane(0.62, 0.36), cloth(c, 0.52));
+  mid.position.set(0, -0.47, -0.13); mid.rotation.x = 0.11;
+  const low = m(plane(0.54, 0.34), cloth(c, 0.4));
+  low.position.set(0, -0.76, -0.18); low.rotation.x = 0.05;
 
-  // ragged hem prongs trailing at the bottom for a tattered gothic edge
+  // ONE bold continuous glowing hem-line band across the bottom of the fall
+  const hemBand = m(box(0.56, 0.05, 0.02), hemMat);
+  hemBand.position.set(0, -0.92, -0.18); hemBand.rotation.x = 0.05;
+
+  // ragged hem prongs trailing below the band for a tattered gothic edge
   const hems = [];
-  const hemX = [-0.15, 0, 0.15];
+  const hemX = [-0.21, -0.07, 0.07, 0.21];
   for (let i = 0; i < hemX.length; i++) {
-    const hp = m(cone(0.07, 0.22, 3), cloth(c, 0.32));
-    hp.position.set(hemX[i], -0.92, -0.15); hp.rotation.x = Math.PI - 0.04;
+    const hp = m(cone(0.075, 0.24, 3), cloth(c, 0.36));
+    hp.position.set(hemX[i], -1.04, -0.18); hp.rotation.x = Math.PI - 0.05;
     hems.push(hp); g.add(hp);
   }
 
-  g.add(collar, trim, upper, mid, low);
+  g.add(collar, wingL, wingR, trim, upper, mid, low, hemBand);
 
   g.userData.anim = (grp, now) => {
-    // gentle idle sway: the whole cloth swings, lower panels lag for a wave
+    // idle sway: whole cloth swings, lower panels lag for a travelling wave
     const sway = Math.sin(now / 420);
-    upper.rotation.x = 0.16 + sway * 0.05;
-    mid.rotation.x = 0.1 + Math.sin(now / 420 - 0.5) * 0.07;
-    low.rotation.x = 0.04 + Math.sin(now / 420 - 1.0) * 0.09;
-    low.rotation.z = Math.sin(now / 560) * 0.04;
+    upper.rotation.x = 0.18 + sway * 0.05;
+    mid.rotation.x = 0.11 + Math.sin(now / 420 - 0.5) * 0.07;
+    low.rotation.x = 0.05 + Math.sin(now / 420 - 1.0) * 0.1;
+    low.rotation.z = Math.sin(now / 560) * 0.05;
+    hemBand.rotation.x = 0.05 + Math.sin(now / 420 - 1.0) * 0.1;
+    hemBand.rotation.z = Math.sin(now / 560) * 0.05;
+    // shoulder wings flutter a touch
+    wingL.rotation.z = 0.5 + Math.sin(now / 500) * 0.06;
+    wingR.rotation.z = -0.5 - Math.sin(now / 500) * 0.06;
     for (let i = 0; i < hems.length; i++) {
-      hems[i].rotation.z = Math.sin(now / 480 + i) * 0.14;
+      hems[i].rotation.z = Math.sin(now / 480 + i) * 0.16;
     }
+    // bright hem-line breathes so it always pops
+    hemMat.opacity = 0.8 + Math.abs(Math.sin(now / 700)) * 0.2;
     if (prismatic) {
       const hue = (now / 2600) % 1;
       for (let i = 0; i < clothMats.length; i++) {
-        clothMats[i].color.setHSL((hue + i * 0.06) % 1, 0.85, 0.6);
+        clothMats[i].color.setHSL((hue + i * 0.05) % 1, 0.85, 0.6);
       }
     }
   };
@@ -2262,128 +2399,229 @@ export function buildGear_cape(opts) {
 }
 
 export function buildGear_wings(opts) {
+  // STRENGTHENED: ~2x span with tall arched BRIGHT additive bone-spars, glowing
+  // wingtip claw-fingers, a big luminous membrane fan with glowing edge-ribs and a
+  // bright root boss — reads as a wide blazing wing silhouette instead of the old
+  // near-invisible thin fan. Keeps the majestic beat + prismatic shimmer.
   const c = (opts && opts.color) || '#caa15a';
   const prismatic = !!(opts && opts.prismatic);
   const g = new T.Group();
 
-  // Large feathered/ribbed wings spread WIDE, mounted at the upper-back and
-  // sweeping BACKWARD (-Z) and out to the sides. Each wing is a pivot group so
-  // it can beat from the shoulder joint. Built from a bony top spar + a fan of
-  // tapered feather blades (longest at the wrist, shortest near the body) so the
-  // silhouette reads unmistakably as a wing, not a triangle. Additive glow blades
-  // so they read as light on the additive display.
-  const featherMats = [];
-  function feather(hex, br) {
-    if (prismatic) {
-      // UNIQUE per-frame-animated material (NEVER cached) for the rainbow shimmer.
-      const mm = new T.MeshBasicMaterial({ color: hex, fog: false, transparent: true, opacity: br, blending: T.AdditiveBlending, depthWrite: false });
-      featherMats.push(mm);
-      return mm;
-    }
-    // Static feathers use the cached additive glow helper (additive-friendly, never mutated).
-    return matAdd(hex, br);
+  // Collect every animated (UNIQUE, never-cached) material so the shimmer/pulse
+  // can drive them without touching the shared mat()/matAdd() cache.
+  const glowMats = [];
+  function liveGlow(hex, op) {
+    const mm = new T.MeshBasicMaterial({ color: hex, fog: false, transparent: true, opacity: op, blending: T.AdditiveBlending, depthWrite: false });
+    glowMats.push(mm);
+    return mm;
   }
-  const sparMat = mat(c, 0.85);
+  const boneCol = '#fff0c8';     // bright bone / strut color
+  const sparMat = mat(c, 0.9);   // opaque dark core gives the spar a touch of mass
 
   function wing(side) {
     const w = new T.Group();
-    w.position.set(0.08 * side, 0.04, -0.05);
-    // bony leading spar sweeping out and back
-    const spar = m(cyl(0.025, 0.04, 0.62, 4), sparMat);
-    spar.position.set(0.3 * side, 0.04, -0.06);
-    spar.rotation.z = (Math.PI / 2 - 0.5) * side;
+    w.position.set(0.1 * side, 0.16, -0.06);
+
+    // ---- main arched leading bone-spar: long bright glowing strut ----
+    const spar = m(cyl(0.05, 0.09, 1.05, 4), liveGlow(boneCol, 0.95));
+    spar.position.set(0.5 * side, 0.14, -0.12);
+    spar.rotation.z = (Math.PI / 2 - 0.62) * side;
+    spar.rotation.y = -0.2 * side;
     w.add(spar);
-    // a fan of feathers along the spar — length grows toward the wingtip
-    const fcount = 6;
-    for (let i = 0; i < fcount; i++) {
-      const t = i / (fcount - 1);                 // 0 root .. 1 tip
-      const len = 0.26 + t * 0.42;                // longer toward the tip
-      const br = 0.55 - t * 0.18;                 // dimmer toward the tip
-      const f = m(cone(0.06, len, 3), feather(c, br));
-      // ride along the spar, spreading down-and-back like a real wing
-      f.position.set((0.12 + t * 0.5) * side, 0.06 - t * 0.16, -0.06 - t * 0.06);
-      f.rotation.set(Math.PI / 2, 0, (1.0 + t * 0.5) * side);
-      f.scale.set(1, 1, 0.28);                    // flatten into a feather blade
-      w.add(f);
+    // dark inner core of the spar for contrast/mass
+    const sparCore = m(cyl(0.03, 0.05, 1.02, 4), sparMat);
+    sparCore.position.copy(spar.position);
+    sparCore.rotation.copy(spar.rotation);
+    w.add(sparCore);
+
+    // ---- bright wingtip claw / finger spikes flaring off the spar end ----
+    for (let k = 0; k < 3; k++) {
+      const claw = m(cone(0.045, 0.34 + k * 0.06, 4), liveGlow(boneCol, 0.95));
+      claw.position.set((0.92 - k * 0.05) * side, 0.34 - k * 0.12, -0.18);
+      claw.rotation.z = (1.15 + k * 0.28) * side;
+      w.add(claw);
     }
+
+    // ---- the membrane / feather fan: BIG flat blades fanning down & back ----
+    const fcount = 7;
+    for (let i = 0; i < fcount; i++) {
+      const t = i / (fcount - 1);                       // 0 root .. 1 tip
+      const len = 0.5 + t * 0.62;                       // long blades, longest at tip
+      const br = 0.5 + (1 - Math.abs(t - 0.5) * 2) * 0.22; // brightest mid-wing
+      const f = m(cone(0.14, len, 3), liveGlow(c, br));
+      f.position.set((0.18 + t * 0.78) * side, 0.12 - t * 0.36, -0.14 - t * 0.05);
+      f.rotation.set(Math.PI / 2, 0, (1.12 + t * 0.46) * side);
+      f.scale.set(1, 1, 0.22);                          // flatten into a blade
+      w.add(f);
+      // bright glowing leading edge-rib on every other blade for crisp struts
+      if (i % 2 === 0) {
+        const rib = m(cyl(0.014, 0.022, len * 0.92, 3), liveGlow(boneCol, 0.85));
+        rib.position.copy(f.position);
+        rib.rotation.copy(f.rotation);
+        w.add(rib);
+      }
+    }
+
+    // ---- bright root boss where the wing meets the back ----
+    const boss = m(cone(0.12, 0.22, 4), liveGlow(boneCol, 0.9));
+    boss.position.set(0.12 * side, 0.1, -0.1);
+    boss.rotation.z = -0.6 * side;
+    w.add(boss);
+
     return w;
   }
+
   const wL = wing(-1);
   const wR = wing(1);
   g.add(wL, wR);
 
   g.userData.anim = (grp, now) => {
-    // slow majestic beat from the shoulder
-    const beat = Math.sin(now / 360) * 0.16;
+    // strong majestic beat from the shoulder
+    const beat = Math.sin(now / 340) * 0.26;
     wL.rotation.z = beat;
     wR.rotation.z = -beat;
-    // subtle fold/unfold so the spread breathes
-    const flex = Math.sin(now / 520) * 0.05;
+    // fold/unfold sweep so the spread breathes
+    const flex = Math.sin(now / 500) * 0.09;
     wL.rotation.y = flex;
     wR.rotation.y = -flex;
     if (prismatic) {
-      const hue = (now / 2400) % 1;
-      for (let i = 0; i < featherMats.length; i++) {
-        featherMats[i].color.setHSL((hue + i * 0.04) % 1, 0.85, 0.6);
+      const hue = (now / 2200) % 1;
+      for (let i = 0; i < glowMats.length; i++) {
+        glowMats[i].color.setHSL((hue + i * 0.03) % 1, 0.85, 0.62);
       }
     }
   };
   return g;
 }
 
+// STRENGTHENED: bold wide spectral extra-arms + bright wraith core give a haunting, readable wide silhouette at small render; bigger/brighter additive tatters & motes replace faint fussy wisps.
 export function buildGear_spectral(opts) {
   const c = (opts && opts.color) || '#8fb6c8';
   const prismatic = !!(opts && opts.prismatic);
   const g = new T.Group();
 
-  // Ghostly translucent trailing wisps/tatters streaming BACKWARD (-Z) and out
-  // from the upper-back mount. No solid cloth — faint additive tapered shrouds
-  // and drifting motes that read as a spectral aura clinging to the hero. All
-  // wisp/mote materials are UNIQUE additive instances (animated even when not
-  // prismatic: their opacity breathes), so they never mutate cached mats.
+  // All glow materials are UNIQUE additive instances (their opacity/color breathe
+  // every frame), so they never mutate the shared cached mats.
   const wispMats = [];
   function wispMat(op) {
     const mm = new T.MeshBasicMaterial({ color: new T.Color(c), fog: false, transparent: true, opacity: op, blending: T.AdditiveBlending, depthWrite: false });
     wispMats.push(mm); return mm;
   }
 
-  // three tapered tatters fanning out behind the shoulders, each its own pivot
-  // so it can wave independently like a torn ghost-shroud.
+  // ---- BIG signature shape: a pair of ghostly wraith-arms reaching wide & back.
+  // Each arm = upper segment (cone) + forearm (cone) + a bright claw tip, on its
+  // own shoulder pivot so it can drift/reach like a haunting spectral limb.
+  const arms = [];
+  const armSeg = geo('spectralArmSeg', () => new T.CylinderGeometry(0.05, 0.11, 0.34, 5));
+  const armFore = geo('spectralArmFore', () => new T.CylinderGeometry(0.025, 0.06, 0.30, 5));
+  const clawTip = geo('spectralClaw', () => new T.ConeGeometry(0.05, 0.16, 4));
+  for (let s = 0; s < 2; s++) {
+    const dir = s === 0 ? -1 : 1;
+    const piv = new T.Group();
+    piv.position.set(dir * 0.17, 0.16, -0.07);
+    piv.rotation.z = dir * 0.55;           // splay outward (wide silhouette)
+    piv.rotation.y = dir * -0.35;          // sweep back
+
+    const upper = m(armSeg, wispMat(0.5));
+    upper.position.set(dir * 0.12, -0.05, -0.04);
+    upper.rotation.z = dir * 0.6;
+    piv.add(upper);
+
+    // elbow pivot for a reaching forearm
+    const elbow = new T.Group();
+    elbow.position.set(dir * 0.22, -0.13, -0.07);
+    const fore = m(armFore, wispMat(0.6));
+    fore.position.set(dir * 0.05, -0.14, -0.02);
+    fore.rotation.z = dir * 0.3;
+    elbow.add(fore);
+    const claw = m(clawTip, wispMat(0.85));
+    claw.position.set(dir * 0.08, -0.30, -0.02);
+    claw.rotation.z = dir * 0.3;
+    claw.rotation.x = 0.2;
+    elbow.add(claw);
+    piv.add(elbow);
+
+    piv.userData.elbow = elbow;
+    piv.userData.upMat = upper.material;
+    piv.userData.foreMat = fore.material;
+    piv.userData.clawMat = claw.material;
+    piv.userData.dir = dir;
+    piv.userData.ph = s * 1.4;
+    piv.userData.baseZ = dir * 0.55;
+    piv.userData.baseY = dir * -0.35;
+    arms.push(piv); g.add(piv);
+  }
+
+  // ---- Bright wraith CORE between the shoulders (the glowing heart of the shroud)
+  const coreGeo = geo('spectralCore', () => new T.OctahedronGeometry(0.13, 0));
+  const coreMat = wispMat(0.95);
+  const core = m(coreGeo, coreMat);
+  core.position.set(0, 0.05, -0.06);
+  core.scale.set(1, 1.5, 0.8);
+  g.add(core);
+  // inner bright pip for a hot center
+  const coreInnerMat = wispMat(1.0);
+  const coreInner = m(geo('spectralCoreInner', () => new T.OctahedronGeometry(0.06, 0)), coreInnerMat);
+  coreInner.position.copy(core.position);
+  coreInner.scale.set(1, 1.4, 0.8);
+  g.add(coreInner);
+
+  // ---- A few BOLD trailing tatters fanning down/back behind the shoulders.
   const tatters = [];
-  const cfg = [[-0.16, 0.42], [0.0, 0.46], [0.16, 0.4]];
+  const cfg = [[-0.14, 0.5], [0.0, 0.58], [0.14, 0.5]];
+  const tattGeo = geo('spectralTatter', () => new T.ConeGeometry(0.16, 1, 4));
   for (let i = 0; i < cfg.length; i++) {
     const piv = new T.Group();
-    piv.position.set(cfg[i][0], 0.0, -0.06);
+    piv.position.set(cfg[i][0], -0.04, -0.08);
     const len = cfg[i][1];
-    const t = m(cone(0.12, len, 4), wispMat(0.34 - i * 0.04));
-    // hang downward and trail back (-Z); rotation.x ~ PI points the cone down
-    t.position.set(0, -len * 0.4, -0.08);
-    t.rotation.x = Math.PI - 0.25;
-    t.scale.set(1, 1, 0.5);
+    const op = 0.42 - i * 0.02;
+    const t = m(tattGeo, wispMat(op));
+    t.scale.set(1, len, 0.45);
+    t.position.set(0, -len * 0.42, -0.1);
+    t.rotation.x = Math.PI - 0.22;
     piv.add(t);
     piv.userData.baseMat = t.material;
-    piv.userData.baseOp = 0.34 - i * 0.04;
+    piv.userData.baseOp = op;
     piv.userData.ph = i * 1.1;
     tatters.push(piv); g.add(piv);
   }
 
-  // a fainter wide halo-shroud over the shoulders to ground the wisps
-  const shroud = m(cyl(0.18, 0.34, 0.3, 6), wispMat(0.16));
+  // wide faint halo-shroud grounding the wisps over the shoulders
+  const shroudMat = wispMat(0.2);
+  const shroud = m(cyl(0.2, 0.4, 0.32, 8), shroudMat);
   shroud.position.set(0, -0.02, -0.08);
   g.add(shroud);
 
-  // a few free-floating motes that rise and recycle, orbiting the trail
+  // ---- A few bigger, brighter motes orbiting/rising in the trail
   const motes = [];
-  const moteGeo = geo('spectralMote', () => new T.OctahedronGeometry(0.04, 0));
+  const moteGeo = geo('spectralMote', () => new T.OctahedronGeometry(0.055, 0));
   for (let i = 0; i < 5; i++) {
-    const mo = m(moteGeo, wispMat(0.6));
+    const mo = m(moteGeo, wispMat(0.8));
     mo.userData.ph = (i / 5) * Math.PI * 2;
-    mo.userData.rad = 0.1 + (i % 3) * 0.05;
+    mo.userData.rad = 0.12 + (i % 3) * 0.06;
     motes.push(mo); g.add(mo);
   }
 
   g.userData.anim = (grp, now) => {
-    // tatters wave and breathe (opacity flicker = ghostly)
+    // wraith-arms reach & drift, claws flaring brightest
+    for (let i = 0; i < arms.length; i++) {
+      const a = arms[i];
+      const ph = a.userData.ph;
+      a.rotation.z = a.userData.baseZ + Math.sin(now / 700 + ph) * 0.16;
+      a.rotation.y = a.userData.baseY + Math.sin(now / 900 + ph) * 0.18;
+      a.userData.elbow.rotation.z = a.userData.dir * (0.3 + Math.sin(now / 520 + ph) * 0.3);
+      const fl = 0.8 + Math.sin(now / 280 + ph) * 0.2;
+      a.userData.upMat.opacity = 0.5 * fl;
+      a.userData.foreMat.opacity = 0.6 * fl;
+      a.userData.clawMat.opacity = 0.85 * (0.85 + Math.sin(now / 220 + ph) * 0.15);
+    }
+    // core pulses (the bright heart)
+    const cp = 0.85 + Math.sin(now / 360) * 0.15;
+    coreMat.opacity = 0.95 * cp;
+    coreInnerMat.opacity = 1.0 * (0.8 + Math.sin(now / 240) * 0.2);
+    const cs = 1 + Math.sin(now / 360) * 0.12;
+    core.scale.set(cs, 1.5 * cs, 0.8);
+    // tatters wave and breathe
     for (let i = 0; i < tatters.length; i++) {
       const piv = tatters[i];
       piv.rotation.z = Math.sin(now / 540 + piv.userData.ph) * 0.18;
@@ -2391,25 +2629,24 @@ export function buildGear_spectral(opts) {
       const flick = 0.78 + Math.sin(now / 300 + piv.userData.ph) * 0.22;
       piv.userData.baseMat.opacity = piv.userData.baseOp * flick;
     }
-    shroud.material.opacity = 0.16 * (0.8 + Math.sin(now / 400) * 0.2);
+    shroudMat.opacity = 0.2 * (0.8 + Math.sin(now / 400) * 0.2);
     // motes rise behind the back and recycle to the bottom
     for (let i = 0; i < motes.length; i++) {
       const mo = motes[i];
-      const t = ((now / 1400) + i / motes.length) % 1;   // 0..1 lifetime
-      const a = mo.userData.ph + now / 900;
+      const t = ((now / 1400) + i / motes.length) % 1;
+      const ang = mo.userData.ph + now / 900;
       mo.position.set(
-        Math.cos(a) * mo.userData.rad,
-        -0.5 + t * 0.7,
-        -0.12 + Math.sin(a) * mo.userData.rad
+        Math.cos(ang) * mo.userData.rad,
+        -0.5 + t * 0.75,
+        -0.12 + Math.sin(ang) * mo.userData.rad
       );
-      // fade in at birth, out at death
-      mo.material.opacity = 0.6 * Math.sin(t * Math.PI);
-      mo.scale.setScalar(0.7 + Math.sin(t * Math.PI) * 0.5);
+      mo.material.opacity = 0.8 * Math.sin(t * Math.PI);
+      mo.scale.setScalar(0.7 + Math.sin(t * Math.PI) * 0.6);
     }
     if (prismatic) {
       const hue = (now / 2200) % 1;
       for (let i = 0; i < wispMats.length; i++) {
-        wispMats[i].color.setHSL((hue + i * 0.05) % 1, 0.7, 0.65);
+        wispMats[i].color.setHSL((hue + i * 0.04) % 1, 0.7, 0.65);
       }
     }
   };
@@ -2417,17 +2654,14 @@ export function buildGear_spectral(opts) {
 }
 
 export function buildGear_crown(opts) {
+  // Strengthened: taller bolder spikes, a brighter double-band, and a big glowing
+  // front jewel backed by an additive halo plate so the crown reads as a bright
+  // signature shape at tiny on-glasses render size.
   const c = (opts && opts.color) || '#ffd166';
   const prism = !!(opts && opts.prismatic);
   const g = new T.Group();
-  // Sits just above the head (headMount). Regal spiked band.
+  // Sits just above the head (headMount). Regal spiked band, facing +Z.
   const lift = 0.06;
-  // Dim metal band base (cached, static) + a glowing trim ring.
-  const band = m(cyl(0.16, 0.17, 0.08, 8), mat(c, 0.45));
-  band.position.y = lift;
-  const trim = m(geo('crownTrim', () => new T.TorusGeometry(0.165, 0.018, 4, 12)), matAdd(c, 0.9));
-  trim.rotation.x = Math.PI / 2; trim.position.y = lift + 0.04;
-  g.add(band, trim);
 
   // Prismatic shimmer: collect UNIQUE additive materials to hue-cycle.
   // Cached matAdd() is returned when not prismatic (never mutated by anim).
@@ -2441,29 +2675,47 @@ export function buildGear_crown(opts) {
     return matAdd(c, opacity);
   }
 
-  // Alternating tall/short spikes around the band for a regal silhouette.
-  const N = 9;
+  // Solid metal band base (opaque mass, reads as the crown body) + a bright
+  // glowing trim ring above and below it for a strong horizontal stroke.
+  const band = m(cyl(0.165, 0.175, 0.085, 10), mat(c, 0.5));
+  band.position.y = lift + 0.04;
+  g.add(band);
+  const trimGeo = geo('crownTrim', () => new T.TorusGeometry(0.172, 0.022, 4, 14));
+  const trimTop = m(trimGeo, glowMat(0.95));
+  trimTop.rotation.x = Math.PI / 2; trimTop.position.y = lift + 0.082;
+  const trimBot = m(trimGeo, glowMat(0.8));
+  trimBot.rotation.x = Math.PI / 2; trimBot.position.y = lift + 0.0;
+  g.add(trimTop, trimBot);
+
+  // Bold alternating tall/short spikes around the band — taller and brighter
+  // than before so the silhouette spikes read clearly.
+  const N = 8;
   const tips = [];
   for (let i = 0; i < N; i++) {
     const a = (i / N) * Math.PI * 2;
     const big = (i % 2 === 0);
-    const h = big ? 0.2 : 0.12;
-    const sp = m(cone(big ? 0.045 : 0.035, h, 4), glowMat(0.95));
-    sp.position.set(Math.cos(a) * 0.155, lift + 0.04 + h / 2, Math.sin(a) * 0.155);
+    const h = big ? 0.28 : 0.16;
+    const r = big ? 0.05 : 0.038;
+    const sp = m(cone(r, h, 4), glowMat(0.95));
+    sp.position.set(Math.cos(a) * 0.165, lift + 0.085 + h / 2, Math.sin(a) * 0.165);
     g.add(sp);
-    // A small gem bead at the base of every other spike (ornamentation).
+    // A bright gem bead at the base of every tall spike.
     if (big) {
-      const gem = m(geo('crownGem', () => new T.OctahedronGeometry(0.028, 0)), glowMat(1));
-      gem.position.set(Math.cos(a) * 0.155, lift + 0.05, Math.sin(a) * 0.155);
+      const gem = m(geo('crownGem', () => new T.OctahedronGeometry(0.032, 0)), glowMat(1));
+      gem.position.set(Math.cos(a) * 0.165, lift + 0.1, Math.sin(a) * 0.165);
       g.add(gem);
       tips.push(gem);
     }
   }
 
-  // A larger central front jewel.
-  const jewel = m(geo('crownJewel', () => new T.OctahedronGeometry(0.05, 0)), glowMat(1));
-  jewel.position.set(0, lift + 0.05, 0.17);
-  jewel.scale.set(1, 1.4, 0.6);
+  // The signature: a BIG bright front jewel backed by an additive halo plate so
+  // it glows as the crown's focal point even when tiny.
+  const halo = m(geo('crownHalo', () => new T.CircleGeometry(0.075, 12)), glowMat(0.45));
+  halo.position.set(0, lift + 0.1, 0.178);
+  g.add(halo);
+  const jewel = m(geo('crownJewel', () => new T.OctahedronGeometry(0.062, 0)), glowMat(1));
+  jewel.position.set(0, lift + 0.1, 0.185);
+  jewel.scale.set(1, 1.5, 0.6);
   g.add(jewel);
   tips.push(jewel);
 
@@ -2471,59 +2723,82 @@ export function buildGear_crown(opts) {
     g.userData.anim = (grp, now) => {
       const base = (now / 2600) % 1;
       for (let i = 0; i < shimmer.length; i++) {
-        shimmer[i].color.setHSL((base + i * 0.04) % 1, 0.85, 0.6);
+        shimmer[i].color.setHSL((base + i * 0.04) % 1, 0.85, 0.62);
       }
-      const p = 1 + Math.sin(now / 300) * 0.12;
+      const p = 1 + Math.sin(now / 300) * 0.14;
       for (let i = 0; i < tips.length; i++) tips[i].scale.setScalar(p);
-      jewel.scale.set(p, p * 1.4, p * 0.6);
+      jewel.scale.set(p, p * 1.5, p * 0.6);
     };
   } else {
     g.userData.anim = (grp, now) => {
-      const p = 1 + Math.sin(now / 360) * 0.1;
+      const p = 1 + Math.sin(now / 360) * 0.12;
       for (let i = 0; i < tips.length; i++) tips[i].scale.setScalar(p);
-      jewel.scale.set(p, p * 1.4, p * 0.6);
+      jewel.scale.set(p, p * 1.5, p * 0.6);
     };
   }
   return g;
 }
 
 export function buildGear_halo(opts) {
+  // Strengthened: bolder/brighter thick primary ring + radiant inner glow disc + a crown of
+  // bright vertical light-spokes for an unmistakable halo silhouette; keeps gentle rotation.
   const c = (opts && opts.color) || '#9be8ff';
   const prism = !!(opts && opts.prismatic);
   const g = new T.Group();
   // HEAD cosmetic: floats just above the head (small +Y).
-  const y = 0.12;
+  const y = 0.13;
 
-  // Unique materials we mutate per-frame for the prismatic (mythic) shimmer.
-  // These MUST be fresh instances (never cached mat/matAdd) since we set .color each frame.
+  // Unique materials we mutate per-frame (prismatic shimmer + a gentle global pulse).
+  // These MUST be fresh instances (never cached mat/matAdd) since we set .color/.opacity each frame.
   const shimmer = [];
-  function glowMat(opacity) {
-    if (prism) {
-      const u = new T.MeshBasicMaterial({ color: c, fog: false, transparent: true, opacity: opacity == null ? 1 : opacity, blending: T.AdditiveBlending, depthWrite: false });
-      shimmer.push(u);
-      return u;
-    }
-    // Static, non-animated parts use the cached additive helper.
-    return matAdd(c, opacity);
+  const pulsers = [];
+  function glowMat(opacity, animatePulse) {
+    const op = opacity == null ? 1 : opacity;
+    const u = new T.MeshBasicMaterial({ color: c, fog: false, transparent: true, opacity: op, blending: T.AdditiveBlending, depthWrite: false });
+    if (prism) shimmer.push(u);
+    if (animatePulse) pulsers.push({ mat: u, base: op });
+    return u;
   }
 
-  // Main glowing ring (octagonal torus reads angular/gothic).
-  const ring = m(geo('haloRing', () => new T.TorusGeometry(0.2, 0.022, 4, 24)), glowMat(0.9));
+  // BRIGHT inner glow disc — gives the halo a solid radiant core that reads at distance.
+  const disc = m(geo('haloGlowDisc', () => new T.CircleGeometry(0.165, 28)), glowMat(0.32, true));
+  disc.rotation.x = -Math.PI / 2; disc.position.y = y - 0.004;
+  g.add(disc);
+
+  // Main glowing ring — thick + round (many segments) so the band is BOLD and clean.
+  const ring = m(geo('haloRingMain', () => new T.TorusGeometry(0.205, 0.034, 10, 40)), glowMat(1.0, true));
   ring.rotation.x = Math.PI / 2; ring.position.y = y;
   g.add(ring);
 
-  // A fainter, larger second ring adds halo depth (extra drama when prismatic).
-  const ring2 = m(geo('haloRing2', () => new T.TorusGeometry(0.27, 0.014, 4, 24)), glowMat(0.5));
-  ring2.rotation.x = Math.PI / 2; ring2.position.y = y + 0.005;
+  // Bright thin highlight ring sitting on the main band — sharpens the edge, adds pop.
+  const ringHi = m(geo('haloRingHi', () => new T.TorusGeometry(0.205, 0.013, 8, 40)), glowMat(0.95));
+  ringHi.rotation.x = Math.PI / 2; ringHi.position.y = y + 0.006;
+  g.add(ringHi);
+
+  // Outer faint aura ring for depth/drama.
+  const ring2 = m(geo('haloRingAura', () => new T.TorusGeometry(0.275, 0.016, 6, 32)), glowMat(0.45, true));
+  ring2.rotation.x = Math.PI / 2; ring2.position.y = y + 0.004;
   g.add(ring2);
 
-  // Small radiating motes orbiting on the halo plane (more + denser when prismatic).
+  // Crown of bright vertical light-spokes radiating up from the ring — iconic, reads boldly.
+  const spokes = [];
+  const S = prism ? 10 : 8;
+  const SR = 0.205;
+  for (let i = 0; i < S; i++) {
+    const a = (i / S) * Math.PI * 2;
+    const sp = m(box(0.018, 0.09, 0.018), glowMat(0.9));
+    sp.position.set(Math.cos(a) * SR, y + 0.05, Math.sin(a) * SR);
+    sp.userData.a = a;
+    g.add(sp); spokes.push(sp);
+  }
+
+  // Bright angular motes orbiting on the halo plane.
   const motes = [];
-  const M = prism ? 8 : 5;
-  const R = 0.235;
+  const M = prism ? 8 : 6;
+  const R = 0.245;
   for (let i = 0; i < M; i++) {
     const a = (i / M) * Math.PI * 2;
-    const mo = m(geo('haloMote', () => new T.OctahedronGeometry(0.022, 0)), glowMat(0.95));
+    const mo = m(geo('haloMoteOcta', () => new T.OctahedronGeometry(0.026, 0)), glowMat(1.0));
     mo.position.set(Math.cos(a) * R, y, Math.sin(a) * R);
     mo.userData.a = a;
     g.add(mo); motes.push(mo);
@@ -2532,31 +2807,45 @@ export function buildGear_halo(opts) {
   g.userData.anim = (grp, now) => {
     const spin = now / 1400;
     ring.rotation.z = spin;
+    ringHi.rotation.z = spin;
     ring2.rotation.z = -spin * 0.7;
+    disc.rotation.z = spin * 0.4;
+    for (let i = 0; i < spokes.length; i++) {
+      const a = spokes[i].userData.a + spin;
+      spokes[i].position.x = Math.cos(a) * SR;
+      spokes[i].position.z = Math.sin(a) * SR;
+      spokes[i].position.y = y + 0.05 + Math.sin(now / 360 + i) * 0.012;
+    }
     for (let i = 0; i < motes.length; i++) {
-      const a = motes[i].userData.a + spin;
+      const a = motes[i].userData.a - spin * 1.3;
       motes[i].position.x = Math.cos(a) * R;
       motes[i].position.z = Math.sin(a) * R;
-      motes[i].position.y = y + Math.sin(now / 320 + i) * 0.02;
+      motes[i].position.y = y + Math.sin(now / 320 + i) * 0.022;
+    }
+    // Gentle breathing pulse keeps the halo feeling alive/bright.
+    const pulse = 0.85 + Math.sin(now / 520) * 0.15;
+    for (let i = 0; i < pulsers.length; i++) {
+      pulsers[i].mat.opacity = pulsers[i].base * pulse;
     }
     if (prism) {
       const base = (now / 2600) % 1;
       for (let i = 0; i < shimmer.length; i++) {
-        shimmer[i].color.setHSL((base + i * 0.05) % 1, 0.85, 0.6);
+        shimmer[i].color.setHSL((base + i * 0.04) % 1, 0.85, 0.62);
       }
     }
   };
   return g;
 }
 
+// Strengthened: bigger blockier pauldrons with a bright outer rim + crowning horn, fatter glowing spine rune and a larger pulsing back crest — reads bold & bright at glasses scale.
 export function buildGear_plate(opts) {
   const c = (opts && opts.color) || '#5f7d96';
   const prism = !!(opts && opts.prismatic);
   const g = new T.Group();
   // Mounted at the upper-back (backMount). Heavy ornate pauldrons spread over
   // the shoulders (+/-X) and a tall back ridge runs up the spine (-Z).
-  const armor = mat(c, 0.5);
-  const armorDark = mat(c, 0.3);
+  const armor = mat(c, 0.55);
+  const armorDark = mat(c, 0.32);
 
   // Per-frame prismatic shimmer requires UNIQUE materials (never mutate cached
   // mat()/matAdd()). Static parts use cached helpers; glow parts use glowMat().
@@ -2570,44 +2859,51 @@ export function buildGear_plate(opts) {
     return matAdd(c, opacity);
   }
 
-  // Heavy faceted pauldrons (cone caps) sitting over each shoulder.
   const trims = [];
+  // Big, blocky faceted pauldrons that beef up the shoulder silhouette, ringed
+  // by a bright additive rim and crowned with an outward horn.
   function pauldron(side) {
     const grp = new T.Group();
-    grp.position.set(0.34 * side, 0.15, 0.1);
-    const cap = m(cone(0.22, 0.28, 5), armor); cap.rotation.z = side * 0.55; cap.position.y = 0.04;
-    const skirt = m(box(0.3, 0.1, 0.3), armorDark); skirt.position.y = -0.08;
-    // Glowing trim band + an outward spike ridge for ornamentation.
-    const trim = m(geo('plateTrim', () => new T.TorusGeometry(0.16, 0.02, 4, 10)), glowMat(0.85));
-    trim.rotation.x = Math.PI / 2; trim.position.y = -0.04;
-    trims.push(trim);
-    const spike1 = m(cone(0.05, 0.22, 4), armorDark); spike1.position.set(0.18 * side, 0.06, 0); spike1.rotation.z = side * 1.4;
-    const spike2 = m(cone(0.04, 0.16, 4), armorDark); spike2.position.set(0.1 * side, 0.16, -0.04); spike2.rotation.z = side * 1.1;
-    const gem = m(geo('plateGem', () => new T.OctahedronGeometry(0.045, 0)), glowMat(1));
-    gem.position.set(0, 0.06, 0.16); trims.push(gem);
-    grp.add(cap, skirt, trim, spike1, spike2, gem);
+    grp.position.set(0.36 * side, 0.16, 0.08);
+    grp.rotation.z = side * 0.18;
+    // Bulky two-tier shoulder mass (bigger = stronger silhouette).
+    const dome = m(cone(0.28, 0.30, 5), armor); dome.position.y = 0.06;
+    const base = m(box(0.40, 0.16, 0.40), armorDark); base.position.y = -0.07;
+    // Bright outer rim ring that traces the whole shoulder edge — the pop.
+    const rim = m(geo('plateRim', () => new T.TorusGeometry(0.24, 0.035, 4, 12)), glowMat(0.95));
+    rim.rotation.x = Math.PI / 2; rim.position.y = -0.02; rim.scale.set(1, 1, 0.9);
+    trims.push(rim);
+    // One bold outward horn instead of fussy little spikes.
+    const horn = m(cone(0.07, 0.34, 4), armor);
+    horn.position.set(0.20 * side, 0.10, 0); horn.rotation.z = side * 1.35;
+    const hornGlow = m(geo('plateHornTip', () => new T.OctahedronGeometry(0.05, 0)), glowMat(1));
+    hornGlow.position.set(0.30 * side, 0.21, 0); trims.push(hornGlow);
+    // Big bright gem set on the cap face.
+    const gem = m(geo('plateGem', () => new T.OctahedronGeometry(0.07, 0)), glowMat(1));
+    gem.position.set(0, 0.10, 0.20); gem.scale.set(1, 1.3, 0.7); trims.push(gem);
+    grp.add(dome, base, rim, horn, hornGlow, gem);
     return grp;
   }
   g.add(pauldron(-1), pauldron(1));
 
   // Tall ornate back ridge running up the spine, leaning back (-Z).
-  const ridgeBase = m(box(0.16, 0.36, 0.12), armorDark); ridgeBase.position.set(0, 0.04, -0.06);
+  const ridgeBase = m(box(0.20, 0.44, 0.14), armorDark); ridgeBase.position.set(0, 0.06, -0.06);
   g.add(ridgeBase);
   const fins = [];
   for (let i = 0; i < 4; i++) {
-    const fin = m(cone(0.05 + i * 0.006, 0.18 + i * 0.05, 4), armor);
-    fin.position.set(0, -0.02 + i * 0.12, -0.1 - i * 0.03);
+    const fin = m(cone(0.07 + i * 0.008, 0.22 + i * 0.06, 4), armor);
+    fin.position.set(0, -0.02 + i * 0.13, -0.11 - i * 0.035);
     fin.rotation.x = -0.45;
     g.add(fin); fins.push(fin);
   }
-  // Glowing rune line down the central ridge.
-  const rune = m(box(0.04, 0.42, 0.02), glowMat(0.9));
-  rune.position.set(0, 0.1, -0.005); rune.rotation.x = -0.1;
+  // Fat glowing rune bar down the central ridge.
+  const rune = m(box(0.07, 0.50, 0.03), glowMat(0.95));
+  rune.position.set(0, 0.12, -0.005); rune.rotation.x = -0.1;
   trims.push(rune);
   g.add(rune);
-  // A crowning back jewel at the top of the ridge.
-  const crownGem = m(geo('plateBackGem', () => new T.OctahedronGeometry(0.06, 0)), glowMat(1));
-  crownGem.position.set(0, 0.42, -0.18); crownGem.scale.set(1, 1.4, 0.6);
+  // A large crowning back crest at the top of the ridge.
+  const crownGem = m(geo('plateBackGem', () => new T.OctahedronGeometry(0.10, 0)), glowMat(1));
+  crownGem.position.set(0, 0.50, -0.20); crownGem.scale.set(1, 1.5, 0.6);
   trims.push(crownGem);
   g.add(crownGem);
 
@@ -2617,18 +2913,19 @@ export function buildGear_plate(opts) {
       for (let i = 0; i < shimmer.length; i++) {
         shimmer[i].color.setHSL((base + i * 0.03) % 1, 0.85, 0.6);
       }
-      const p = 1 + Math.sin(now / 320) * 0.1;
-      crownGem.scale.set(p, p * 1.4, p * 0.6);
+      const p = 1 + Math.sin(now / 320) * 0.12;
+      crownGem.scale.set(p, p * 1.5, p * 0.6);
     };
   } else {
     g.userData.anim = (grp, now) => {
-      const p = 1 + Math.sin(now / 380) * 0.08;
-      crownGem.scale.set(p, p * 1.4, p * 0.6);
+      const p = 1 + Math.sin(now / 380) * 0.1;
+      crownGem.scale.set(p, p * 1.5, p * 0.6);
     };
   }
   return g;
 }
 
+// Strengthened: bigger, brighter chest sigil with a bold glowing halo-ring + double-layer core, and taller swept shoulder pauldron spikes that punch the silhouette.
 export function buildArmorKit(opts) {
   const tier = (opts && opts.tier) || 0;
   const c = (opts && opts.color) || '#c8d0e0';
@@ -2639,56 +2936,76 @@ export function buildArmorKit(opts) {
   if (tier < 2) return g;
 
   // Authored to sit on the chest/front: around y 0.6..1.0, z ~0.18 front.
-  // Kept small so it layers over the existing cuirass without occluding it.
   // ADDITIVE display: no black fills, no opaque depth-writing plates over glows.
+  // BOLD strokes only — big bright emblem + a clear halo + tall shoulder spikes.
 
   if (tier === 2) {
-    // a small glowing chest gem in a dim additive setting (no black fill).
-    const setting = m(box(0.11, 0.13, 0.05), matAdd(c, 0.25));
-    setting.position.set(0, 0.82, 0.18);
-    const gem = m(geo('kitGem', () => new T.OctahedronGeometry(0.06, 0)), matAdd(c, 0.95));
-    gem.position.set(0, 0.82, 0.2);
-    g.add(setting, gem);
-    g.userData.anim = (gr, now) => { gem.scale.setScalar(1 + Math.sin(now / 360) * 0.14); };
+    // a bolder glowing chest gem: bright core over a dim faceted setting + a glint cross.
+    const setting = m(box(0.15, 0.18, 0.05), matAdd(c, 0.3));
+    setting.position.set(0, 0.82, 0.17);
+    const halo = m(box(0.13, 0.13, 0.04), matAdd(c, 0.22));
+    halo.position.set(0, 0.82, 0.18); halo.rotation.z = 0.785;
+    const gem = m(geo('kitGem', () => new T.OctahedronGeometry(0.085, 0)), matAdd(c, 1.0));
+    gem.position.set(0, 0.82, 0.21); gem.scale.set(1, 1.25, 0.7);
+    const glint = m(box(0.3, 0.022, 0.022), matAdd(c, 0.5)); glint.position.set(0, 0.82, 0.19);
+    g.add(setting, halo, glint, gem);
+    g.userData.anim = (gr, now) => {
+      const p = 1 + Math.sin(now / 360) * 0.16;
+      gem.scale.set(p, p * 1.25, p * 0.7);
+    };
     return g;
   }
 
-  // tier >= 3: an ornate emblem on the chest + shoulder spikes.
+  // tier >= 3: a bold ornate emblem on the chest + big shoulder spikes.
   // Prismatic (tier 4) uses UNIQUE animated mats; otherwise cached additive.
   const mkMat = (hex, op) => prismatic
     ? new T.MeshBasicMaterial({ color: hex, fog: false, transparent: true, opacity: op == null ? 0.95 : op, blending: T.AdditiveBlending, depthWrite: false })
-    : matAdd(hex, op == null ? 0.9 : op);
+    : matAdd(hex, op == null ? 0.95 : op);
 
-  const emblemMat = mkMat(c, 0.95);
-  const haloMat = mkMat(c, 0.4);
-  const spikeMat = mkMat(c, 0.85);
-  const crestMat = mkMat(c, 0.5);
+  const emblemMat = mkMat(c, 1.0);
+  const coreMat = mkMat(c, 0.55);
+  const ringMat = mkMat(c, 0.45);
+  const spikeMat = mkMat(c, 0.95);
+  const crestMat = mkMat(c, 0.55);
 
-  // central emblem — a faceted diamond with radiating glint bars (a gothic sigil)
-  const emblem = m(geo('kitEmblem', () => new T.OctahedronGeometry(0.09, 0)), emblemMat);
-  emblem.position.set(0, 0.86, 0.19);
-  emblem.scale.set(1, 1.3, 0.6);
-  const glintH = m(box(0.26, 0.025, 0.025), haloMat); glintH.position.set(0, 0.86, 0.19);
-  const glintV = m(box(0.025, 0.22, 0.025), haloMat); glintV.position.set(0, 0.86, 0.19);
-  // glowing wing-plates framing the emblem for an ornate crest (additive, no black)
-  const crestL = m(cone(0.05, 0.16, 4), crestMat); crestL.position.set(-0.11, 0.86, 0.18); crestL.rotation.z = 1.4;
-  const crestR = m(cone(0.05, 0.16, 4), crestMat); crestR.position.set(0.11, 0.86, 0.18); crestR.rotation.z = -1.4;
-  g.add(crestL, crestR, glintH, glintV, emblem);
+  // central emblem — a big bright faceted diamond, layered over a softer aura
+  // for a punchy two-tone glow that reads as a single bold sigil.
+  const aura = m(geo('kitAura', () => new T.OctahedronGeometry(0.15, 0)), coreMat);
+  aura.position.set(0, 0.86, 0.17); aura.scale.set(1, 1.35, 0.45);
+  const emblem = m(geo('kitEmblem', () => new T.OctahedronGeometry(0.11, 0)), emblemMat);
+  emblem.position.set(0, 0.86, 0.2); emblem.scale.set(1, 1.35, 0.6);
 
-  // shoulder spikes (cones at x ~ +/-0.34, y ~0.95) pointing up/out
-  const spL = m(cone(0.05, 0.2, 4), spikeMat); spL.position.set(-0.34, 0.95, 0); spL.rotation.z = 0.35;
-  const spR = m(cone(0.05, 0.2, 4), spikeMat); spR.position.set(0.34, 0.95, 0); spR.rotation.z = -0.35;
-  g.add(spL, spR);
+  // bold halo: a diamond ring frame + a long glint cross radiating out.
+  const ring = m(geo('kitRing', () => new T.TorusGeometry(0.16, 0.018, 4, 4)), ringMat);
+  ring.position.set(0, 0.86, 0.18); ring.rotation.z = 0.785;
+  const glintH = m(box(0.4, 0.03, 0.03), ringMat); glintH.position.set(0, 0.86, 0.19);
+  const glintV = m(box(0.03, 0.34, 0.03), ringMat); glintV.position.set(0, 0.86, 0.19);
+
+  // glowing wing-plates framing the emblem for an ornate gothic crest.
+  const crestL = m(cone(0.06, 0.22, 4), crestMat); crestL.position.set(-0.15, 0.86, 0.16); crestL.rotation.z = 1.45;
+  const crestR = m(cone(0.06, 0.22, 4), crestMat); crestR.position.set(0.15, 0.86, 0.16); crestR.rotation.z = -1.45;
+  g.add(aura, ring, crestL, crestR, glintH, glintV, emblem);
+
+  // shoulder spikes — taller, swept up/out to punch the silhouette, each backed
+  // by a short bright stub for a layered pauldron read.
+  const spL = m(cone(0.06, 0.28, 4), spikeMat); spL.position.set(-0.35, 0.96, 0); spL.rotation.z = 0.4;
+  const spR = m(cone(0.06, 0.28, 4), spikeMat); spR.position.set(0.35, 0.96, 0); spR.rotation.z = -0.4;
+  const stubL = m(cone(0.05, 0.16, 4), crestMat); stubL.position.set(-0.31, 0.92, 0.05); stubL.rotation.z = 0.65;
+  const stubR = m(cone(0.05, 0.16, 4), crestMat); stubR.position.set(0.31, 0.92, 0.05); stubR.rotation.z = -0.65;
+  g.add(spL, spR, stubL, stubR);
 
   g.userData.anim = (gr, now) => {
-    const p = 1 + Math.sin(now / 340) * 0.12;
-    emblem.scale.set(p, p * 1.3, p * 0.6);
+    const p = 1 + Math.sin(now / 340) * 0.14;
+    emblem.scale.set(p, p * 1.35, p * 0.6);
+    const a = 1 + Math.sin(now / 340 + 1.2) * 0.1;
+    aura.scale.set(a, a * 1.35, a * 0.45);
     if (prismatic) {
       const hue = (now / 2000) % 1;
-      emblemMat.color.setHSL(hue, 0.9, 0.6);
-      haloMat.color.setHSL((hue + 0.5) % 1, 0.85, 0.6);
-      spikeMat.color.setHSL((hue + 0.25) % 1, 0.85, 0.6);
-      crestMat.color.setHSL((hue + 0.75) % 1, 0.85, 0.55);
+      emblemMat.color.setHSL(hue, 0.9, 0.62);
+      coreMat.color.setHSL((hue + 0.5) % 1, 0.85, 0.6);
+      ringMat.color.setHSL((hue + 0.5) % 1, 0.85, 0.6);
+      spikeMat.color.setHSL((hue + 0.25) % 1, 0.85, 0.62);
+      crestMat.color.setHSL((hue + 0.75) % 1, 0.85, 0.58);
     }
   };
   return g;
@@ -2698,6 +3015,7 @@ export function buildArmorKit(opts) {
 // feet. tier 3 = bold single ring; tier 4 (prismatic) = double ring + more motes that
 // shimmer through the rainbow. Uses UNIQUE materials (animated per-frame).
 export function buildAura(opts) {
+  // STRENGTHENED: bold bright footprint disc + thick double ring + radiating spokes; stronger ground-glow pulse, motes kept.
   const o = opts || {};
   const c = o.color || '#ff8c42';
   const prism = !!o.prismatic;
@@ -2705,39 +3023,78 @@ export function buildAura(opts) {
   const mk = (hex, op) => new T.MeshBasicMaterial({ color: hex, fog: false, transparent: true, opacity: op, blending: T.AdditiveBlending, depthWrite: false });
   const tinted = [];                                  // unique mats to hue-cycle when prismatic
 
-  const ringMat = mk(c, 0.6);
-  const ring = m(geo('auraRing', () => new T.TorusGeometry(0.5, 0.03, 4, 24)), ringMat);
+  // Wide bright footprint glow — the BIG bold silhouette read on the ground.
+  const discMat = mk(c, 0.4);
+  const disc = m(geo('auraDisc', () => new T.CircleGeometry(0.62, 36)), discMat);
+  disc.rotation.x = -Math.PI / 2; disc.position.y = 0.012;
+  g.add(disc); tinted.push(discMat);
+
+  // Thick bold primary ring — the iconic outline.
+  const ringMat = mk(c, 0.95);
+  const ring = m(geo('auraRing', () => new T.TorusGeometry(0.52, 0.055, 6, 32)), ringMat);
   ring.rotation.x = -Math.PI / 2; ring.position.y = 0.02;
   g.add(ring); tinted.push(ringMat);
 
-  let ring2 = null;
-  if (prism) {
-    const r2 = mk(c, 0.5);
-    ring2 = m(geo('auraRing2', () => new T.TorusGeometry(0.34, 0.025, 4, 20)), r2);
-    ring2.rotation.x = -Math.PI / 2; ring2.position.y = 0.03;
-    g.add(ring2); tinted.push(r2);
+  // Inner counter ring (always — adds depth, not just prismatic).
+  const ring2Mat = mk(c, 0.7);
+  const ring2 = m(geo('auraRing2', () => new T.TorusGeometry(0.34, 0.035, 6, 28)), ring2Mat);
+  ring2.rotation.x = -Math.PI / 2; ring2.position.y = 0.028;
+  g.add(ring2); tinted.push(ring2Mat);
+
+  // Radiating spokes — bright tapered prisms that point outward, sharpening the energy footprint.
+  const spokes = [];
+  const nS = 8;
+  const spokeGeo = geo('auraSpoke', () => new T.ConeGeometry(0.04, 0.42, 4));
+  for (let i = 0; i < nS; i++) {
+    const sm = mk(c, 0.8);
+    const sp = m(spokeGeo, sm);
+    const a = (i / nS) * Math.PI * 2;
+    sp.position.set(Math.cos(a) * 0.4, 0.03, Math.sin(a) * 0.4);
+    sp.rotation.z = Math.PI / 2;                      // lay flat, pointing outward
+    sp.rotation.y = -a;
+    g.add(sp); tinted.push(sm);
+    spokes.push({ mesh: sm, base: i / nS });
   }
 
+  // Rising energy motes (kept from original signature feel).
   const motes = [];
-  const nM = prism ? 8 : 5;
+  const nM = prism ? 9 : 6;
+  const moteGeo = geo('auraMote', () => new T.IcosahedronGeometry(0.045, 0));
   for (let i = 0; i < nM; i++) {
-    const mm = mk(c, 0.85);
-    const mo = m(geo('auraMote', () => new T.IcosahedronGeometry(0.035, 0)), mm);
+    const mm = mk(c, 0.9);
+    const mo = m(moteGeo, mm);
     const a = (i / nM) * Math.PI * 2;
-    mo.position.set(Math.cos(a) * 0.4, 0.05, Math.sin(a) * 0.4);
+    mo.position.set(Math.cos(a) * 0.42, 0.05, Math.sin(a) * 0.42);
     g.add(mo); tinted.push(mm);
     motes.push({ mesh: mo, a, base: i / nM });
   }
 
   g.userData.anim = (grp, now) => {
+    // Strong shared pulse for the bright footprint glow.
+    const pulse = 0.78 + 0.22 * Math.sin(now / 380);
+    ring.material.opacity = 0.95 * pulse;
+    ring2.material.opacity = 0.7 * pulse;
+    discMat.opacity = 0.4 * (0.7 + 0.3 * Math.sin(now / 420));
+    const s = 0.97 + 0.05 * Math.sin(now / 380);
+    disc.scale.set(s, s, s);
+
     ring.rotation.z = now / 1600;
-    if (ring2) ring2.rotation.z = -now / 1200;
+    ring2.rotation.z = -now / 1200;
+
+    // Spokes shimmer + slow spin of the whole footprint plane.
+    g.rotation.y = now / 5200;
+    for (let i = 0; i < spokes.length; i++) {
+      spokes[i].mesh.opacity = 0.8 * (0.45 + 0.55 * (0.5 + 0.5 * Math.sin(now / 300 + spokes[i].base * Math.PI * 2)));
+    }
+
+    // Rising, recycling motes.
     for (let i = 0; i < motes.length; i++) {
       const mt = motes[i];
       const t = ((now / 1400) + mt.base) % 1;         // rise + recycle
-      mt.mesh.position.set(Math.cos(mt.a + now / 2000) * 0.4, 0.05 + t * 0.9, Math.sin(mt.a + now / 2000) * 0.4);
-      mt.mesh.material.opacity = 0.85 * (1 - t);
+      mt.mesh.position.set(Math.cos(mt.a + now / 2000) * 0.42, 0.05 + t * 0.95, Math.sin(mt.a + now / 2000) * 0.42);
+      mt.mesh.material.opacity = 0.9 * (1 - t);
     }
+
     if (prism) {
       const hues = ['#f062ff', '#6df1ff', '#ffd166', '#ff4d6d', '#9bff8a'];
       const col = hues[Math.floor((now / 280) % hues.length)];
