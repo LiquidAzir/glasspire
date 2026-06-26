@@ -621,7 +621,45 @@
     { key: 'vit',  label: 'Vitality',  max: 4, rarities: ['rare','unique'] },
     { key: 'crit', label: 'Crit %',  max: 8, rarities: ['rare','unique'] },
     { key: 'aspd', label: 'Attack Speed %', max: 12, rarities: ['rare','unique'] },
+    { key: 'res',  label: 'Elemental Resist %', max: 9, rarities: ['rare','unique'] },
   ];
+
+  // ============================================================
+  // ELEMENTAL DAMAGE — your weapon's element vs an enemy's weakness/resistance.
+  // Fully additive: anything without an element is "physical" and behaves exactly
+  // as before. A matching weakness deals +50%, a matching resistance deals -50%.
+  // ============================================================
+  const ELEMENTS = {
+    physical:  { name: 'Physical',  color: '#e8e8ee', icon: '◆' },
+    fire:      { name: 'Fire',      color: '#ff7a3c', icon: '✦' },
+    cold:      { name: 'Cold',      color: '#6df1ff', icon: '❄' },
+    lightning: { name: 'Lightning', color: '#bff0ff', icon: '⚡' },
+    poison:    { name: 'Poison',    color: '#9be57c', icon: '☣' },
+    void:      { name: 'Void',      color: '#c489ff', icon: '◈' },
+  };
+  const ELEM_LIST = ['fire', 'cold', 'lightning', 'poison', 'void'];   // rollable (non-physical)
+  const FX_TO_ELEM = { fire: 'fire', ice: 'cold', spark: 'lightning', void: 'void', smoke: 'void', wisp: 'physical' };
+  // Each biome has an elemental theme — its monsters share a weakness/resistance + attack
+  // element, so you swap to the right weapon element (and resist gear) per zone.
+  const BIOME_ELEM = {
+    crypts:     { weak: 'fire',      resist: 'void',   element: 'void' },
+    overgrowth: { weak: 'fire',      resist: 'poison', element: 'poison' },
+    frostpeak:  { weak: 'fire',      resist: 'cold',   element: 'cold' },
+    infernal:   { weak: 'cold',      resist: 'fire',   element: 'fire' },
+    void:       { weak: 'lightning', resist: 'void',   element: 'void' },
+  };
+  const ENEMY_ELEM = {};   // optional per-enemy overrides (sparse; biome theme is the default)
+  // The element a weapon deals: an explicitly rolled element wins, else its look's fx, else physical.
+  function weaponElement(item) {
+    if (!item) return 'physical';
+    if (item.element && ELEMENTS[item.element]) return item.element;
+    const lk = gearLook(item);
+    const d = lk && GEAR_LOOKS[lk];
+    return (d && FX_TO_ELEM[d.fx]) || 'physical';
+  }
+  function playerElement() {
+    return weaponElement(game.char && game.char.equip && game.char.equip.weapon);
+  }
 
   const RARITY_TIERS = ['common', 'magic', 'rare', 'unique', 'mythic'];
   const RARITY_WEIGHTS = [[ 'common', 70 ], [ 'magic', 22 ], [ 'rare', 7 ], [ 'unique', 1 ], [ 'mythic', 0.2 ]];
@@ -1012,6 +1050,7 @@
     let mpMax = cls.mp + Math.max(0, char.stats.int - 2) * 6 + (char.level - 1) * 4;
     let crit = 5;
     let aspd = cls.attackSpeed;
+    let res = 0;                 // elemental resistance % (from 'res' affixes)
     let bonusStats = { str: 0, int: 0, dex: 0, vit: 0 };
     // Track contribution sources for character-sheet breakdown
     let gearDmg = 0, gearDef = 0;
@@ -1032,6 +1071,7 @@
         else if (af.key === 'mp')   mpMax += af.val;
         else if (af.key === 'crit') crit += af.val;
         else if (af.key === 'aspd') aspd *= 1 + af.val / 100;
+        else if (af.key === 'res')  res += af.val;
         else if (af.key in bonusStats) bonusStats[af.key] += af.val;
       }
       // Socketed gem bonuses
@@ -1120,7 +1160,7 @@
       avgPerHit: Math.round(avgPerHit), dps,
     };
 
-    return { dmg, def, hpMax, mpMax, crit, aspd, bonusStats, breakdown };
+    return { dmg, def, hpMax, mpMax, crit, aspd, res: Math.min(75, res), bonusStats, breakdown };
   }
 
   // Count how many pieces of each set the player has equipped, return summed bonus
@@ -1282,6 +1322,14 @@
       if (rarity === 'unique') sockets = roll(0.7) ? (roll(0.4)  ? 2 : 1) : 0;
       if (rarity === 'mythic') sockets = roll(0.5) ? 3 : 2;
     }
+    // Weapons may carry an elemental damage type: a themed look keeps its element,
+    // otherwise magic+ weapons have a chance to roll a random one.
+    let element;
+    if (base.type === 'weapon' && rarity !== 'common') {
+      const lkFx = base.look && GEAR_LOOKS[base.look] && FX_TO_ELEM[GEAR_LOOKS[base.look].fx];
+      if (lkFx && lkFx !== 'physical') element = lkFx;
+      else if (roll(rarity === 'mythic' ? 0.9 : rarity === 'unique' ? 0.7 : rarity === 'rare' ? 0.45 : 0.3)) element = pick(ELEM_LIST);
+    }
     return {
       id: 'i_' + Math.random().toString(36).slice(2, 9),
       baseId,
@@ -1290,6 +1338,7 @@
       ilvl,
       sockets,
       gems: [],
+      element,
       name: buildItemName(base, rarity, affixes),
     };
   }
@@ -1387,6 +1436,9 @@
   // Procedural dungeon: rooms-and-corridors
   function generateDungeon(biome, floor, opts) {
     opts = opts || {};
+    // Set the active biome up front so makeEnemy() can stamp the right elemental theme
+    // on enemies as they spawn during generation (callers re-affirm this afterwards).
+    if (biome && biome.id) game.activeBiomeId = biome.id;
     // Bigger maps that grow with depth — deeper floors / rifts feel grander
     const sizeBoost = Math.min(20, Math.max(0, floor - 1) * 2);
     const W = 58 + sizeBoost, H = 58 + sizeBoost;
@@ -1679,6 +1731,10 @@
       eliteAffix: null,
       eliteColor: null,
     };
+    // Elemental theme: per-enemy override, else the biome's element (so each zone has a
+    // weakness to exploit + an attack element to resist). Absent = neutral/physical.
+    const el = ENEMY_ELEM[id] || BIOME_ELEM[game.activeBiomeId];
+    if (el) { e.weak = el.weak || null; e.resist = el.resist || null; e.element = el.element || null; }
     // 8% chance for a non-boss to become an elite — significantly tougher with affix
     if (!e.boss && id !== 'goblin' && roll(0.08)) makeElite(e);
     return e;
@@ -1832,7 +1888,7 @@
   }
   // Enemy deals damage to the player, applying any curse the attacker carries.
   function enemyHitPlayer(e, dmg) {
-    damagePlayer(dmg);
+    damagePlayer(dmg, e && e.element);
     if (game.char.hp <= 0) return;
     const curse = enemyCurse(e);
     if (curse) applyCurse(curse);
@@ -3150,7 +3206,13 @@
   function hitEnemy(e, baseDmg, critPct) {
     const isCrit = roll((critPct || 5) / 100);
     const runeMul = game._skillDmgMul || 1;  // active only during a rune-augmented skill cast
-    const dmg = Math.max(1, Math.floor(baseDmg * runeMul * (isCrit ? 1.8 : 1) * (0.85 + rand() * 0.3)));
+    let dmg = Math.max(1, Math.floor(baseDmg * runeMul * (isCrit ? 1.8 : 1) * (0.85 + rand() * 0.3)));
+    // Elemental: your weapon's element vs this enemy's weakness (+50%) / resistance (-50%).
+    const pElem = playerElement();
+    if (pElem !== 'physical') {
+      if (e.weak === pElem)        { dmg = Math.floor(dmg * 1.5); floatText('WEAK', e.x + (rand() - 0.5) * 0.3, e.y - 0.75, 'crit'); }
+      else if (e.resist === pElem) { dmg = Math.max(1, Math.floor(dmg * 0.5)); floatText('RESIST', e.x + (rand() - 0.5) * 0.3, e.y - 0.75, 'xp'); }
+    }
     e.hp -= dmg;
     if (isCrit) sfxT('crit', 55); else sfxT('enemyHit', 45);
     e.hitFlash = 0.18;
@@ -3490,7 +3552,7 @@
       } else {
         const pl = game.world.player;
         if (dist(pl, p) < 0.45) {
-          damagePlayer(p.dmg);
+          damagePlayer(p.dmg, (BIOME_ELEM[game.activeBiomeId] || {}).element);
           if (p.curse && game.char.hp > 0) applyCurse(p.curse);  // cursing elite's projectile
           game.projectiles.splice(i, 1);
           burst(p.x, p.y, p.color, 8);
@@ -3522,7 +3584,7 @@
         if (p) {
           const dx = p.x - tg.x, dy = p.y - tg.y;
           if (dx * dx + dy * dy <= tg.radius * tg.radius) {
-            damagePlayer(tg.dmg);
+            damagePlayer(tg.dmg, (BIOME_ELEM[game.activeBiomeId] || {}).element);
           }
         }
         burst(tg.x, tg.y, tg.color, 22);
@@ -3842,7 +3904,7 @@
             break; // passive — see hitEnemy
           case 'voidpulse': // Void Lord boss: AoE pulse that damages in radius
             if (d < 5) {
-              damagePlayer(Math.floor(e.dmg * 0.6));
+              damagePlayer(Math.floor(e.dmg * 0.6), e.element);
               burst(e.x, e.y, '#b388ff', 20);
               game.screenShake = 0.25;
               // emit ring particles
@@ -3980,7 +4042,7 @@
   // ============================================================
   // PLAYER DAMAGE / DEATH
   // ============================================================
-  function damagePlayer(rawDmg) {
+  function damagePlayer(rawDmg, element) {
     if (game.char.hp <= 0) return; // already dead — prevent multiple death triggers
     // Shrine of Warding: total invulnerability
     if (game.activeBuffs && game.activeBuffs.invuln > 0) {
@@ -3989,6 +4051,8 @@
     }
     const d = derived(game.char);
     let dmg = Math.max(1, Math.floor(rawDmg - d.def * 0.5));
+    // Elemental resistance cuts incoming elemental damage (dungeon-monster attacks).
+    if (element && element !== 'physical' && d.res > 0) dmg = Math.max(1, Math.floor(dmg * (1 - d.res / 100)));
     // Shield Wall: 70% damage reduction
     const p = game.world.player;
     if (p.shieldWall && p.shieldWall > 0) {
@@ -7560,6 +7624,8 @@
       ['MP',       `${Math.ceil(c.mp)} / ${d.mpMax}`],
       ['Crit',     `${d.crit}% · ${b.critDmgPct || 180}% dmg`],
       ['Atk Spd',  d.aspd.toFixed(2)],
+      ['Element',  (function(){ const e = playerElement(); const el = ELEMENTS[e]; return el && e !== 'physical' ? `<span style="color:${el.color}">${el.icon} ${el.name}</span>` : 'Physical'; })()],
+      ['Resist',   `${d.res}% elemental`],
       ['Gold',     c.gold + 'g'],
       ['STR',      fmtStat(c.stats.str, d.bonusStats.str, para.str)],
       ['INT',      fmtStat(c.stats.int, d.bonusStats.int, para.int)],
@@ -8778,6 +8844,7 @@
       <div class="item-name rarity-${it.rarity}">${it.name}</div>
       <div class="item-type">${base.type} · ilvl ${it.ilvl} · ${it.rarity.toUpperCase()}</div>
       ${baseLines.map(l => `<div class="item-affix">${l}</div>`).join('')}
+      ${(base.type === 'weapon' && weaponElement(it) !== 'physical') ? (function(){ const el = ELEMENTS[weaponElement(it)]; return `<div class="item-affix" style="color:${el.color}">${el.icon} ${el.name} damage</div>`; })() : ''}
       ${(it.affixes || []).map(a => `<div class="item-affix">+${a.val} ${a.label}</div>`).join('')}
       ${socketInfo}
       ${setInfo}
