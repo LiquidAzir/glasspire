@@ -1850,41 +1850,71 @@ export function buildNpc(opts) {
   return g;
 }
 
+// Strengthened: bolder cross-buttressed gothic plinth + flared brazier bowl, carved glowing rune band on the shaft, and a brighter layered flame with rising ember sparks as the single iconic bright accent.
 export function buildDecor(opts) {
   const c = (opts && opts.color) || '#ff7a2a';
   const g = new T.Group();
   const stone = mat('#3a3540', 0.9);
   const stoneLip = mat('#4a4450', 1);
+  const stoneDark = mat('#2a2630', 1);
 
-  // Angular stepped stone base — gothic plinth.
-  const base = m(box(0.5, 0.18, 0.5), stone); base.position.set(0, 0.09, 0);
-  const step = m(box(0.38, 0.14, 0.38), stoneLip); step.position.set(0, 0.25, 0);
-  // Tapered pedestal column.
-  const column = m(cyl(0.1, 0.16, 0.5, 6), stone); column.position.set(0, 0.57, 0);
-  // Faceted bowl that cradles the flame.
-  const bowl = m(cyl(0.26, 0.12, 0.18, 6), stoneLip); bowl.position.set(0, 0.86, 0);
-  // Rim accent lit by the fire below.
-  const rim = m(cyl(0.27, 0.24, 0.05, 6), matAdd(c, 0.45)); rim.position.set(0, 0.93, 0);
+  // --- BOLD GOTHIC PLINTH: chunky stepped base + cross buttresses for a wider, heavier footprint that reads as a landmark.
+  const base = m(geo('decorBase', () => box(0.58, 0.2, 0.58)), stoneDark); base.position.set(0, 0.1, 0);
+  const buttressN = m(geo('decorButtress', () => box(0.16, 0.16, 0.7)), stone); buttressN.position.set(0, 0.1, 0);
+  const buttressE = m(geo('decorButtress', () => box(0.16, 0.16, 0.7)), stone); buttressE.position.set(0, 0.1, 0); buttressE.rotation.y = Math.PI / 2;
+  const step = m(geo('decorStep', () => box(0.42, 0.16, 0.42)), stoneLip); step.position.set(0, 0.28, 0);
 
-  // Layered additive flame: core + outer tongue for a flickering gothic fire.
-  const ember = m(box(0.22, 0.1, 0.22), matAdd(c, 0.55)); ember.position.set(0, 0.95, 0);
-  const flame = m(cone(0.18, 0.4, 6), matAdd(c, 0.85)); flame.position.set(0, 1.18, 0);
-  const flameInner = m(cone(0.1, 0.26, 5), matAdd('#ffe0a0', 0.95)); flameInner.position.set(0, 1.12, 0);
-  // Soft glow halo around the fire.
-  const glow = m(box(0.46, 0.5, 0.46), matAdd(c, 0.25)); glow.position.set(0, 1.12, 0);
+  // --- TAPERED PEDESTAL COLUMN (taller, stronger taper for a confident vertical silhouette).
+  const column = m(geo('decorColumn', () => cyl(0.11, 0.19, 0.62, 6)), stone); column.position.set(0, 0.67, 0);
+  // Carved rune band: a faceted ring of emissive glyph-light wrapping the shaft — bright accent that reads at small size.
+  const runeBand = m(geo('decorRuneBand', () => cyl(0.2, 0.2, 0.1, 6)), matAdd(c, 0.7)); runeBand.position.set(0, 0.62, 0);
 
-  g.add(base, step, column, bowl, rim, ember, glow, flame, flameInner);
+  // --- FLARED FACETED BRAZIER BOWL (bigger flare = stronger landmark read).
+  const bowl = m(geo('decorBowl', () => cyl(0.34, 0.13, 0.22, 6)), stoneLip); bowl.position.set(0, 1.04, 0);
+  const rim = m(geo('decorRim', () => cyl(0.36, 0.31, 0.06, 6)), matAdd(c, 0.5)); rim.position.set(0, 1.13, 0);
+
+  // --- LAYERED ADDITIVE FLAME: glowing coals + outer tongue + hot white core (the iconic bright accent).
+  const ember = m(geo('decorEmber', () => box(0.28, 0.12, 0.28)), matAdd(c, 0.6)); ember.position.set(0, 1.16, 0);
+  const flame = m(geo('decorFlame', () => cone(0.22, 0.5, 6)), matAdd(c, 0.9)); flame.position.set(0, 1.45, 0);
+  const flameInner = m(geo('decorFlameInner', () => cone(0.12, 0.32, 5)), matAdd('#ffe6b0', 0.98)); flameInner.position.set(0, 1.38, 0);
+  const halo = m(geo('decorHalo', () => box(0.56, 0.62, 0.56)), matAdd(c, 0.22)); halo.position.set(0, 1.4, 0);
+
+  // --- RISING EMBER SPARKS: a few tiny bright cubes that float up and recycle — lively, cheap, bright.
+  const sparkGeo = geo('decorSpark', () => box(0.05, 0.05, 0.05));
+  const sparkMat = matAdd('#ffd070', 0.95);
+  const sparks = [];
+  for (let i = 0; i < 4; i++) {
+    const s = m(sparkGeo, sparkMat);
+    s.userData.seed = i * 1.9;
+    s.userData.ox = (i % 2 ? 1 : -1) * 0.08;
+    sparks.push(s);
+    g.add(s);
+  }
+
+  g.add(base, buttressN, buttressE, step, column, runeBand, bowl, rim, ember, halo, flame, flameInner);
 
   g.userData.anim = function (g, now) {
     // Independent flicker on the two flame layers + breathing glow.
-    const f1 = 0.85 + Math.sin(now / 130) * 0.18 + Math.sin(now / 47) * 0.06;
-    const f2 = 0.9 + Math.sin(now / 90 + 1.7) * 0.2;
+    const f1 = 0.85 + Math.sin(now / 130) * 0.2 + Math.sin(now / 47) * 0.07;
+    const f2 = 0.9 + Math.sin(now / 90 + 1.7) * 0.22;
     flame.scale.set(1, f1, 1);
-    flame.position.x = Math.sin(now / 200) * 0.02;
+    flame.position.x = Math.sin(now / 200) * 0.025;
     flameInner.scale.set(1, f2, 1);
-    flameInner.position.x = Math.sin(now / 160 + 0.6) * 0.025;
-    glow.scale.setScalar(0.92 + Math.sin(now / 240) * 0.1);
-    ember.scale.setScalar(0.95 + Math.sin(now / 110) * 0.08);
+    flameInner.position.x = Math.sin(now / 160 + 0.6) * 0.03;
+    halo.scale.setScalar(0.92 + Math.sin(now / 240) * 0.12);
+    ember.scale.setScalar(0.95 + Math.sin(now / 110) * 0.1);
+    // Rune band shimmers as the fire above breathes.
+    runeBand.scale.x = runeBand.scale.z = 1 + Math.sin(now / 300) * 0.04;
+    // Rising, recycling ember sparks.
+    for (let i = 0; i < sparks.length; i++) {
+      const s = sparks[i];
+      const t = ((now / 1000) * (0.6 + i * 0.08) + s.userData.seed) % 1;
+      s.position.y = 1.2 + t * 0.7;
+      s.position.x = s.userData.ox + Math.sin(now / 220 + s.userData.seed) * 0.05;
+      s.position.z = Math.cos(now / 260 + s.userData.seed) * 0.05;
+      const fade = 1 - t;
+      s.scale.setScalar(0.4 + fade * 0.9);
+    }
   };
   return g;
 }
