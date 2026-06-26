@@ -488,7 +488,7 @@ const enemyLayer = makeLayer(
   e => ({ fn: 'buildEnemy_' + (e.shape || 'skeleton'), opts: { color: e.eliteColor || e.color || '#cfcfcf' } }),
   (slot, e, now) => {
     place(slot, e, now, 0, e.shape === 'plant' ? 0 : 0.03);
-    slot.obj.scale.setScalar(e.boss ? 1.6 : (e.elite ? 1.18 : (e._isSplit ? 0.7 : 1)));
+    slot.obj.scale.setScalar(e.boss ? 1.6 : (e.champion ? 1.42 : (e.elite ? 1.18 : (e.hazard ? 0.85 : (e._isSplit ? 0.7 : 1)))));
   }
 );
 const itemLayer = makeLayer(

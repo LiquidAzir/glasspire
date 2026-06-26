@@ -1839,6 +1839,30 @@
       }
     }
 
+    // CHAMPION mini-boss — most non-boss maps host one named champion among the pack.
+    if (!isBossFloor && enemies.length > 3 && roll(0.7)) {
+      const cand = enemies.filter(e => !e.elite && !e.boss && e.id !== 'goblin');
+      if (cand.length) makeChampion(pick(cand));
+    }
+    // VOLATILE CRYSTAL hazards — inert, low-HP props you shatter to blast nearby foes.
+    if (!isBossFloor && !opts.isRift) {
+      const nHaz = irand(1, 2);
+      for (let h = 0; h < nHaz && enemies.length < ENEMY_CAP; h++) {
+        const rr = pick(rooms.filter(r => r !== first) || rooms);
+        if (!rr) break;
+        const hx = rr.cx + 0.5 + (rand() - 0.5) * 2, hy = rr.cy + 0.5 + (rand() - 0.5) * 2;
+        const gx = Math.floor(hx), gy = Math.floor(hy);
+        if (gx <= 0 || gx >= W - 1 || gy <= 0 || gy >= H - 1 || grid[gy][gx] !== 0) continue;
+        const cz = makeEnemy(biome.enemies[0] || 'skeleton', hx, hy, floor);
+        cz.hazard = true; cz.inert = true; cz.speed = 0; cz.dmg = 0; cz.range = 0;
+        cz.hp = 1; cz.hpMax = 1; cz.xp = 0; cz.goldRange = [0, 0];
+        cz.shape = 'crystal';   // render as a crystal regardless of source enemy
+        cz.name = 'Volatile Crystal'; cz.color = '#ff7a3c'; cz.eliteColor = '#ff7a3c';
+        cz.hazDmg = Math.floor(12 * (1 + floor * 0.35) * (curDifficulty().dmgMul || 1));
+        enemies.push(cz);
+      }
+    }
+
     return {
       kind: 'dungeon',
       name: opts.isRift ? `GREATER RIFT ${floor}` : `${biome.shortName} — Floor ${floor}${isBossFloor ? ' (Boss)' : ''}`,
@@ -2000,6 +2024,22 @@
     e.xp = Math.floor(e.xp * 2);
     e.goldRange = [e.goldRange[0] * 2, e.goldRange[1] * 2];
     if (def.speedMul) e.speed *= def.speedMul;
+    return e;
+  }
+
+  // CHAMPION mini-bosses — a tier above elites: named, much tougher, telegraph a
+  // ground-slam, and drop extra loot. Built on the elite kit (affix + rare drop).
+  const CHAMP_NAMES = ['Gravewarden', 'Bonecrusher', 'Ashfang', 'Direlord Mortis', 'Skullbinder', 'Rotmaw', 'The Pale Tyrant', 'Grimhowl', 'Voidcaller Xul', 'Dreadmaw', 'The Hollow Warden', 'Sablefang'];
+  function makeChampion(e) {
+    if (e.boss || e.champion) return e;
+    if (!e.elite) makeElite(e);              // inherit an affix + the guaranteed rare drop
+    e.champion = true;
+    e.name = pick(CHAMP_NAMES);
+    e.hp = Math.floor(e.hp * 1.9); e.hpMax = e.hp;
+    e.dmg = Math.floor(e.dmg * 1.25);
+    e.xp = Math.floor(e.xp * 2.2);
+    e.goldRange = [e.goldRange[0] * 2, e.goldRange[1] * 2];
+    e.champTele = 3 + rand() * 2;            // first telegraphed slam after a few seconds
     return e;
   }
 
@@ -3661,6 +3701,15 @@
   function killEnemy(e, fromCombo) {
     if (e._dead) return;   // guard against double-processing (combo chains, overlapping DoTs)
     e._dead = true;
+    // Volatile Crystal hazard: shatter into an AoE blast that damages nearby ENEMIES; no rewards.
+    if (e.hazard) {
+      sfx('cleave'); burst(e.x, e.y, '#ff7a3c', 26); burst(e.x, e.y, '#ffc857', 14);
+      game.screenShake = Math.max(game.screenShake, 0.25);
+      for (let j = 0; j < 14; j++) { const a = (j / 14) * PI2; addParticle({ x: e.x, y: e.y, vx: Math.cos(a) * 5, vy: Math.sin(a) * 5, color: j % 2 ? '#ff7a3c' : '#ffc857', life: 0.45 + rand() * 0.3, age: 0, size: 2.5 + rand() * 2 }); }
+      const targets = game.enemies.filter(o => o !== e && !o.hazard && dist(o, e) <= 2.6);
+      for (const o of targets) hitEnemy(o, e.hazDmg || 20, false);
+      return;
+    }
     sfx(e.boss ? 'bossDie' : 'enemyDie');
     burst(e.x, e.y, e.color, e.boss ? 35 : 20);
     burst(e.x, e.y, '#ffffff', e.boss ? 12 : 5);
@@ -3820,6 +3869,16 @@
         addParticle({ x: e.x, y: e.y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp,
           color: e.eliteColor || '#ffd166', life: 0.6 + rand() * 0.3, age: 0, size: 3 });
       }
+    }
+
+    // CHAMPION mini-boss: a name announce + a bonus high-rarity drop (on top of the elite rare) + a Glass Tear
+    if (e.champion) {
+      showHudToast(e.name + ' slain!');
+      sfx('legendary');
+      const cr = roll(0.4) ? 'unique' : 'rare';
+      const citem = rollItem(Math.max(1, e.ilvl + 2 + dropIlvlBonus), cr, { preferLegendary: cr === 'unique' });
+      if (citem) { game.items.push({ x: e.x + 0.4, y: e.y, item: citem, age: 0 }); setTimeout(() => floatText(citem.name, e.x, e.y - 1.0, 'loot'), 320); }
+      game.char.glassTears = (game.char.glassTears || 0) + 1;
     }
 
     // Item drops — bosses get treasure hoard, normal enemies have a chance
@@ -4122,6 +4181,21 @@
           // Slowly regenerate
           e.hp = Math.min(e.hpMax, e.hp + dt * 1.5);
         }
+      }
+
+      // Champion mini-boss: announce on approach + periodic telegraphed ground slam
+      if (e.champion) {
+        if (!e._announced && dist(e, p) < 8) { e._announced = true; showHudToast('⚔ Champion: ' + e.name); sfx('boss'); }
+        e.champTele -= dt;
+        if (e.champTele <= 0 && dist(e, p) < 9) {
+          e.champTele = 5 + rand() * 2;
+          spawnTelegraph(p.x, p.y, 2.4, 1.0, Math.floor(e.dmg * 1.8), e.eliteColor || '#ff4d6d');
+        }
+      }
+      // Inert hazards (Volatile Crystals): just glow faintly; no movement or attacks.
+      if (e.inert) {
+        if (rand() < 0.3) addParticle({ x: e.x + (rand() - 0.5) * 0.5, y: e.y - 0.2, vx: 0, vy: -1, color: '#ff7a3c', life: 0.4, age: 0, size: 1.6 });
+        continue;
       }
 
       // Tick status effects (burn DoT, poison DoT-stacks)
