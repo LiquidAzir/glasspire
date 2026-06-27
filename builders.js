@@ -4750,6 +4750,100 @@ export function buildPlayer_summoner(opts){
 // UPGRADED BOSS MODELS (workflow) — impressive lich/archdemon/voidlord/wyrm.
 // =============================================================
 
+export function buildPlayer_paladin(opts) {
+  // Holy knight — gold plate, a glowing cross emblem, winged great-helm + a floating halo.
+  const g = new T.Group();
+  // UNIQUE recolor materials (engine recolors these live; never cache)
+  const bodyMat = new T.MeshBasicMaterial({ color: 0x4a5474, fog: true });   // -> class color (gilded plate)
+  const trimMat = new T.MeshBasicMaterial({ color: 0xffd45e, fog: false, transparent: true, opacity: 0.95, blending: T.AdditiveBlending, depthWrite: false }); // -> rarity accent (holy trim)
+  const eyeMat  = new T.MeshBasicMaterial({ color: 0xfff0b0, fog: false, transparent: true, opacity: 1, blending: T.AdditiveBlending, depthWrite: false });
+  const haloMat = new T.MeshBasicMaterial({ color: 0xffe08a, fog: false, transparent: true, opacity: 0.8, blending: T.AdditiveBlending, depthWrite: false }); // unique animated halo
+
+  const dark  = mat('#141821');
+  const steel = mat('#26303f');
+
+  // ===== LEGS (greaves + sabatons) — children bolted on so each thigh is ONE walk-rotated mesh =====
+  const lThigh = m(box(0.20, 0.30, 0.22), bodyMat); lThigh.position.set(-0.15, 0.30, 0);
+  const rThigh = m(box(0.20, 0.30, 0.22), bodyMat); rThigh.position.set(0.15, 0.30, 0);
+  const lGreave = m(box(0.17, 0.26, 0.20), steel); lGreave.position.set(0, -0.26, 0.01); lThigh.add(lGreave);
+  const rGreave = m(box(0.17, 0.26, 0.20), steel); rGreave.position.set(0, -0.26, 0.01); rThigh.add(rGreave);
+  const lFoot = m(box(0.18, 0.10, 0.28), dark); lFoot.position.set(0, -0.36, 0.05); lThigh.add(lFoot);
+  const rFoot = m(box(0.18, 0.10, 0.28), dark); rFoot.position.set(0, -0.36, 0.05); rThigh.add(rFoot);
+  g.add(lThigh); g.add(rThigh);
+
+  // ===== FAULD + belt =====
+  const fauld = m(box(0.54, 0.16, 0.38), steel); fauld.position.set(0, 0.50, 0); g.add(fauld);
+  const belt = m(box(0.56, 0.05, 0.40), trimMat); belt.position.set(0, 0.58, 0); g.add(belt);
+
+  // ===== CUIRASS + glowing CROSS emblem (the paladin signature) =====
+  const cuirass = m(box(0.58, 0.48, 0.38), bodyMat); cuirass.position.set(0, 0.84, 0); g.add(cuirass);
+  const gorget = m(box(0.32, 0.12, 0.30), steel); gorget.position.set(0, 1.10, 0); g.add(gorget);
+  const crossV = m(box(0.10, 0.30, 0.06), trimMat); crossV.position.set(0, 0.86, 0.20); g.add(crossV);
+  const crossH = m(box(0.26, 0.10, 0.06), trimMat); crossH.position.set(0, 0.92, 0.20); g.add(crossH);
+
+  // ===== BROAD PAULDRONS (upward holy spikes) =====
+  function pauldron(side) {
+    const grp = new T.Group(); grp.position.set(side * 0.38, 1.00, 0);
+    const cap = m(box(0.30, 0.20, 0.36), bodyMat); cap.position.set(side * 0.04, 0, 0); cap.rotation.z = side * 0.28; grp.add(cap);
+    const rune = m(box(0.32, 0.04, 0.38), trimMat); rune.position.set(side * 0.04, -0.07, 0); rune.rotation.z = side * 0.28; grp.add(rune);
+    const spike = m(cone(0.06, 0.22, 4), trimMat); spike.position.set(side * 0.10, 0.16, 0); grp.add(spike);
+    return grp;
+  }
+  g.add(pauldron(-1)); g.add(pauldron(1));
+
+  // ===== GAUNTLETED ARMS =====
+  const lArm = m(box(0.16, 0.42, 0.17), bodyMat); lArm.position.set(-0.38, 0.82, 0);
+  const rArm = m(box(0.16, 0.42, 0.17), bodyMat); rArm.position.set(0.38, 0.82, 0);
+  const lVR = m(box(0.17, 0.04, 0.18), trimMat); lVR.position.set(0, -0.20, 0.02); lArm.add(lVR);
+  const rVR = m(box(0.17, 0.04, 0.18), trimMat); rVR.position.set(0, -0.20, 0.02); rArm.add(rVR);
+  const lFist = m(box(0.17, 0.15, 0.18), dark); lFist.position.set(0, -0.40, 0.03); lArm.add(lFist);
+  const rFist = m(box(0.17, 0.15, 0.18), dark); rFist.position.set(0, -0.40, 0.03); rArm.add(rFist);
+  g.add(lArm); g.add(rArm);
+
+  // ===== WINGED GREAT-HELM (visor slit + glowing eyes) =====
+  const head = new T.Group(); head.position.set(0, 1.06, 0); g.add(head);
+  const helm = m(box(0.28, 0.30, 0.30), bodyMat); helm.position.set(0, 0.10, 0); head.add(helm);
+  const crown = m(cone(0.18, 0.16, 5), bodyMat); crown.position.set(0, 0.28, 0); head.add(crown);
+  const visor = m(box(0.24, 0.08, 0.06), dark); visor.position.set(0, 0.10, 0.16); head.add(visor);
+  const slit = m(box(0.22, 0.03, 0.04), eyeMat); slit.position.set(0, 0.10, 0.175); head.add(slit);
+  const lEye = m(box(0.05, 0.05, 0.04), eyeMat); lEye.position.set(-0.06, 0.105, 0.18); head.add(lEye);
+  const rEye = m(box(0.05, 0.05, 0.04), eyeMat); rEye.position.set(0.06, 0.105, 0.18); head.add(rEye);
+  function wing(side) { const w = m(cone(0.05, 0.22, 4), trimMat); w.position.set(side * 0.17, 0.24, -0.02); w.rotation.z = side * -0.95; return w; }
+  head.add(wing(-1)); head.add(wing(1));
+  const crest = m(box(0.05, 0.18, 0.18), trimMat); crest.position.set(0, 0.30, 0); head.add(crest);
+
+  // ===== HALO (floating glowing ring above the head — animated) =====
+  const halo = m(geo('palHalo', () => new T.TorusGeometry(0.20, 0.025, 6, 18)), haloMat);
+  halo.position.set(0, 1.60, 0); halo.rotation.x = Math.PI / 2; g.add(halo);
+
+  // ===== HALF-CAPE =====
+  const cape = m(box(0.46, 0.52, 0.05), steel); cape.position.set(0, 0.78, -0.21); cape.rotation.x = 0.10; g.add(cape);
+  const capeHem = m(box(0.46, 0.05, 0.06), trimMat); capeHem.position.set(0, 0.53, -0.225); g.add(capeHem);
+
+  // ===== MOUNTS =====
+  const weaponMount = new T.Object3D(); weaponMount.position.set(0.42, 0.55, 0.12); g.add(weaponMount);
+  const backMount   = new T.Object3D(); backMount.position.set(0, 0.78, -0.20); g.add(backMount);
+  const headMount   = new T.Object3D(); headMount.position.set(0, 1.55, 0); g.add(headMount);
+  const chestMount  = new T.Object3D(); chestMount.position.set(0, 0.72, 0.18); g.add(chestMount);
+  const auraMount   = new T.Object3D(); auraMount.position.set(0, 0.02, 0); g.add(auraMount);
+
+  g.userData = {
+    weaponMount, backMount, headMount, chestMount, auraMount,
+    bodyMat, trimMat, eyeMat,
+    legs: [lThigh, rThigh],
+    arms: [lArm, rArm],
+    anim: (grp, now, moving) => {
+      const t = now * 0.002;
+      cuirass.position.y = 0.84 + Math.sin(t) * 0.02;
+      halo.rotation.z = now * 0.0015;                  // slow halo spin
+      haloMat.opacity = 0.6 + Math.sin(t * 1.6) * 0.25;
+      const flap = moving ? 0.16 : 0.05;
+      cape.rotation.x = 0.10 + Math.sin(t * 1.6) * flap;
+    }
+  };
+  return g;
+}
+
 // Strengthened: grander/taller lich — floating rune CROWN, brighter triple-layer focus orb + halo,
 // blazing eyes, broader spiked mantle, wider ground aura, and a richer channel/orbit anim hook.
 export function buildEnemy_caster(opts) {
@@ -8371,6 +8465,219 @@ export const CAST_ANIMS = {
     }
     if (ud.weaponMount) { ud.weaponMount.rotation.x = sEase * 0.5; }
   },
+  smite: (prog, pm, ud) => {
+  // SMITE: overhead one-hand strike — raise high (wind-up), SLAM down hard (release), recover.
+  let dy = 0, pitch = 0, lean = 0, sc = 1, shake = 0;
+  let armX = 0, armZ = 0, weapX = 0, weapZ = 0, legSplit = 0;
+  if (prog < 0.42) {
+    // WIND-UP: rise onto toes, lean back, sword raised high overhead
+    const t = prog / 0.42;
+    const e = Math.sin(t * Math.PI * 0.5);      // smooth 0->1
+    dy = 0.16 * e;
+    pitch = -0.30 * e;                           // lean back
+    lean = 0.10 * e;                             // slight cock to the side
+    armX = -2.45 * e;                            // weapon arm flung up & back
+    armZ = 0.18 * e;
+    weapX = -1.55 * e;                           // blade tipped back behind head
+    weapZ = -0.25 * e;
+    legSplit = 0.14 * e;                         // brace stance
+    sc = 1 + 0.04 * e;
+  } else if (prog < 0.60) {
+    // RELEASE: explosive slam straight down
+    const t = (prog - 0.42) / 0.18;
+    const d = t * t;                             // accelerate into the strike
+    dy = 0.16 * (1 - d) - 0.34 * d;              // drop & crouch into the blow
+    pitch = -0.30 * (1 - d) + 0.78 * d;          // whip forward & down
+    lean = 0.10 * (1 - d);
+    armX = -2.45 * (1 - d) + 1.05 * d;           // arm hammers down to front
+    armZ = 0.18 * (1 - d);
+    weapX = -1.55 * (1 - d) + 1.35 * d;          // blade swings down to strike
+    weapZ = -0.25 * (1 - d);
+    legSplit = 0.14 + 0.16 * d;                  // stance widens on impact
+    sc = 1 + 0.04 - 0.10 * d;
+  } else {
+    // RECOVERY: absorb the impact, settle upright with a residual shudder
+    const t = (prog - 0.60) / 0.40;
+    const rec = Math.sin(t * Math.PI * 0.5);
+    const settle = 1 - rec;
+    dy = -0.34 * settle;
+    pitch = 0.78 * settle * (1 - 0.4 * t);
+    armX = 1.05 * settle;
+    weapX = 1.35 * settle;
+    legSplit = (0.14 + 0.16) * settle;
+    sc = 1 - 0.10 * settle + 0.05 * Math.sin(Math.min(t * 1.6, 1) * Math.PI) * (1 - t);
+    shake = (1 - t) * 0.045 * Math.sin(t * Math.PI * 10);
+  }
+  pm.position.y += dy;
+  pm.rotation.x = pitch;
+  pm.rotation.z = lean + shake;
+  pm.scale.setScalar(sc);
+  if (ud.arms && ud.arms.length >= 2) {
+    // dominant (right) arm drives the strike; off arm braces low
+    ud.arms[0].rotation.x = armX;  ud.arms[0].rotation.z = armZ;
+    ud.arms[1].rotation.x = 0.30 * (armX < 0 ? -armX / 2.45 : 0) + 0.15;
+    ud.arms[1].rotation.z = -0.35;
+  }
+  if (ud.legs && ud.legs.length >= 2) {
+    ud.legs[0].rotation.z = legSplit;  ud.legs[1].rotation.z = -legSplit;
+    ud.legs[0].rotation.x = -legSplit * 0.5; ud.legs[1].rotation.x = legSplit * 0.5;
+  }
+  ud.weaponMount.rotation.x = weapX;
+  ud.weaponMount.rotation.z = weapZ;
+},
+  consecration: (prog, pm, ud, now, moving) => {
+  // CONSECRATION: plant feet wide, sweep both arms down to bless the ground with a slight reverent bow.
+  // Shape: settle/plant -> bow + arms sweep down (release) -> hold blessing -> rise/recover.
+  const plant = Math.min(1, prog / 0.18);                 // 0->1 feet plant & settle
+  const ease = plant * plant * (3 - 2 * plant);
+  const bowIn = Math.min(1, prog / 0.5);                  // descend into the bow
+  const release = prog > 0.5 ? (prog - 0.5) / 0.5 : 0;    // rise back up
+  const rise = release * release * (3 - 2 * release);
+  const bow = Math.sin(Math.min(1, bowIn) * Math.PI * 0.5) * (1 - rise); // 0->1->0 bow depth
+  const bless = Math.sin(prog * Math.PI);                 // 0->1->0 overall blessing swell
+  const settle = Math.sin(now * 0.02) * 0.012 * (1 - rise); // gentle reverent sway
+  // body: bow forward, crouch slightly into the plant, soft humble pulse
+  pm.rotation.x = bow * 0.5;
+  pm.rotation.z = settle;
+  pm.position.y += -ease * 0.12 - bow * 0.06 + rise * 0.04 * (1 - rise);
+  pm.scale.setScalar(1 + bless * 0.03);
+  if (ud.arms && ud.arms.length >= 2) {
+    // arms raise slightly on the plant, then SWEEP DOWN to bless the ground, palms toward earth
+    const lift = -0.7 * ease * (1 - bowIn);              // brief lift early
+    const sweep = bow;                                   // down-sweep tracks the bow
+    const ax = lift + sweep * 1.35;                      // swing forward+down
+    const az = 0.18 + sweep * 0.30;                      // hands drawn slightly inward/down
+    ud.arms[0].rotation.x = ax; ud.arms[1].rotation.x = ax;
+    ud.arms[0].rotation.z = az; ud.arms[1].rotation.z = -az;
+  }
+  if (ud.legs && ud.legs.length >= 2) {
+    // firm wide planted stance, braced through the blessing
+    const st = 0.20 * ease + bow * 0.10;
+    ud.legs[0].rotation.x = st; ud.legs[1].rotation.x = -st * 0.5;
+    ud.legs[0].rotation.z = 0.16 * ease; ud.legs[1].rotation.z = -0.16 * ease;
+  }
+  if (ud.weaponMount) {
+    // weapon lowered point-down, presented to the ground in offering, then drawn back up
+    ud.weaponMount.rotation.x = bow * 0.55 - lift_safe(rise);
+    ud.weaponMount.rotation.z = 0.1 * bless;
+  }
+  function lift_safe(r){ return r * 0.2; }
+},
+  shieldfaith: (prog, pm, ud, now, moving) => {
+  // brace: drop into a guard, raise arm/weapon across the body, settle
+  const plant = Math.min(1, prog / 0.2);                 // 0->1 drop into stance
+  const guard = Math.sin(Math.min(1, prog / 0.4) * Math.PI * 0.5); // arm comes across
+  const hold = prog > 0.25 && prog < 0.78 ? 1 : Math.max(0, 1 - Math.abs(prog - 0.5) / 0.5);
+  const settle = prog > 0.78 ? (prog - 0.78) / 0.22 : 0;
+  const es = settle * settle * (3 - 2 * settle);         // recovery smoothstep
+  const brace = guard * (1 - 0.55 * es);                 // ease out of the brace
+  const sway = Math.sin(now * 0.02) * 0.02 * hold;       // subtle holy tremor while holding
+
+  // crouch slightly and lean into the shield (forward toward +Z)
+  pm.position.y += -0.16 * plant * (1 - 0.5 * es);
+  pm.rotation.x = 0.16 * brace;                           // pitch forward, bracing
+  pm.rotation.z = -0.1 * brace + sway;                    // slight side lean behind the guard
+
+  if (ud.arms && ud.arms.length >= 2) {
+    // lead (left) arm sweeps UP and ACROSS the body to hold the barrier
+    ud.arms[0].rotation.x = -1.6 * brace;                 // raised forward/up
+    ud.arms[0].rotation.z = 0.95 * brace;                 // pulled across the chest
+    // trailing (right) arm tucks in tight behind
+    ud.arms[1].rotation.x = -0.35 * brace;
+    ud.arms[1].rotation.z = -0.3 * brace;
+  }
+  if (ud.legs && ud.legs.length >= 2) {
+    // wide braced stance, knees bent into the guard
+    const st = 0.28 * plant * (1 - 0.5 * es);
+    ud.legs[0].rotation.x = st; ud.legs[1].rotation.x = -st * 0.5;
+    ud.legs[0].rotation.z = 0.16 * plant; ud.legs[1].rotation.z = -0.16 * plant;
+  }
+  if (ud.weaponMount) {
+    // weapon raised vertical across the body like a ward
+    ud.weaponMount.rotation.z = 1.2 * brace;
+    ud.weaponMount.rotation.x = -0.3 * brace;
+    ud.weaponMount.rotation.y = 0.25 * brace;
+  }
+},
+  divineaura: (prog, pm, ud, now, moving) => {
+  // wind-up: gather inward + slight crouch; release: arms FLUNG WIDE, chest+head tilt BACK radiating power; recovery: settle
+  const gather = Math.min(1, prog / 0.34);               // pull arms in, sink down
+  const eg = gather * gather * (3 - 2 * gather);
+  const burst = prog < 0.34 ? 0 : Math.min(1, (prog - 0.34) / 0.16); // the radiant flare
+  const eb = burst * burst * (3 - 2 * burst);
+  const settle = prog < 0.5 ? 0 : (prog - 0.5) / 0.5;     // recover to neutral
+  const open = eb * (1 - settle * 0.6);                   // how wide-open / radiant we are
+  const shimmer = Math.sin(now * 0.02) * 0.03 * open;     // gentle holy shimmer while open
+  const pulse = Math.sin(burst * Math.PI) * (1 - settle * 0.4);
+  // sink slightly on the gather, then RISE and tilt BACK on the radiant burst
+  pm.position.y += -eg * 0.12 * (1 - burst) + eb * 0.16 * (1 - settle * 0.5) + pulse * 0.04;
+  pm.rotation.x = eg * 0.10 * (1 - burst) - open * 0.40;  // gather forward a touch, then tilt WAY back
+  pm.rotation.z = shimmer;
+  pm.scale.setScalar(1 - eg * 0.05 * (1 - burst) + pulse * 0.10 + open * 0.04);
+  if (ud.arms && ud.arms.length >= 2) {
+    // gather: arms drawn in/down across chest. release: THROW both arms WIDE and back, palms-up
+    const inX = eg * 0.7 * (1 - burst);
+    const inZ = eg * 0.45 * (1 - burst);
+    // wide-open: big outward spread (z) + raised and pulled back (negative x)
+    const spread = inZ + open * 1.55;
+    const raise = -inX - open * 1.15;
+    ud.arms[0].rotation.x = raise;
+    ud.arms[1].rotation.x = raise;
+    ud.arms[0].rotation.z = spread + shimmer * 1.5;
+    ud.arms[1].rotation.z = -spread - shimmer * 1.5;
+    ud.arms[0].rotation.y = open * 0.35;
+    ud.arms[1].rotation.y = -open * 0.35;
+  }
+  if (ud.legs && ud.legs.length >= 2) {
+    // grounded stance: knees soften on the gather, plant firm and slightly braced on the burst
+    const soft = eg * 0.4 * (1 - burst);
+    const plant = open * 0.18;
+    ud.legs[0].rotation.x = soft - plant;
+    ud.legs[1].rotation.x = soft + plant;
+    ud.legs[0].rotation.z = plant * 0.8;
+    ud.legs[1].rotation.z = -plant * 0.8;
+  }
+  if (ud.weaponMount) {
+    // weapon lifts and tips back with the radiant tilt
+    ud.weaponMount.rotation.x = eg * 0.2 * (1 - burst) - open * 0.5;
+    ud.weaponMount.rotation.z = open * 0.2 + shimmer;
+    ud.weaponMount.position.y = open * 0.08;
+  }
+},
+  judgment: (prog, pm, ud, now, moving) => {
+  // Wind-up: rise onto toes, both arms raise weapon HIGH overhead. Release: hard forward SLAM down. Then recover.
+  const raise = Math.min(1, prog / 0.42);                 // 0->1 lift weapon overhead
+  const er = raise * raise * (3 - 2 * raise);
+  const slam = prog < 0.42 ? 0 : Math.min(1, (prog - 0.42) / 0.12); // the downward slam
+  const es = slam * slam * slam;                          // snappy drive
+  const settle = prog < 0.54 ? 0 : (prog - 0.54) / 0.46;  // recovery
+  const recoil = Math.sin(slam * Math.PI) * (1 - settle * 0.6);
+  const shake = settle > 0 ? (1 - settle) * 0.045 * Math.sin(settle * Math.PI * 8) : 0;
+  // body: lift up + lean back on wind-up, then pitch FORWARD and drop on slam, bob back up
+  pm.position.y += er * 0.20 * (1 - slam) - es * 0.42 * (1 - settle) + recoil * 0.05;
+  pm.rotation.x = -er * 0.30 * (1 - slam) + es * 0.62 * (1 - settle * 0.65);
+  pm.rotation.z = shake;
+  pm.scale.setScalar(1 + er * 0.04 * (1 - slam) - es * 0.05 * (1 - settle) + recoil * 0.04);
+  if (ud.arms && ud.arms.length >= 2) {
+    // both shoulders swing way UP and slightly inward (two-handed overhead grip), then chop DOWN forward
+    const up = -2.55 * er * (1 - slam);
+    const down = 0.55 * es * (1 - settle * 0.6);
+    ud.arms[0].rotation.x = up + down; ud.arms[1].rotation.x = up + down;
+    ud.arms[0].rotation.z = 0.22 * er * (1 - slam) + 0.08; ud.arms[1].rotation.z = -(0.22 * er * (1 - slam) + 0.08);
+  }
+  if (ud.legs && ud.legs.length >= 2) {
+    // braced wide stance, plants harder on the slam
+    const st = 0.18 * er + es * 0.30 * (1 - settle);
+    ud.legs[0].rotation.x = st; ud.legs[1].rotation.x = -st * 0.5;
+    ud.legs[0].rotation.z = 0.12 * er; ud.legs[1].rotation.z = -0.12 * er;
+  }
+  if (ud.weaponMount) {
+    // weapon thrust skyward on wind-up, then whipped down hard in front on the slam
+    ud.weaponMount.rotation.x = -1.9 * er * (1 - slam) + 1.6 * es * (1 - settle * 0.5);
+    ud.weaponMount.rotation.z = 0.0;
+    ud.weaponMount.position.y = 0.14 * er * (1 - slam) - 0.1 * es * (1 - settle);
+  }
+},
 };
 
 // WARRIOR — Whirlwind flourish: a spinning translucent blade-disc + streaks at waist height.
@@ -10805,5 +11112,583 @@ export function buildCastFx_gravegrasp(opts){
       moteMat.opacity = burst>0 ? (1-ph)*0.6 : 0;
     }
   };
+  return g;
+}
+
+
+export function buildCastFx_smite(opts) {
+  const c = (opts && opts.color) || "#ffd45e";
+  const g = new T.Group();
+  const Z = 1.5;          // pillar lands ~1.5 tiles ahead (+Z)
+  const PH = 4.2;         // pillar height
+  const newMat = (col, o) => new T.MeshBasicMaterial({ color: col, fog:false, transparent:true, opacity:o, blending:T.AdditiveBlending, depthWrite:false });
+
+  const coreMat = newMat("#ffffff", 0);   // bright white inner shaft
+  const pillarMat = newMat(c, 0);         // gold outer pillar
+  const ringMat = newMat(c, 0);           // expanding impact ring
+  const ring2Mat = newMat("#ffffff", 0);  // inner flash ring
+  const flashMat = newMat("#ffffff", 0);  // ground flare disc
+  const rayMat = newMat(c, 0);            // vertical light rays
+  const sparkMat = newMat(c, 0);          // upward sparks
+
+  // Outer holy pillar (tapered column) + bright inner core shaft
+  const pillar = m(geo("smitePillar", () => new T.CylinderGeometry(0.55, 0.78, 1.0, 24, 1, true)), pillarMat);
+  pillar.position.set(0, PH / 2, Z); g.add(pillar);
+  const core = m(geo("smiteCore", () => new T.CylinderGeometry(0.20, 0.30, 1.0, 16)), coreMat);
+  core.position.set(0, PH / 2, Z); g.add(core);
+
+  // Crown glow at the top where the light pours in from above
+  const crown = m(geo("smiteCrown", () => new T.SphereGeometry(0.5, 14, 10)), pillarMat);
+  crown.position.set(0, PH, Z); g.add(crown);
+
+  // Ground flare + double impact ring at the base
+  const flash = m(geo("smiteFlash", () => new T.CircleGeometry(0.85, 30)), flashMat);
+  flash.rotation.x = -Math.PI / 2; flash.position.set(0, 0.05, Z); g.add(flash);
+  const ring = m(geo("smiteRing", () => new T.RingGeometry(0.55, 1.0, 44)), ringMat);
+  ring.rotation.x = -Math.PI / 2; ring.position.set(0, 0.04, Z); g.add(ring);
+  const ring2 = m(geo("smiteRing2", () => new T.RingGeometry(0.22, 0.5, 36)), ring2Mat);
+  ring2.rotation.x = -Math.PI / 2; ring2.position.set(0, 0.06, Z); g.add(ring2);
+
+  // Vertical god-rays standing around the shaft
+  const rays = [];
+  for (let i = 0; i < 6; i++) {
+    const r = m(geo("smiteRay", () => new T.BoxGeometry(0.10, PH * 0.9, 0.10)), rayMat);
+    const a = (i / 6) * Math.PI * 2;
+    r.userData.a = a;
+    r.position.set(Math.cos(a) * 0.7, PH * 0.45, Z + Math.sin(a) * 0.7);
+    g.add(r); rays.push(r);
+  }
+
+  // Sparks flung up from the impact point
+  const sparks = [];
+  for (let i = 0; i < 8; i++) {
+    const sp = m(geo("smiteSpark", () => new T.BoxGeometry(0.07, 0.55, 0.07)), sparkMat);
+    sp.userData.a = (i / 8) * Math.PI * 2 + 0.2;
+    g.add(sp); sparks.push(sp);
+  }
+
+  g.userData.castAnim = (grp, prog, now) => {
+    const t = (now || 0) * 0.02;
+    if (prog < 0.55) {
+      // CHARGE: faint gathering glow at the crown, everything else dark
+      const ch = prog / 0.55;
+      const e = ch * ch;
+      coreMat.opacity = 0; pillarMat.opacity = 0.12 * e;
+      pillar.scale.set(0.4, 0.18 + 0.10 * e, 0.4);
+      pillar.position.y = PH - (PH * (0.18 + 0.10 * e)) / 2;
+      crown.material = pillarMat;
+      crown.scale.setScalar(0.4 + 0.9 * e + Math.sin(prog * 22) * 0.08);
+      crown.position.y = PH;
+      ringMat.opacity = 0; ring2Mat.opacity = 0; flashMat.opacity = 0; sparkMat.opacity = 0; rayMat.opacity = 0;
+    } else if (prog < 0.70) {
+      // CRASH: pillar slams down to the ground, blinding impact flare
+      const k = (prog - 0.55) / 0.15;
+      const drop = k * k;                       // accelerating descent
+      pillarMat.opacity = 0.95;
+      pillar.scale.set(1.0 + 0.2 * Math.sin(k * Math.PI), drop, 1.0 + 0.2 * Math.sin(k * Math.PI));
+      pillar.position.y = (PH * drop) / 2;       // base anchored at ground, top falling in
+      coreMat.opacity = 1.0;
+      core.scale.set(1.0, drop, 1.0);
+      core.position.y = (PH * drop) / 2;
+      crown.scale.setScalar(1.0 + 0.4 * Math.sin(k * Math.PI));
+      crown.position.y = PH * (1 - 0.15 * drop);
+
+      const b = Math.max(0, (k - 0.4) / 0.6);
+      flashMat.opacity = b;
+      flash.scale.setScalar(0.5 + 1.3 * b);
+      rayMat.opacity = 0.7 * drop;
+      for (let i = 0; i < rays.length; i++) {
+        const r = rays[i];
+        r.scale.y = drop;
+        r.position.y = (PH * 0.9 * drop) / 2;
+      }
+    } else {
+      // BURST + FADE: pillar blazes then fades, rings blast out, sparks fly up
+      const k = (prog - 0.70) / 0.30;
+      const fade = 1 - k;
+      const ef = fade * fade;
+
+      pillarMat.opacity = 0.95 * ef;
+      pillar.scale.set(1.0 + 0.6 * k, 1.0, 1.0 + 0.6 * k);
+      pillar.position.y = PH / 2;
+      coreMat.opacity = ef;
+      core.scale.set(1.0 - 0.3 * k, 1.0, 1.0 - 0.3 * k);
+      core.position.y = PH / 2;
+      crown.material = pillarMat;
+      crown.scale.setScalar(1.2 * ef);
+      crown.position.y = PH;
+
+      ringMat.opacity = 0.9 * ef;
+      ring.scale.setScalar(0.6 + 3.6 * k);
+      ring2Mat.opacity = 0.85 * ef;
+      ring2.scale.setScalar(0.5 + 2.4 * Math.min(k * 1.4, 1));
+
+      flashMat.opacity = Math.max(0, 1 - k * 2.4);
+      flash.scale.setScalar(1.4 + 1.6 * k);
+
+      rayMat.opacity = 0.7 * ef;
+      for (let i = 0; i < rays.length; i++) {
+        const r = rays[i];
+        r.scale.y = 1.0 + 0.3 * k;
+        r.position.y = (PH * 0.9 * (1.0 + 0.3 * k)) / 2;
+        const a = r.userData.a + t * 0.4;
+        const rad = 0.7 + 0.5 * k;
+        r.position.x = Math.cos(a) * rad;
+        r.position.z = Z + Math.sin(a) * rad;
+      }
+
+      sparkMat.opacity = 0.85 * ef;
+      const srad = 0.3 + 1.5 * k;
+      const sy = 0.1 + 2.4 * k * (1 - 0.35 * k);
+      for (let i = 0; i < sparks.length; i++) {
+        const sp = sparks[i];
+        sp.position.x = Math.cos(sp.userData.a) * srad;
+        sp.position.z = Z + Math.sin(sp.userData.a) * srad;
+        sp.position.y = sy;
+        sp.scale.y = 1.0 - 0.55 * k;
+      }
+    }
+  };
+
+  return g;
+}
+
+export function buildCastFx_consecration(opts){
+  // Radiant ground RING of holy light expanding around the feet + rising light motes + soft healing glow. Gold/white.
+  const c = (opts && opts.color) || '#ffd45e';
+  const g = new T.Group();
+  const mkg = () => new T.MeshBasicMaterial({ color: c, fog:false, transparent:true, opacity:0.0, depthWrite:false, blending:T.AdditiveBlending });
+  const mkw = () => new T.MeshBasicMaterial({ color: '#fff6d8', fog:false, transparent:true, opacity:0.0, depthWrite:false, blending:T.AdditiveBlending });
+
+  const ringMat = mkg(), rimMat = mkw(), innerMat = mkg(), glowMat = mkg(), flashMat = mkw(), runeMat = mkw(), moteMat = mkg();
+
+  // main radiant expanding ground ring
+  const ring = m(geo('cfxConRing', () => new T.RingGeometry(0.80, 1.02, 56)), ringMat);
+  ring.rotation.x = -Math.PI / 2; ring.position.y = 0.04; g.add(ring);
+
+  // bright white leading rim
+  const rim = m(geo('cfxConRim', () => new T.RingGeometry(0.97, 1.04, 56)), rimMat);
+  rim.rotation.x = -Math.PI / 2; rim.position.y = 0.05; g.add(rim);
+
+  // inner secondary ring
+  const inner = m(geo('cfxConInner', () => new T.RingGeometry(0.42, 0.56, 44)), innerMat);
+  inner.rotation.x = -Math.PI / 2; inner.position.y = 0.03; g.add(inner);
+
+  // soft healing ground glow disc filling the consecrated area
+  const glow = m(geo('cfxConGlow', () => new T.CircleGeometry(1.0, 36)), glowMat);
+  glow.rotation.x = -Math.PI / 2; glow.position.y = 0.02; g.add(glow);
+
+  // bright blessing flash at the moment of consecration
+  const flash = m(geo('cfxConFlash', () => new T.CircleGeometry(0.7, 30)), flashMat);
+  flash.rotation.x = -Math.PI / 2; flash.position.y = 0.025; g.add(flash);
+
+  // radiating holy "rune" spokes around the ring
+  const runes = [];
+  const R = 8;
+  for (let i = 0; i < R; i++) {
+    const rn = m(geo('cfxConRune', () => new T.PlaneGeometry(0.14, 0.5)), runeMat);
+    const a = (i / R) * Math.PI * 2;
+    rn.userData.a = a;
+    rn.rotation.x = -Math.PI / 2;
+    rn.position.y = 0.035;
+    g.add(rn);
+    runes.push(rn);
+  }
+
+  // rising light motes (soft healing sparks drifting upward)
+  const motes = [];
+  const M = 12;
+  for (let i = 0; i < M; i++) {
+    const mo = m(geo('cfxConMote', () => new T.OctahedronGeometry(0.075)), moteMat);
+    const a = (i / M) * Math.PI * 2 + 0.4;
+    mo.userData.a = a;
+    mo.userData.r = 0.4 + (i % 4) * 0.28;
+    mo.userData.h = 0.9 + (i % 5) * 0.22;
+    mo.userData.ph = i * 0.7;
+    g.add(mo);
+    motes.push(mo);
+  }
+
+  g.userData.castAnim = (grp, prog, now) => {
+    // blessing breaks open just past the bow, then the ring expands & fades
+    const snap = prog < 0.42 ? Math.max(0, prog / 0.42) : 1;
+    const wave = prog < 0.42 ? 0 : (prog - 0.42) / 0.58;
+    const fade = Math.max(0, 1 - wave);
+    const fade2 = fade * fade;
+    const swell = Math.sin(Math.min(1, prog / 0.42) * Math.PI * 0.5);
+
+    // main expanding ring
+    const r = 0.35 + wave * 3.2;
+    ring.scale.set(r, 1, r);
+    ring.rotation.z = wave * 0.4;
+    ringMat.opacity = 0.85 * fade * snap;
+
+    // leading white rim, races a touch faster
+    const rr = 0.35 + wave * 3.6;
+    rim.scale.set(rr, 1, rr);
+    rimMat.opacity = 0.9 * fade2 * snap;
+
+    // inner pulsing ring
+    const ri = 0.3 + wave * 1.9 + 0.08 * Math.sin((now || 0) * 0.012);
+    inner.scale.set(ri, 1, ri);
+    inner.rotation.z = -wave * 0.6;
+    innerMat.opacity = 0.55 * fade * snap;
+
+    // soft healing glow that lingers under the consecrated ground, gentle breathing pulse
+    const gs = 0.6 + swell * 1.4 + wave * 0.9;
+    glow.scale.set(gs, 1, gs);
+    glowMat.opacity = (0.30 + 0.12 * Math.sin((now || 0) * 0.01)) * (0.4 + 0.6 * swell) * (0.5 + 0.5 * fade);
+
+    // blessing flash, fast bloom then quick falloff
+    const fp = Math.sin(Math.min(1, snap) * Math.PI);
+    flashMat.opacity = 0.95 * fp * (1 - wave * 0.6);
+    const fs = 0.5 + snap * 1.3;
+    flash.scale.set(fs, 1, fs);
+
+    // rune spokes sweep outward with the ring, twinkling
+    runeMat.opacity = 0.8 * fade * snap;
+    const reach = 0.55 + wave * 2.6;
+    for (let i = 0; i < runes.length; i++) {
+      const rn = runes[i];
+      const a = rn.userData.a + wave * 0.3;
+      rn.position.x = Math.cos(a) * reach;
+      rn.position.z = Math.sin(a) * reach;
+      rn.rotation.z = -a;
+      const tw = 0.7 + 0.3 * Math.sin(prog * 26 + i);
+      const rs = (0.6 + wave * 0.9) * tw;
+      rn.scale.set(rs, rs, rs);
+    }
+
+    // rising healing motes drift up and gently outward, twinkling
+    moteMat.opacity = 0.85 * (0.4 + 0.6 * swell) * (0.5 + 0.5 * fade);
+    for (let i = 0; i < motes.length; i++) {
+      const mo = motes[i];
+      const a = mo.userData.a;
+      const climb = (Math.min(1, wave * 1.3) + mo.userData.ph * 0.04) % 1;
+      const mr = (0.4 + mo.userData.r) * (0.6 + wave * 0.5);
+      mo.position.x = Math.cos(a) * mr;
+      mo.position.z = Math.sin(a) * mr;
+      mo.position.y = 0.1 + mo.userData.h * climb;
+      const tw = 0.5 + 0.5 * Math.sin(prog * 34 + mo.userData.ph * 6);
+      const ms = (0.55 + swell * 0.6) * tw * (1 - 0.5 * climb);
+      mo.scale.set(ms, ms, ms);
+    }
+  };
+
+  return g;
+}
+
+export function buildCastFx_shieldfaith(opts){
+  const c = (opts && opts.color) || '#ffd45e';
+  const g = new T.Group();
+
+  // the barrier sits in front of the player (+Z), at chest height
+  const dome = new T.Group();
+  dome.position.set(0, 0.55, 0.85);
+  g.add(dome);
+
+  const R = 0.95;
+
+  // faceted holy hex shield face (point-up hexagon)
+  const faceMat = new T.MeshBasicMaterial({ color: c, fog:false, transparent:true, opacity:0.0, blending:T.AdditiveBlending, depthWrite:false });
+  const face = m(geo('shieldfaithFace', () => new T.CircleGeometry(R, 6)), faceMat);
+  face.rotation.z = Math.PI / 2;
+  dome.add(face);
+
+  // bright outer hex rim
+  const rimMat = new T.MeshBasicMaterial({ color: c, fog:false, transparent:true, opacity:0.0, blending:T.AdditiveBlending, depthWrite:false });
+  const rim = m(geo('shieldfaithRim', () => new T.RingGeometry(R * 0.9, R, 6, 1)), rimMat);
+  rim.rotation.z = Math.PI / 2;
+  rim.position.z = 0.01;
+  dome.add(rim);
+
+  // white-hot inner core glow
+  const coreMat = new T.MeshBasicMaterial({ color: '#fff7e0', fog:false, transparent:true, opacity:0.0, blending:T.AdditiveBlending, depthWrite:false });
+  const core = m(geo('shieldfaithCore', () => new T.CircleGeometry(R * 0.34, 6)), coreMat);
+  core.rotation.z = Math.PI / 2;
+  core.position.z = 0.02;
+  dome.add(core);
+
+  // radiating facet spokes (the "holy" cross-hatch of the barrier)
+  const spokes = [];
+  for (let i = 0; i < 6; i++) {
+    const sMat = new T.MeshBasicMaterial({ color: c, fog:false, transparent:true, opacity:0.0, blending:T.AdditiveBlending, depthWrite:false });
+    const spoke = m(box(0.05, R * 0.92, 0.05), sMat);
+    spoke.rotation.z = (i / 6) * Math.PI * 2;
+    spoke.position.z = 0.015;
+    spoke.userData.mat = sMat;
+    spoke.userData.ph = i * 1.05;
+    dome.add(spoke); spokes.push(spoke);
+  }
+
+  // shimmer hex ring that pulses outward across the face
+  const shimMat = new T.MeshBasicMaterial({ color: '#ffffff', fog:false, transparent:true, opacity:0.0, blending:T.AdditiveBlending, depthWrite:false });
+  const shim = m(geo('shieldfaithShim', () => new T.RingGeometry(R * 0.55, R * 0.66, 6, 1)), shimMat);
+  shim.rotation.z = Math.PI / 2;
+  shim.position.z = 0.025;
+  dome.add(shim);
+
+  // ground consecration ring at the player's feet
+  const baseMat = new T.MeshBasicMaterial({ color: c, fog:false, transparent:true, opacity:0.0, blending:T.AdditiveBlending, depthWrite:false });
+  const ground = m(geo('shieldfaithGround', () => new T.RingGeometry(0.45, 0.9, 6)), baseMat);
+  ground.rotation.x = -Math.PI / 2;
+  ground.position.set(0, 0.02, 0.7);
+  ground.scale.z = 0.65;
+  g.add(ground);
+
+  g.userData.castAnim = (grp, prog, now) => {
+    // raise from feet (0..0.22), shimmering hold, bright flare on release tail
+    const raise = Math.min(prog / 0.22, 1);
+    const er = raise * raise * (3 - 2 * raise);            // smoothstep up
+    const rel = prog > 0.8 ? (prog - 0.8) / 0.2 : 0;
+    const flare = rel > 0 ? Math.sin(rel * Math.PI) : 0;
+    const live = 1 - rel * 0.35;
+    const pulse = 0.5 + 0.5 * Math.sin(now * 0.008);
+
+    // dome rises up into place and seats with a tiny overshoot
+    dome.position.y = 0.18 + 0.37 * er;
+    dome.scale.setScalar(0.45 + 0.55 * er + 0.08 * flare);
+    dome.rotation.z = (1 - er) * -0.5;                     // un-tilts as it locks
+
+    faceMat.opacity = (0.18 + 0.12 * pulse) * er * live + 0.22 * flare;
+    rimMat.opacity = (0.6 + 0.32 * pulse) * er * live + 0.55 * flare;
+    coreMat.opacity = (0.45 + 0.3 * pulse) * er * live + 0.6 * flare;
+    baseMat.opacity = (0.4 + 0.25 * pulse) * er * live;
+
+    // spokes light up in a radial sweep
+    for (let i = 0; i < spokes.length; i++) {
+      const sm = spokes[i].userData.mat;
+      const tw = 0.5 + 0.5 * Math.sin(now * 0.007 + spokes[i].userData.ph);
+      sm.opacity = (0.3 + 0.4 * tw) * er * live + 0.5 * flare;
+    }
+
+    // shimmer ring breathes outward
+    const sw = 0.5 + 0.5 * Math.sin(now * 0.006);
+    shim.scale.setScalar((0.7 + 0.5 * sw) * er);
+    shimMat.opacity = (0.25 + 0.3 * sw) * er * live + 0.5 * flare;
+  };
+
+  return g;
+}
+
+export function buildCastFx_divineaura(opts) {
+  // concentric expanding rings of holy light radiating outward + a rising column of light, gold/white
+  const c = (opts && opts.color) || "#ffd45e";
+  const g = new T.Group();
+  const mk = (col) => new T.MeshBasicMaterial({ color: col || c, fog:false, transparent:true, opacity:0.0, blending:T.AdditiveBlending, depthWrite:false });
+
+  // three concentric ground rings staggered in time
+  const rings = [];
+  const RN = 3;
+  for (let i = 0; i < RN; i++) {
+    const rm = mk();
+    const r = m(geo("divineauraRing" + i, () => new T.RingGeometry(0.80, 1.0, 56)), rm);
+    r.rotation.x = -Math.PI / 2;
+    r.position.y = 0.03 + i * 0.005;
+    r.userData.mat = rm;
+    r.userData.delay = i * 0.16;
+    g.add(r);
+    rings.push(r);
+  }
+
+  // bright thin leading rim that races out ahead, near-white
+  const rimMat = mk("#fff6da");
+  const rim = m(geo("divineauraRim", () => new T.RingGeometry(0.95, 1.02, 56)), rimMat);
+  rim.rotation.x = -Math.PI / 2; rim.position.y = 0.05; g.add(rim);
+
+  // ground glow disc at the feet
+  const discMat = mk();
+  const disc = m(geo("divineauraDisc", () => new T.CircleGeometry(0.7, 32)), discMat);
+  disc.rotation.x = -Math.PI / 2; disc.position.y = 0.02; g.add(disc);
+
+  // rising column of light (tapered, near-white core)
+  const colMat = mk("#fff2cc");
+  const col = m(geo("divineauraCol", () => new T.CylinderGeometry(0.16, 0.42, 2.6, 24, 1, true)), colMat);
+  col.position.y = 1.3; g.add(col);
+
+  // soft outer column halo, gold
+  const haloMat = mk();
+  const halo = m(geo("divineauraHalo", () => new T.CylinderGeometry(0.34, 0.7, 2.4, 24, 1, true)), haloMat);
+  halo.position.y = 1.2; g.add(halo);
+
+  // motes of light streaking UP the column
+  const motes = [];
+  const MN = 9;
+  for (let i = 0; i < MN; i++) {
+    const mm = mk(i % 2 ? "#fff6da" : c);
+    const mo = m(geo("divineauraMote", () => new T.OctahedronGeometry(0.08)), mm);
+    mo.userData.mat = mm;
+    mo.userData.a = (i / MN) * Math.PI * 2;
+    mo.userData.r = 0.22 + (i % 3) * 0.12;
+    mo.userData.ph = i / MN;
+    g.add(mo);
+    motes.push(mo);
+  }
+
+  g.userData.castAnim = (grp, prog, now) => {
+    const open = prog < 0.34 ? 0 : Math.min(1, (prog - 0.34) / 0.12); // burst gate
+    const wave = prog < 0.30 ? 0 : (prog - 0.30) / 0.70;
+    const fadeAll = Math.max(0, 1 - Math.max(0, (prog - 0.6) / 0.4));  // overall tail-off
+
+    // expanding concentric rings
+    for (let i = 0; i < rings.length; i++) {
+      const r = rings[i];
+      const w = Math.max(0, wave - r.userData.delay) / (1 - r.userData.delay || 1);
+      const f = Math.max(0, 1 - w);
+      const rad = 0.3 + w * (3.6 - i * 0.4);
+      r.scale.set(rad, rad, rad);
+      r.rotation.z = w * (i % 2 ? 0.4 : -0.4);
+      r.userData.mat.opacity = 0.8 * f * f * (w > 0 ? 1 : 0);
+    }
+
+    // leading rim races out fastest, brightest, thinnest
+    const rw = wave;
+    const rrad = 0.3 + rw * 4.3;
+    rim.scale.set(rrad, rrad, rrad);
+    const rf = Math.max(0, 1 - rw);
+    rimMat.opacity = 0.95 * rf * rf * rf;
+
+    // pulsing ground disc
+    const dp = Math.sin(open * Math.PI * 0.5);
+    const ds = 0.6 + dp * 0.9 + Math.sin((now || 0) * 0.01) * 0.04 * open;
+    disc.scale.set(ds, ds, ds);
+    discMat.opacity = 0.55 * open * fadeAll * (0.8 + 0.2 * Math.sin((now || 0) * 0.02));
+
+    // rising column shoots up, then holds and fades
+    const grow = Math.sin(Math.min(1, open) * Math.PI * 0.5);
+    const cs = 0.2 + grow * 1.0;
+    col.scale.set(0.7 + open * 0.4, cs, 0.7 + open * 0.4);
+    col.position.y = 1.3 * cs;
+    colMat.opacity = 0.85 * open * fadeAll;
+    const hs = 0.2 + grow * 1.0;
+    halo.scale.set(0.8 + open * 0.5, hs, 0.8 + open * 0.5);
+    halo.position.y = 1.2 * hs;
+    haloMat.opacity = 0.45 * open * fadeAll;
+
+    // motes streak up the column, twinkling
+    for (let i = 0; i < motes.length; i++) {
+      const mo = motes[i];
+      let t = (open * 1.4 + mo.userData.ph) % 1;
+      const a = mo.userData.a + open * 1.5;
+      const rr = mo.userData.r * (1 - t * 0.4);
+      mo.position.x = Math.cos(a) * rr;
+      mo.position.z = Math.sin(a) * rr;
+      mo.position.y = 0.1 + t * 2.5;
+      const tw = 0.5 + 0.5 * Math.sin((now || 0) * 0.03 + i);
+      const sc = (0.6 + open * 0.6) * tw;
+      mo.scale.set(sc, sc, sc);
+      mo.userData.mat.opacity = 0.9 * open * fadeAll * (1 - t * 0.7) * tw;
+    }
+  };
+
+  return g;
+}
+
+export function buildCastFx_judgment(opts){
+  const c = (opts && opts.color) || '#ffd45e';
+  const g = new T.Group();
+  const RM = (col) => new T.MeshBasicMaterial({ color: col || c, fog:false, transparent:true, opacity:0, depthWrite:false, blending:T.AdditiveBlending });
+
+  // Holy nova: expanding ground shockwave ring (primary)
+  const ringMat = RM();
+  const ring = m(geo('judgmentRing', () => new T.RingGeometry(0.55, 1.05, 44)), ringMat);
+  ring.rotation.x = -Math.PI / 2; ring.position.y = 0.05; g.add(ring);
+
+  // Secondary inner ring chasing it
+  const ring2Mat = RM('#ffffff');
+  const ring2 = m(geo('judgmentRing2', () => new T.RingGeometry(0.28, 0.6, 36)), ring2Mat);
+  ring2.rotation.x = -Math.PI / 2; ring2.position.y = 0.06; g.add(ring2);
+
+  // Bright ground flash disc at the impact point
+  const flashMat = RM('#fff3c4');
+  const flash = m(geo('judgmentFlash', () => new T.CircleGeometry(0.85, 32)), flashMat);
+  flash.rotation.x = -Math.PI / 2; flash.position.y = 0.04; g.add(flash);
+
+  // Core burst at feet
+  const coreMat = RM('#ffffff');
+  const core = m(geo('judgmentCore', () => new T.SphereGeometry(0.3, 14, 10)), coreMat);
+  core.position.y = 0.22; g.add(core);
+
+  // Pillar of holy light briefly stabbing up from the impact
+  const pillarMat = RM('#fff0bf');
+  const pillar = m(cyl(0.26, 0.42, 2.4, 18), pillarMat);
+  pillar.position.y = 1.2; g.add(pillar);
+
+  // Rising light shards bursting upward and outward
+  const shards = [];
+  const SN = 9;
+  for (let i = 0; i < SN; i++) {
+    const sMat = RM(i % 3 === 0 ? '#ffffff' : c);
+    const s = m(geo('judgmentShard', () => new T.BoxGeometry(0.1, 0.7, 0.1)), sMat);
+    const a = (i / SN) * Math.PI * 2 + 0.2;
+    s.userData = { a: a, r: 0.3 + (i % 3) * 0.18, mat: sMat, ph: (i * 0.11) % 1 };
+    g.add(s); shards.push(s);
+  }
+
+  // Radiating ground spokes for the nova flash
+  const spokes = [];
+  for (let i = 0; i < 8; i++) {
+    const kMat = RM();
+    const k = m(geo('judgmentSpoke', () => new T.BoxGeometry(1.0, 0.05, 0.13)), kMat);
+    const a = (i / 8) * Math.PI * 2;
+    k.userData = { a: a, mat: kMat };
+    k.position.y = 0.06; g.add(k); spokes.push(k);
+  }
+
+  g.userData.castAnim = (grp, prog, now) => {
+    // FX fires on the SLAM at prog ~0.42
+    if (prog < 0.40) {
+      ringMat.opacity = 0; ring2Mat.opacity = 0; flashMat.opacity = 0;
+      coreMat.opacity = 0; pillarMat.opacity = 0;
+      for (const s of shards) s.userData.mat.opacity = 0;
+      for (const k of spokes) k.userData.mat.opacity = 0;
+      return;
+    }
+    const t = Math.min(1, (prog - 0.40) / 0.60);
+    const fade = 1 - t;
+    const ef = fade * fade;
+    const pop = Math.max(0, 1 - t * 2.6);
+
+    // primary shockwave blasts outward
+    ringMat.opacity = 0.9 * ef;
+    ring.scale.setScalar(0.5 + 3.6 * t);
+
+    // inner ring chases faster, brighter
+    ring2Mat.opacity = 0.8 * (1 - Math.min(1, t * 1.3));
+    ring2.scale.setScalar(0.4 + 2.6 * Math.min(1, t * 1.4));
+
+    // ground flash pops then fades
+    flashMat.opacity = 0.85 * pop;
+    flash.scale.setScalar(0.5 + 1.6 * t);
+
+    // core burst
+    coreMat.opacity = 0.95 * pop;
+    core.scale.setScalar(0.5 + 2.0 * t);
+
+    // pillar of light stabs up early, fades
+    pillarMat.opacity = 0.6 * Math.max(0, 1 - t * 1.8);
+    pillar.scale.set(1 - 0.4 * t, 0.5 + 1.0 * Math.min(1, t * 2), 1 - 0.4 * t);
+
+    // ground spokes flash out
+    const sreach = 0.4 + 2.2 * t;
+    for (const k of spokes) {
+      k.userData.mat.opacity = 0.7 * pop;
+      k.rotation.y = k.userData.a;
+      k.position.x = Math.cos(k.userData.a) * sreach * 0.5;
+      k.position.z = Math.sin(k.userData.a) * sreach * 0.5;
+      k.scale.x = 0.6 + 1.8 * t;
+    }
+
+    // rising shards launch up and out
+    for (const s of shards) {
+      const rad = s.userData.r + 1.3 * t;
+      s.position.x = Math.cos(s.userData.a) * rad;
+      s.position.z = Math.sin(s.userData.a) * rad;
+      s.position.y = 0.2 + (2.0 + s.userData.ph * 0.8) * t * (1 - 0.25 * t);
+      s.scale.y = 0.6 + 1.4 * (1 - t);
+      s.userData.mat.opacity = 0.9 * ef;
+    }
+  };
+
   return g;
 }
