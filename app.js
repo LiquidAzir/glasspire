@@ -113,6 +113,21 @@
       activeSkill: 'raisedead',
       activeSkillCost: 20,
     },
+    paladin: {
+      id: 'paladin',
+      name: 'Paladin',
+      color: '#ffd45e',
+      glyph: '✝',
+      stats: { str: 7, int: 5, dex: 3, vit: 7 },
+      hp: 115, mp: 60,
+      attackRange: 1.3,
+      attackSpeed: 1.0,
+      damage: 11,
+      attackKind: 'cleave',   // holy melee arc
+      skills: ['smite', 'consecration', 'shieldfaith', 'divineaura', 'judgment'],
+      activeSkill: 'smite',
+      activeSkillCost: 14,
+    },
   };
 
   const SKILLS = {
@@ -165,6 +180,18 @@
       desc: 'Fire a volatile arrow that detonates on impact for 240% damage in a 2.2-tile blast and sets enemies ablaze.' },
     gravegrasp: { name: 'Grave Grasp', cooldown: 10, cost: 22,
       desc: 'Skeletal hands erupt around the nearest foe, dealing 200% damage and rooting every enemy in a 2.6-tile area for 2.5s.' },
+
+    // ===== Paladin skills =====
+    smite: { name: 'Smite', cooldown: 5, cost: 14,
+      desc: 'Call down a pillar of holy light on the nearest foe for 320% damage and stun it for 1.2s.' },
+    consecration: { name: 'Consecration', cooldown: 11, cost: 22,
+      desc: 'Sanctify the ground — 170% damage to all enemies within 3 tiles and heal yourself for 25% of max Life.' },
+    shieldfaith: { name: 'Shield of Faith', cooldown: 14, cost: 16,
+      desc: 'Raise a holy barrier — reduce all incoming damage by 65% for 6 seconds.' },
+    divineaura: { name: 'Divine Aura', cooldown: 14, cost: 18,
+      desc: 'Radiate divine power — +40% damage and +20% Elemental Resist for 8 seconds.' },
+    judgment: { name: 'Judgment', cooldown: 10, cost: 26,
+      desc: 'Unleash a holy nova — 290% damage to all enemies within 3.5 tiles and stagger them.' },
 
     // ===== Legendary-granted skills (only available with specific unique item equipped) =====
     demonslash: { name: 'Demon Slash', cooldown: 5, cost: 18, granted: true,
@@ -222,6 +249,11 @@
     singularity:    { dur: 0.72, color: '#c489ff' },
     explosiveshot:  { dur: 0.50, color: '#ff7a3c' },
     gravegrasp:     { dur: 0.66, color: '#d8d0b0' },
+    smite:          { dur: 0.54, color: '#ffe08a' },
+    consecration:   { dur: 0.70, color: '#ffd45e' },
+    shieldfaith:    { dur: 0.80, color: '#ffe9a8' },
+    divineaura:     { dur: 0.72, color: '#fff0b0' },
+    judgment:       { dur: 0.64, color: '#ffd45e' },
   };
 
   const BIOMES = [
@@ -961,12 +993,14 @@
       mage: 'apprentice-staff',
       ranger: 'short-bow',
       summoner: 'bone-wand',
+      paladin: 'rusted-sword',
     };
     const armors = {
       warrior: 'leather',
       mage: 'robe',
       ranger: 'leather',
       summoner: 'robe',
+      paladin: 'leather',
     };
     return {
       weapon: makeStarterItem(weapons[classId]),
@@ -1320,6 +1354,9 @@
     // War Cry buff: +50% damage
     const warcry = (game.world && game.world.player && game.world.player.warcryBuff > 0);
     if (warcry) dmg = Math.floor(dmg * 1.5);
+    // Paladin Divine Aura: +40% damage (resist bonus folded into the res return below)
+    const divineAura = (game.world && game.world.player && game.world.player.divineAura > 0);
+    if (divineAura) dmg = Math.floor(dmg * 1.4);
 
     // Enfeebling curse: -30% damage while active
     const weakened = (game.world && game.world.player && game.world.player.curses && game.world.player.curses.weaken > 0);
@@ -1342,7 +1379,7 @@
 
     // Glass Cannon power: trade max life for raw damage.
     if (charPowers(char).has('glasscannon')) { dmg = Math.floor(dmg * 1.3); hpMax = Math.floor(hpMax * 0.75); }
-    return { dmg, def, hpMax, mpMax, crit, aspd, res: Math.min(75, res + upgradeLevel('warden') * 5), dr: Math.min(60, te.dr || 0), ms: (te.ms || 0) + frenzyMs + ((abMods && abMods.ms) || 0), bonusStats, breakdown };
+    return { dmg, def, hpMax, mpMax, crit, aspd, res: Math.min(75, res + upgradeLevel('warden') * 5 + (divineAura ? 20 : 0)), dr: Math.min(60, te.dr || 0), ms: (te.ms || 0) + frenzyMs + ((abMods && abMods.ms) || 0), bonusStats, breakdown };
   }
 
   // Count how many pieces of each set the player has equipped, return summed bonus
@@ -3646,6 +3683,53 @@
       burst(cx, cy, '#e8e0c0', 14);
       game.screenShake = Math.max(game.screenShake, 0.18);
     }
+    // ===== PALADIN SKILLS =====
+    else if (skillId === 'smite') {
+      const d = derived(c);
+      const dmg = Math.floor(d.dmg * 3.2);
+      let near = null, nd = Infinity;
+      for (const e of game.enemies) { const dd = dist(e, p); if (dd < nd && dd <= 7) { nd = dd; near = e; } }
+      if (near) {
+        hitEnemy(near, dmg, d.crit);
+        if (near.hp > 0) near.stagger = Math.max(near.stagger, 1.2);
+        for (let i = 0; i < 16; i++) addParticle({ x: near.x + (rand() - 0.5) * 0.5, y: near.y, vx: 0, vy: -6 - rand() * 3, color: i % 2 ? '#ffe08a' : '#ffffff', life: 0.4 + rand() * 0.3, age: 0, size: 2.5 + rand() * 2 });
+        burst(near.x, near.y, '#ffe08a', 18);
+        game.screenShake = Math.max(game.screenShake, 0.18);
+      } else { showHudToast('No target in range.'); }
+    }
+    else if (skillId === 'consecration') {
+      const d = derived(c);
+      const dmg = Math.floor(d.dmg * 1.7);
+      const radius = 3.0;
+      for (const e of game.enemies.filter(e => dist(e, p) <= radius)) hitEnemy(e, dmg, d.crit);
+      const heal = Math.floor(c.hpMax * 0.25);
+      c.hp = Math.min(c.hpMax, c.hp + heal);
+      floatText(`+${heal}`, p.x, p.y - 0.4, 'heal');
+      for (let i = 0; i < 28; i++) { const a = (i / 28) * PI2; addParticle({ x: p.x + Math.cos(a) * radius * 0.6, y: p.y + Math.sin(a) * radius * 0.6, vx: Math.cos(a) * 1.5, vy: Math.sin(a) * 1.5 - 1, color: i % 2 ? '#ffd45e' : '#ffffff', life: 0.5 + rand() * 0.3, age: 0, size: 2.5 }); }
+      burst(p.x, p.y, '#ffe08a', 16);
+    }
+    else if (skillId === 'shieldfaith') {
+      p.shieldWall = 6.0;   // reuse the 70% damage-reduction barrier
+      burst(p.x, p.y, '#ffe9a8', 18);
+      for (let i = 0; i < 18; i++) { const a = (i / 18) * PI2; addParticle({ x: p.x + Math.cos(a) * 0.8, y: p.y + Math.sin(a) * 0.8, vx: 0, vy: -0.5, color: '#ffe9a8', life: 0.5, age: 0, size: 2 }); }
+      showHudToast('Shield of Faith — 70% damage reduction!');
+    }
+    else if (skillId === 'divineaura') {
+      p.divineAura = 8.0;
+      applyDerivedToChar();
+      burst(p.x, p.y, '#fff0b0', 22);
+      for (let i = 0; i < 22; i++) { const a = (i / 22) * PI2; addParticle({ x: p.x, y: p.y, vx: Math.cos(a) * 4, vy: Math.sin(a) * 4, color: i % 2 ? '#ffe08a' : '#ffffff', life: 0.5 + rand() * 0.2, age: 0, size: 2.5 }); }
+      showHudToast('Divine Aura — +40% Damage, +20% Resist 8s!');
+    }
+    else if (skillId === 'judgment') {
+      const d = derived(c);
+      const dmg = Math.floor(d.dmg * 2.9);
+      const radius = 3.5;
+      for (const e of game.enemies.filter(e => dist(e, p) <= radius)) { hitEnemy(e, dmg, d.crit); if (e.hp > 0) e.stagger = Math.max(e.stagger, 0.6); }
+      for (let i = 0; i < 32; i++) { const a = (i / 32) * PI2, sp = 5 + rand() * 3; addParticle({ x: p.x, y: p.y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, color: i % 3 === 0 ? '#ffffff' : '#ffd45e', life: 0.5 + rand() * 0.3, age: 0, size: 2.5 + rand() * 2 }); }
+      burst(p.x, p.y, '#ffe08a', 24);
+      game.screenShake = Math.max(game.screenShake, 0.25);
+    }
     } finally {
       game._skillDmgMul = 1;
     }
@@ -4954,6 +5038,11 @@
     if (p.warcryBuff !== undefined && p.warcryBuff > 0) {
       p.warcryBuff -= dt;
       if (p.warcryBuff <= 0) { p.warcryBuff = 0; showHudToast('War Cry faded.'); }
+    }
+    // Paladin Divine Aura countdown
+    if (p.divineAura !== undefined && p.divineAura > 0) {
+      p.divineAura -= dt;
+      if (p.divineAura <= 0) { p.divineAura = 0; applyDerivedToChar(); showHudToast('Divine Aura faded.'); }
     }
     // Shield Wall buff countdown
     if (p.shieldWall !== undefined && p.shieldWall > 0) {

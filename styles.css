@@ -417,6 +417,7 @@ html, body {
 .class-portrait-mage     { color: var(--crystal); }
 .class-portrait-ranger   { color: var(--emerald); }
 .class-portrait-summoner { color: var(--violet); }
+.class-portrait-paladin  { color: #ffd45e; }
 
 .class-portrait::before {
   content: '';
@@ -428,6 +429,7 @@ html, body {
 .class-portrait-mage::before     { content: '✦'; font-size: 46px; display: flex; align-items: center; justify-content: center; color: var(--crystal); text-shadow: 0 0 16px var(--crystal), 0 0 32px rgba(109,241,255,0.3); }
 .class-portrait-ranger::before   { content: '➹'; font-size: 46px; display: flex; align-items: center; justify-content: center; color: var(--emerald); text-shadow: 0 0 16px var(--emerald), 0 0 32px rgba(81,230,164,0.3); }
 .class-portrait-summoner::before { content: '☠'; font-size: 46px; display: flex; align-items: center; justify-content: center; color: var(--violet); text-shadow: 0 0 16px var(--violet), 0 0 32px rgba(196,137,255,0.3); }
+.class-portrait-paladin::before  { content: '✝'; font-size: 46px; display: flex; align-items: center; justify-content: center; color: #ffd45e; text-shadow: 0 0 16px #ffd45e, 0 0 32px rgba(255,212,94,0.3); }
 
 .class-name {
   font-size: 17px;
