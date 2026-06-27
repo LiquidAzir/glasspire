@@ -1039,6 +1039,7 @@
         paragonStats: { str: 0, int: 0, dex: 0, vit: 0 }, // allocated paragon stat bonuses
         selectedSkill: cls.skills[0],  // track which skill is active
         skillRunes: {},        // { [skillId]: runeId } — chosen augment per skill
+        aspects: [],           // Legendary Aspect codex — power ids extracted via salvage, imprintable
         autoPotion: true,      // auto-drink a potion when HP drops below threshold
         autoPotionPct: 0.35,   // fraction of max HP that triggers an auto-potion
         hardcore: false,       // one life — permadeath when true (set at class select)
@@ -1148,6 +1149,7 @@
       if (obj.dailyDone === undefined) obj.dailyDone = '';
       // migrate: per-skill runes for old saves
       if (obj.char && !obj.char.skillRunes) obj.char.skillRunes = {};
+      if (obj.char && !obj.char.aspects) obj.char.aspects = [];
       // migrate: difficulty tiers for old saves
       if (!obj.difficulty) obj.difficulty = 'normal';
       if (!obj.maxDifficulty) obj.maxDifficulty = 'normal';
@@ -8209,6 +8211,7 @@
     if (id === 'talents') renderTalents();
     if (id === 'abyss-draft') renderBoonDraft();
     if (id === 'gambler') renderGambler();
+    if (id === 'imprint') renderImprint();
     if (id === 'gem-socket') renderGemSocket();
     if (id === 'mystery-vendor') renderMysteryVendor();
     if (id === 'quests') renderQuests();
@@ -9026,6 +9029,11 @@
         const afford = dust >= CRAFT_SOCKET_COST;
         buttons += `<button class="craft-btn focusable${afford ? '' : ' disabled'}" data-action="craft-socket" data-idx="${idx}"${afford ? '' : ' tabindex="-1"'}>+Socket (${CRAFT_SOCKET_COST})</button>`;
       }
+      // Imprint a known Legendary Aspect (once any have been extracted)
+      if (c.aspects && c.aspects.length) {
+        const cur = it.power && POWERS[it.power] ? POWERS[it.power].name : null;
+        buttons += `<button class="craft-btn focusable" data-action="craft-imprint" data-idx="${idx}" style="border-color:#ffd27a;color:#ffd27a">${cur ? '★ ' + cur : '★ Imprint'}</button>`;
+      }
       card.innerHTML = `
         <div class="craft-info">
           <div class="inv-icon">${base.icon}</div>
@@ -9045,6 +9053,13 @@
     if (!it || !isCraftable(it)) return;
     if (isEquipped(it)) { showHudToast('Unequip it first.'); return; }
     const yld = SALVAGE_YIELD[it.rarity] || 1;
+    // Legendary Aspect EXTRACTION — salvaging an item that carries a power learns it to your Codex.
+    const _eb = ITEM_BASES[it.baseId];
+    const _epw = (_eb && _eb.power) || it.power;
+    if (_epw && POWERS[_epw]) {
+      if (!c.aspects) c.aspects = [];
+      if (c.aspects.indexOf(_epw) < 0) { c.aspects.push(_epw); sfx('legendary'); showHudToast('★ Aspect extracted: ' + POWERS[_epw].name + ' — added to your Codex'); }
+    }
     // Return any socketed gems to the inventory so they aren't destroyed
     let gemsBack = 0;
     if (it.gems && it.gems.length) {
@@ -9060,6 +9075,62 @@
     renderCraft();
     updateHud();
     showHudToast(`Salvaged for ${yld} dust${gemsBack ? ` (+${gemsBack} gem${gemsBack === 1 ? '' : 's'} returned)` : ''}.`);
+  }
+
+  // ===== LEGENDARY ASPECT IMPRINT — stamp a known Aspect (extracted via salvage) onto an item =====
+  const IMPRINT_COST = 10;  // Glass Dust
+  function openImprint(idx) { game._imprintIdx = idx; renderImprint(); navigateTo('imprint'); }
+  function renderImprint() {
+    const c = game.char;
+    const el = $('imprint-content'); if (!el) return;
+    el.innerHTML = '';
+    const it = c.inventory[game._imprintIdx];
+    if (!it) { el.innerHTML = '<div class="quest-card empty">Item no longer available.</div>'; return; }
+    const dust = c.craftDust || 0;
+    const head = document.createElement('div');
+    head.className = 'abyss-intro';
+    head.innerHTML = `Stamp a known Aspect onto <span class="rarity-${it.rarity}">${it.name}</span> — it grants that power while equipped (replaces any imprinted Aspect). Costs <span class="rarity-unique">${IMPRINT_COST} Glass Dust</span> (you have ${dust}).`;
+    el.appendChild(head);
+    if (it.power && POWERS[it.power]) {
+      const rm = document.createElement('button');
+      rm.className = 'boon-card focusable';
+      rm.dataset.action = 'imprint-remove';
+      rm.innerHTML = `<div class="boon-name" style="color:#ff8a8a">✕ Remove current Aspect</div><div class="boon-desc">Currently imprinted: ${POWERS[it.power].name}</div>`;
+      el.appendChild(rm);
+    }
+    const known = c.aspects || [];
+    if (!known.length) { const e = document.createElement('div'); e.className = 'quest-card empty'; e.textContent = 'No Aspects in your Codex yet — salvage a legendary or mythic to extract one.'; el.appendChild(e); return; }
+    known.forEach(pid => {
+      const pw = POWERS[pid]; if (!pw) return;
+      const active = it.power === pid;
+      const afford = dust >= IMPRINT_COST;
+      const card = document.createElement('button');
+      card.className = 'boon-card focusable' + (active ? ' active' : (afford ? '' : ' disabled'));
+      if (!active && afford) { card.dataset.action = 'imprint-apply'; card.dataset.power = pid; } else { card.tabIndex = -1; }
+      card.style.borderColor = '#ffd27a';
+      card.innerHTML = `<div class="boon-name" style="color:#ffd27a">★ ${pw.name}${active ? ' (active)' : ''}</div><div class="boon-desc">${pw.desc}</div>`;
+      el.appendChild(card);
+    });
+  }
+  function imprintApply(power) {
+    const c = game.char;
+    const it = c.inventory[game._imprintIdx];
+    if (!it || !POWERS[power]) return;
+    if ((c.craftDust || 0) < IMPRINT_COST) { showHudToast('Not enough Glass Dust.'); sfx('error'); return; }
+    c.craftDust -= IMPRINT_COST;
+    it.power = power;
+    sfx('legendary'); applyDerivedToChar(); saveGame();
+    showHudToast('★ Imprinted ' + POWERS[power].name);
+    game.stashMode = 'craft'; navigateTo('stash'); renderCraft();
+  }
+  function imprintRemove() {
+    const c = game.char;
+    const it = c.inventory[game._imprintIdx];
+    if (!it) return;
+    it.power = null;
+    applyDerivedToChar(); saveGame();
+    showHudToast('Aspect removed.');
+    game.stashMode = 'craft'; navigateTo('stash'); renderCraft();
   }
 
   function craftUpgrade(idx) {
@@ -9685,6 +9756,9 @@
       case 'craft-salvage':  craftSalvage(parseInt(el.dataset.idx, 10)); return;
       case 'craft-upgrade':  craftUpgrade(parseInt(el.dataset.idx, 10)); return;
       case 'craft-socket':   craftAddSocket(parseInt(el.dataset.idx, 10)); return;
+      case 'craft-imprint':  openImprint(parseInt(el.dataset.idx, 10)); return;
+      case 'imprint-apply':  imprintApply(el.dataset.power); return;
+      case 'imprint-remove': imprintRemove(); return;
 
       // waypoint
       case 'travel':
