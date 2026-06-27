@@ -1321,6 +1321,15 @@ html, body {
 .boon-tag { font-size: 10px; letter-spacing: 2px; opacity: 0.85; margin-bottom: 3px; }
 .boon-name { font-size: 18px; font-weight: 700; margin-bottom: 4px; }
 .boon-desc { font-size: 13px; color: #c8c8d8; line-height: 1.35; }
+.gamble-result { margin: 0 4px 14px; font-size: 15px; padding: 8px 12px; background: rgba(255,154,60,0.1); border-radius: 8px; }
+.reforge-modes { display: flex; gap: 8px; margin-top: 10px; }
+.reforge-mode { flex: 1; padding: 7px 6px; font-size: 12px; border: 1px solid #555; border-radius: 7px; background: rgba(30,24,44,0.5); color: #c8c8d8; cursor: pointer; }
+.reforge-mode.active { border-color: var(--gold); color: var(--gold); background: rgba(255,200,87,0.12); }
+.reforge-mode:focus { outline: none; box-shadow: 0 0 12px var(--focus-glow); }
+.stash-filters { display: flex; gap: 6px; flex-wrap: wrap; margin: 0 0 10px; }
+.stash-filter { padding: 5px 10px; font-size: 11px; border: 1px solid #555; border-radius: 12px; background: rgba(30,24,44,0.5); color: #c8c8d8; cursor: pointer; }
+.stash-filter.active { border-color: var(--accent, #6df1ff); color: var(--accent, #6df1ff); }
+.stash-filter:focus { outline: none; box-shadow: 0 0 10px var(--focus-glow); }
 .waypoint-glyph {
   width: 48px;
   height: 48px;

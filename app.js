@@ -270,7 +270,14 @@
     xpgain:   { name: "Sage's Insight",  icon: '✦', max: 5, perLevel: '+10% experience',         baseCost: 200 },
     goldfind: { name: 'Midas Touch',     icon: '⊛', max: 5, perLevel: '+15% gold found',         baseCost: 200 },
     potions:  { name: 'Potion Belt',     icon: '+', max: 3, perLevel: '+1 potion capacity',      baseCost: 250 },
+    // ===== Sanctuary investments — improve the town's services =====
+    fortune:  { name: 'Lucky Charm',     icon: '✧', max: 4, perLevel: '+8% Magic Find',          baseCost: 300 },
+    quarter:  { name: 'Quartermaster',   icon: '▣', max: 3, perLevel: '+4 carry slots',          baseCost: 300 },
+    apothecary:{ name: 'Apothecary',     icon: '⚗', max: 3, perLevel: '+18% potion healing',     baseCost: 260 },
+    warden:   { name: 'Sanctuary Warden',icon: '◇', max: 3, perLevel: '+5% Elemental Resist',    baseCost: 280 },
   };
+  function magicFindBonus() { return upgradeLevel('fortune') * 8 + (talentEffects(game.char).mf || 0); }
+  function inventoryCap() { return 24 + upgradeLevel('quarter') * 4; }
   function upgradeLevel(key) {
     return (game.save && game.save.upgrades && game.save.upgrades[key]) || 0;
   }
@@ -1335,7 +1342,7 @@
 
     // Glass Cannon power: trade max life for raw damage.
     if (charPowers(char).has('glasscannon')) { dmg = Math.floor(dmg * 1.3); hpMax = Math.floor(hpMax * 0.75); }
-    return { dmg, def, hpMax, mpMax, crit, aspd, res: Math.min(75, res), dr: Math.min(60, te.dr || 0), ms: (te.ms || 0) + frenzyMs + ((abMods && abMods.ms) || 0), bonusStats, breakdown };
+    return { dmg, def, hpMax, mpMax, crit, aspd, res: Math.min(75, res + upgradeLevel('warden') * 5), dr: Math.min(60, te.dr || 0), ms: (te.ms || 0) + frenzyMs + ((abMods && abMods.ms) || 0), bonusStats, breakdown };
   }
 
   // Count how many pieces of each set the player has equipped, return summed bonus
@@ -1462,6 +1469,7 @@
       ITEM_BASES[k].ilvl <= ilvl + 1 &&
       ITEM_BASES[k].type !== 'consumable' &&
       ITEM_BASES[k].type !== 'gem' &&
+      (!opts.type || ITEM_BASES[k].type === opts.type) &&    // Gambler targets a specific slot
       !(opts.noLegendary && ITEM_BASES[k].legendary));
     if (eligible.length === 0) return null;
     // Named legendaries are rare in normal drops (~6%) but common from premium
@@ -1586,6 +1594,7 @@
       { id: 'waypoint',   name: 'Waystone',       glyph: '✪', color: '#51e6a4', x: 16, y: 12, role: 'waypoint' },
       { id: 'mystery',    name: 'Mystery Merchant', glyph: '?', color: '#ff77ff', x: 10, y: 14, role: 'mystery' },
       { id: 'mercenary',  name: 'Sellsword Captain', glyph: '⚔', color: '#cdd6e6', x: 13, y: 6, role: 'mercenary' },
+      { id: 'gambler',    name: 'Gambler',        glyph: '⚅', color: '#ff9a3c', x: 7,  y: 6,  role: 'gambler' },
     ];
     // Center "fountain" decoration (block)
     grid[8][10] = 2; // 2 = decor
@@ -2886,7 +2895,7 @@
     if (c.hp >= c.hpMax) { if (!auto) showHudToast('Already full.'); return; }
     c.potions -= 1;
     sfx('potion');
-    const heal = Math.floor(c.hpMax * 0.4);
+    const heal = Math.floor(c.hpMax * 0.4 * (1 + upgradeLevel('apothecary') * 0.18));
     c.hp = Math.min(c.hpMax, c.hp + heal);
     floatText(`+${heal}`, game.world.player.x, game.world.player.y, 'heal');
     showHudToast(auto ? `Auto-potion. ${c.potions} left.` : `Potion used. ${c.potions} left.`);
@@ -2978,6 +2987,7 @@
     else if (npc.role === 'waypoint') { openWaypoint(); }
     else if (npc.role === 'mystery') { openMysteryVendor(); }
     else if (npc.role === 'mercenary') { openMercenary(); }
+    else if (npc.role === 'gambler') { openGambler(); }
   }
 
   function activatePortal(p) {
@@ -4063,7 +4073,7 @@
         addParticle({ x: e.x, y: e.y, vx: Math.cos(a) * spd, vy: Math.sin(a) * spd,
           color: pick(['#ffc857', '#ffaa00', '#c77dff', '#6df1ff']), life: 0.8 + Math.random() * 0.5, age: 0, size: 3 });
       }
-    } else if (roll(0.09 * (1 + (talentEffects(game.char).mf || 0) / 100))) {
+    } else if (roll(0.09 * (1 + magicFindBonus() / 100))) {
       // Normal-enemy drop — rarer overall, and most common (white) junk is discarded
       // so the inventory stays clean. Magic-and-better always drop. (Fortune talent raises the rate.)
       const item = rollItem(Math.max(1, e.ilvl + dropIlvlBonus), null);
@@ -5116,7 +5126,7 @@
       const gi = game.items[i];
       if (dist(gi, p) < pickRadius) { it = gi; idx = i; break; }
     }
-    if (it && game.char.inventory.length < 24) {
+    if (it && game.char.inventory.length < inventoryCap()) {
       game.items.splice(idx, 1);
       game.char.inventory.push(it.item);
       collectLook(it.item);   // unlock its appearance for the Wardrobe
@@ -8109,6 +8119,7 @@
     if (id === 'passives') renderPassives();
     if (id === 'talents') renderTalents();
     if (id === 'abyss-draft') renderBoonDraft();
+    if (id === 'gambler') renderGambler();
     if (id === 'gem-socket') renderGemSocket();
     if (id === 'mystery-vendor') renderMysteryVendor();
     if (id === 'quests') renderQuests();
@@ -8627,7 +8638,12 @@
       const header = document.createElement('div');
       header.className = 'skill-header';
       const tears = c.glassTears || 0;
-      header.innerHTML = `Reroll affixes on rare or unique items.<br><span style="color:var(--text-dim)">Cost: gold + 1 Glass Tear. You have <span class="rarity-unique">${tears} Glass Tear${tears === 1 ? '' : 's'}</span>.</span>`;
+      const keepMode = (game.reforgeMode || 'all') === 'keep';
+      header.innerHTML = `Reroll affixes on rare or better items. You have <span class="rarity-unique">${tears} Glass Tear${tears === 1 ? '' : 's'}</span>.` +
+        `<div class="reforge-modes">` +
+        `<button class="reforge-mode focusable${keepMode ? '' : ' active'}" data-action="reforge-mode" data-mode="all">Reroll All · 1◊</button>` +
+        `<button class="reforge-mode focusable${keepMode ? ' active' : ''}" data-action="reforge-mode" data-mode="keep">Keep Best · 2◊</button>` +
+        `</div>`;
       list.appendChild(header);
       // List rare/unique/mythic items in inventory that have at least 1 affix
       let any = false;
@@ -8636,9 +8652,11 @@
         if (!base) return;
         if (it.rarity !== 'rare' && it.rarity !== 'unique' && it.rarity !== 'mythic') return;
         if (!it.affixes || it.affixes.length === 0) return;
+        if (keepMode && it.affixes.length < 2) return;   // keep-best needs 2+ affixes
         any = true;
-        const cost = rerollCost(it);
-        const canAfford = c.gold >= cost && tears > 0;
+        const cost = keepMode ? rerollCost(it) * 2 : rerollCost(it);
+        const needTears = keepMode ? 2 : 1;
+        const canAfford = c.gold >= cost && tears >= needTears;
         const row = document.createElement('button');
         row.className = 'inv-row focusable' + (canAfford ? '' : ' disabled');
         row.dataset.action = 'vendor-reroll';
@@ -8650,7 +8668,7 @@
             <div class="inv-name rarity-${it.rarity}">${it.name}</div>
             <div class="inv-sub">${affixSummary}</div>
           </div>
-          <div class="inv-equipped" style="color:var(--gold)">${cost}g + 1◊</div>
+          <div class="inv-equipped" style="color:var(--gold)">${cost}g + ${needTears}◊</div>
         `;
         list.appendChild(row);
       });
@@ -8733,6 +8751,34 @@
     showHudToast(`Rerolled: ${newAffixes.map(a => `+${a.val} ${a.label}`).join(', ')}`);
   }
 
+  // TARGETED REFORGE — keep the item's single best affix, reroll the rest. Costs 2 Tears + 2x gold.
+  function reforgeKeepBest(idx) {
+    const c = game.char;
+    const it = c.inventory[idx];
+    if (!it) return;
+    if (it.rarity !== 'rare' && it.rarity !== 'unique' && it.rarity !== 'mythic') { showHudToast('Only rare or better items.'); return; }
+    if (!it.affixes || it.affixes.length < 2) { showHudToast('Needs 2+ affixes to reforge.'); return; }
+    const cost = rerollCost(it) * 2;
+    if (c.gold < cost) { showHudToast('Not enough gold.'); return; }
+    if ((c.glassTears || 0) < 2) { showHudToast('Need 2 Glass Tears.'); return; }
+    c.gold -= cost; c.glassTears -= 2;
+    const keep = it.affixes.slice().sort((a, b) => b.val - a.val)[0];   // protect the best roll
+    const ilvl = it.ilvl || 1;
+    const newAffixes = [keep];
+    const usedKeys = new Set([keep.key]);
+    for (let i = 1; i < it.affixes.length; i++) {
+      let af = rollAffix(it.rarity, ilvl), tries = 0;
+      while (usedKeys.has(af.key) && tries++ < 6) af = rollAffix(it.rarity, ilvl);
+      if (usedKeys.has(af.key)) continue;
+      usedKeys.add(af.key); newAffixes.push(af);
+    }
+    it.affixes = newAffixes;
+    const base = ITEM_BASES[it.baseId];
+    if (base && it.rarity === 'rare') it.name = buildItemName(base, it.rarity, newAffixes);
+    applyDerivedToChar(); saveGame(); renderVendor(); updateHud();
+    showHudToast(`Reforged (kept +${keep.val} ${keep.label})`);
+  }
+
   function itemCost(it) {
     // Consumables have fixed prices
     if (it.baseId === 'health-potion') return 25;
@@ -8802,8 +8848,25 @@
       if (list.innerHTML === '') list.innerHTML = '<div class="quest-card empty">Inventory is empty.</div>';
     } else {
       document.querySelector('[data-action="stash-tab-withdraw"]').classList.add('active');
+      // Category tabs to filter the hoard (All / Weapons / Armor / Jewelry / Gems)
+      const filt = game.stashFilter || 'all';
+      const CATS = [['all', 'All'], ['weapon', 'Weapons'], ['armor', 'Armor'], ['jewel', 'Jewelry'], ['gem', 'Gems']];
+      const fwrap = document.createElement('div');
+      fwrap.className = 'stash-filters';
+      CATS.forEach(([k, label]) => {
+        const b = document.createElement('button');
+        b.className = 'stash-filter focusable' + (filt === k ? ' active' : '');
+        b.dataset.action = 'stash-filter'; b.dataset.cat = k;
+        b.textContent = label;
+        fwrap.appendChild(b);
+      });
+      list.appendChild(fwrap);
+      const inCat = (t) => filt === 'all' || (filt === 'jewel' ? (t === 'ring' || t === 'amulet') : t === filt);
+      let shown = 0;
       game.save.stash.forEach((it, idx) => {
         const base = ITEM_BASES[it.baseId];
+        if (!base || !inCat(base.type)) return;
+        shown++;
         const row = document.createElement('button');
         row.className = 'inv-row focusable';
         row.dataset.action = 'stash-withdraw';
@@ -8811,7 +8874,7 @@
         row.innerHTML = `<div class="inv-icon">${base.icon}</div><div class="inv-meta"><div class="inv-name rarity-${it.rarity}">${it.name}</div><div class="inv-sub">${base.type} · ilvl ${it.ilvl}</div></div>`;
         list.appendChild(row);
       });
-      if (list.innerHTML === '') list.innerHTML = '<div class="quest-card empty">Stash is empty.</div>';
+      if (shown === 0) { const e = document.createElement('div'); e.className = 'quest-card empty'; e.textContent = game.save.stash.length ? 'Nothing in this category.' : 'Stash is empty.'; list.appendChild(e); }
     }
     listFocusRestore(list, _keepFocus);
   }
@@ -9515,7 +9578,8 @@
       case 'vendor-tab-reroll': game.vendorMode = 'reroll'; renderVendor(); return;
       case 'vendor-buy':        vendorBuy(parseInt(el.dataset.idx, 10)); return;
       case 'vendor-sell':       vendorSell(parseInt(el.dataset.idx, 10)); return;
-      case 'vendor-reroll':     rerollItem(parseInt(el.dataset.idx, 10)); return;
+      case 'vendor-reroll':     (game.reforgeMode === 'keep' ? reforgeKeepBest : rerollItem)(parseInt(el.dataset.idx, 10)); return;
+      case 'reforge-mode':      game.reforgeMode = el.dataset.mode; renderVendor(); return;
 
       // mystery vendor
       case 'mystery-buy':       mysteryBuy(); return;
@@ -9524,6 +9588,7 @@
       case 'stash-tab-deposit':  game.stashMode = 'deposit';  renderStash(); return;
       case 'stash-tab-withdraw': game.stashMode = 'withdraw'; renderStash(); return;
       case 'stash-tab-craft':    game.stashMode = 'craft';    renderStash(); return;
+      case 'stash-filter':       game.stashFilter = el.dataset.cat; renderStash(); return;
       case 'stash-deposit':      stashDeposit(parseInt(el.dataset.idx, 10)); return;
       case 'stash-withdraw':     stashWithdraw(parseInt(el.dataset.idx, 10)); return;
 
@@ -9561,6 +9626,9 @@
       case 'abyss-pick':
         chooseBoon(el.dataset.boon);
         game.history = [];
+        return;
+      case 'gamble':
+        gamble(el.dataset.slot);
         return;
       case 'enter-nightmare':
         enterNightmare();
@@ -9826,7 +9894,7 @@
       renderVendor();
       return;
     }
-    if (game.char.inventory.length >= 24) { showHudToast('Inventory full.'); return; }
+    if (game.char.inventory.length >= inventoryCap()) { showHudToast('Inventory full.'); return; }
     game.char.gold -= cost;
     game.char.inventory.push(it);
     game.vendorOffer.splice(idx, 1);
@@ -9851,7 +9919,7 @@
     renderStash();
   }
   function stashWithdraw(idx) {
-    if (game.char.inventory.length >= 24) { showHudToast('Inventory full.'); return; }
+    if (game.char.inventory.length >= inventoryCap()) { showHudToast('Inventory full.'); return; }
     const it = game.save.stash[idx]; if (!it) return;
     game.save.stash.splice(idx, 1);
     game.char.inventory.push(it);
@@ -9919,7 +9987,7 @@
     // Bonus item reward for quest completion (magic or rare quality)
     const bonusRarity = roll(0.3) ? 'rare' : 'magic';
     const bonusItem = rollItem(Math.max(1, game.char.level), bonusRarity);
-    if (bonusItem && game.char.inventory.length < 24) {
+    if (bonusItem && game.char.inventory.length < inventoryCap()) {
       game.char.inventory.push(bonusItem);
     }
     // Some bounties also award a Nightmare Sigil (keys the Nightmare dungeons)
@@ -9957,6 +10025,64 @@
   function openVendor()   { refreshVendorOffer(); navigateTo('vendor'); }
   function openStash()    { navigateTo('stash'); }
   function openWaypoint() { navigateTo('waypoint'); }
+
+  // ===== GAMBLER — pay gold for a random item of a chosen slot (slot-machine loot) =====
+  const GAMBLE_SLOTS = [
+    { type: 'weapon', name: 'Weapon', icon: '⚔' },
+    { type: 'armor',  name: 'Armor',  icon: '⛨' },
+    { type: 'ring',   name: 'Ring',   icon: '◯' },
+    { type: 'amulet', name: 'Amulet', icon: '◈' },
+  ];
+  function gambleCost() { return 250 + (game.char.level || 1) * 40; }
+  function openGambler() { game._lastGamble = null; renderGambler(); navigateTo('gambler'); }
+  function gamble(type) {
+    const c = game.char;
+    const cost = gambleCost();
+    if (c.gold < cost) { showHudToast('Not enough gold.'); sfx('error'); return; }
+    if (c.inventory.length >= inventoryCap()) { showHudToast('Inventory full.'); sfx('error'); return; }
+    c.gold -= cost; sfx('gold');
+    // Rarity roll — skews to Magic/Rare with a real shot at Legendary/Mythic (Lucky Charm helps).
+    const luck = magicFindBonus() / 200;        // up to ~+16% from upgrades, +talents
+    const r = rand() - luck;
+    let rarity, prefLeg = false;
+    if (r < 0.50) rarity = 'magic';
+    else if (r < 0.82) rarity = 'rare';
+    else if (r < 0.97) { rarity = 'unique'; prefLeg = true; }
+    else { rarity = 'mythic'; prefLeg = true; }
+    const ilvl = Math.max(1, (c.level || 1) + 2);
+    const item = rollItem(ilvl, rarity, { type, preferLegendary: prefLeg });
+    if (!item) { c.gold += cost; showHudToast('Nothing available for that slot yet.'); return; }
+    c.inventory.push(item);
+    game._lastGamble = item;
+    if (item.rarity === 'unique' || item.rarity === 'mythic') { sfx('legendary'); }
+    saveGame(); renderGambler(); updateHud();
+    showHudToast(`Gambled a ${item.rarity}: ${item.name}`);
+  }
+  function renderGambler() {
+    const el = $('gambler-content'); if (!el) return;
+    const c = game.char, cost = gambleCost();
+    const gEl = $('gambler-gold'); if (gEl) gEl.textContent = c.gold + 'g';
+    el.innerHTML = '';
+    const intro = document.createElement('div');
+    intro.className = 'abyss-intro';
+    intro.innerHTML = `Pay <b>${cost}g</b> for a random item of a slot — odds favor Magic/Rare, with a shot at Legendary or Mythic. (Lucky Charm improves the odds.)`;
+    el.appendChild(intro);
+    if (game._lastGamble) {
+      const it = game._lastGamble, base = ITEM_BASES[it.baseId];
+      const last = document.createElement('div');
+      last.className = 'gamble-result';
+      last.innerHTML = `Won: <span class="rarity-${it.rarity}">${base.icon} ${it.name}</span> <span style="opacity:.6">→ in your bag</span>`;
+      el.appendChild(last);
+    }
+    GAMBLE_SLOTS.forEach(s => {
+      const afford = c.gold >= cost;
+      const card = document.createElement('button');
+      card.className = 'boon-card focusable' + (afford ? '' : ' disabled');
+      if (afford) { card.dataset.action = 'gamble'; card.dataset.slot = s.type; } else { card.tabIndex = -1; }
+      card.innerHTML = `<div class="boon-name" style="color:#ff9a3c">${s.icon} ${s.name}</div><div class="boon-desc">Gamble for a random ${s.name.toLowerCase()} · ${cost}g</div>`;
+      el.appendChild(card);
+    });
+  }
   function openMysteryVendor() { rollMysteryVendor(); navigateTo('mystery-vendor'); }
 
   // ============================================================
@@ -10066,7 +10192,7 @@
     if (mv.bought) { showHudToast('Already bought today.'); return; }
     const price = mysteryPrice(mv.itemData);
     if (game.char.gold < price) { showHudToast('Not enough gold.'); return; }
-    if (game.char.inventory.length >= 24) { showHudToast('Inventory full.'); return; }
+    if (game.char.inventory.length >= inventoryCap()) { showHudToast('Inventory full.'); return; }
     game.char.gold -= price;
     // Clone the item so the save record stays for "SOLD" display
     const purchased = JSON.parse(JSON.stringify(mv.itemData));
