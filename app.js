@@ -190,7 +190,7 @@
       desc: 'Raise a holy barrier — reduce all incoming damage by 65% for 6 seconds.' },
     divineaura: { name: 'Divine Aura', cooldown: 14, cost: 18,
       desc: 'Radiate divine power — +40% damage and +20% Elemental Resist for 8 seconds.' },
-    judgment: { name: 'Judgment', cooldown: 10, cost: 26,
+    judgment: { name: 'Judgment', cooldown: 10, cost: 22,
       desc: 'Unleash a holy nova — 290% damage to all enemies within 3.5 tiles and stagger them.' },
 
     // ===== Legendary-granted skills (only available with specific unique item equipped) =====
@@ -673,7 +673,7 @@
     warding: { name: 'Shrine of Warding', color: '#ffd166', icon: '◇', duration: 15, effect: 'invuln', desc: 'Invulnerable 15s' },
     // ===== PYLONS — powerful, flashier surges =====
     conduit:    { name: 'Conduit Pylon',    color: '#bff0ff', icon: '⚡', duration: 20, effect: 'conduit',    desc: 'Lightning auto-arcs to nearby foes 20s' },
-    channeling: { name: 'Channeling Pylon', color: '#c489ff', icon: '∞', duration: 18, effect: 'channeling', desc: 'Free skills — no mana, no cooldown 18s' },
+    channeling: { name: 'Channeling Pylon', color: '#c489ff', icon: '∞', duration: 12, effect: 'channeling', desc: 'Free skills — no mana, no cooldown 12s' },
     frenzy:     { name: 'Frenzy Pylon',     color: '#ff9a3c', icon: '»', duration: 24, effect: 'frenzy',     desc: '+40% Attack & Move Speed 24s' },
     bloodthirst:{ name: 'Bloodthirst Pylon',color: '#ff5577', icon: '✚', duration: 20, effect: 'regen',      desc: 'Regenerate 4% Life/sec 20s' },
   };
@@ -1143,6 +1143,7 @@
       // migrate: crafting dust material for old saves
       if (obj.char && obj.char.craftDust === undefined) obj.char.craftDust = 0;
       // migrate: best rift level for old saves
+      if (obj.stash === undefined) obj.stash = [];   // old saves predate the stash array — guard the Keeper
       if (obj.bestRift === undefined) obj.bestRift = 0;
       if (obj.bestGauntlet === undefined) obj.bestGauntlet = 0;
       if (obj.bestAbyss === undefined) obj.bestAbyss = 0;
@@ -1154,7 +1155,7 @@
       if (!obj.difficulty) obj.difficulty = 'normal';
       if (!obj.maxDifficulty) obj.maxDifficulty = 'normal';
       // migrate: permanent upgrades for old saves
-      if (!obj.upgrades) obj.upgrades = { pickup: 0, xpgain: 0, goldfind: 0, potions: 0 };
+      if (!obj.upgrades) obj.upgrades = { pickup: 0, xpgain: 0, goldfind: 0, potions: 0, fortune: 0, quarter: 0, apothecary: 0, warden: 0 };
       // migrate: feature-batch fields for old saves
       if (!obj.bossesKilled) obj.bossesKilled = {};
       if (!obj.wardrobe) obj.wardrobe = {};
@@ -1187,16 +1188,22 @@
     if (!game.save) return;
     // Snapshot current world position so player can resume on next load
     if (game.world && game.world.player) {
-      if (game.world.kind === 'town') {
+      const w = game.world;
+      // Ephemeral run modes (Gauntlet/Throne/Nightmare/Daily/Abyss/Rift) are session-only —
+      // persisting them would resume into a broken normal floor on reload. Resume in town.
+      const ephemeral = w.isGauntlet || w.isThrone || w.nightmare || w.daily || w.isAbyss || w.isRift;
+      if (w.kind === 'town') {
         game.save.worldState = { kind: 'town' };
-      } else if (game.world.kind === 'dungeon' && game.activeBiomeId) {
+      } else if (w.kind === 'dungeon' && game.activeBiomeId && !ephemeral) {
         game.save.worldState = {
           kind: 'dungeon',
           biomeId: game.activeBiomeId,
           floor: game.activeFloor,
-          x: game.world.player.x,
-          y: game.world.player.y,
+          x: w.player.x,
+          y: w.player.y,
         };
+      } else {
+        game.save.worldState = { kind: 'town' };
       }
     }
     // Stamp every write with a timestamp — the whole cross-device merge strategy is
@@ -1443,7 +1450,7 @@
     // Sage's Insight upgrade — +10% XP per level
     const xpUp = upgradeLevel('xpgain');
     if (xpUp > 0) amount = Math.floor(amount * (1 + 0.1 * xpUp));
-    floatText(`+${amount} XP`, game.world.player.x, game.world.player.y, 'xp');
+    if (game.world && game.world.player) floatText(`+${amount} XP`, game.world.player.x, game.world.player.y, 'xp');
 
     // Normal levels first
     while (c.level < CFG.maxLevel && amount > 0) {
@@ -2104,7 +2111,7 @@
     if (!e.elite) makeElite(e);              // inherit an affix + the guaranteed rare drop
     e.champion = true;
     e.name = pick(CHAMP_NAMES);
-    e.hp = Math.floor(e.hp * 1.9); e.hpMax = e.hp;
+    e.hp = Math.floor(e.hp * 1.5); e.hpMax = e.hp;   // composite with elite 2.2x -> ~3.3x base (was ~4.2x)
     e.dmg = Math.floor(e.dmg * 1.25);
     e.xp = Math.floor(e.xp * 2.2);
     e.goldRange = [e.goldRange[0] * 2, e.goldRange[1] * 2];
@@ -3146,7 +3153,7 @@
       // AOE slam on landing
       const radius = 2.0;
       const targets = game.enemies.filter(e => dist(e, p) <= radius);
-      for (const e of targets) { hitEnemy(e, dmg, d.crit); e.stagger = Math.max(e.stagger, 0.5); }
+      for (const e of targets) { hitEnemy(e, dmg, d.crit); if (e.hp > 0) e.stagger = Math.max(e.stagger, 0.5); }
       // ground slam particles
       for (let i = 0; i < 20; i++) {
         const a = (i / 20) * PI2;
@@ -3166,7 +3173,7 @@
       // Stagger nearby enemies
       const radius = 2.5;
       const targets = game.enemies.filter(e => dist(e, p) <= radius);
-      for (const e of targets) { e.stagger = Math.max(e.stagger, 1.5); }
+      for (const e of targets) { if (!e.hazard && e.hp > 0) e.stagger = Math.max(e.stagger, 1.5); }
       // Expanding shockwave ring
       for (let i = 0; i < 20; i++) {
         const a = (i / 20) * PI2;
@@ -5022,8 +5029,8 @@
       if (game._conduitT <= 0) {
         game._conduitT = 0.35;
         const d = derived(game.char);
-        const zap = Math.floor(d.dmg * 0.7);
-        const near = game.enemies.filter(e => dist(e, p) <= 5.5).sort((a, b) => dist(a, p) - dist(b, p)).slice(0, 3);
+        const zap = Math.floor(d.dmg * 0.85);
+        const near = game.enemies.filter(e => e.hp > 0 && !e.hazard && dist(e, p) <= 5.5).sort((a, b) => dist(a, p) - dist(b, p)).slice(0, 3);
         let last = p;
         for (const e of near) {
           for (let i = 0; i < 5; i++) pushParticle(lerp(last.x, e.x, i / 5), lerp(last.y, e.y, i / 5), i % 2 ? '#ffffff' : '#bff0ff', 0.22);
@@ -8586,6 +8593,7 @@
     if (!c.talents) c.talents = {};
     const pe = $('talent-points'); if (pe) pe.textContent = c.talentPoints || 0;
     const cont = $('talents-content'); if (!cont) return;
+    const _keepFocus = listFocusIndex(cont);
     let html = '<p class="sync-help">Spend a point (earned each level) into 4 branches. A node unlocks once the one above it is started.</p>';
     for (const br of TALENT_BRANCHES) {
       html += `<div class="sync-section"><h3 style="color:${br.color}">${br.name}</h3>`;
@@ -8608,6 +8616,7 @@
     }
     html += '<button class="nav-item focusable danger" data-action="talent-reset" style="margin-top:10px;">Reset Talents (refund all)</button>';
     cont.innerHTML = html;
+    listFocusRestore(cont, _keepFocus);
   }
 
   function renderPassives() {
@@ -8801,7 +8810,7 @@
   }
 
   function rerollCost(it) {
-    const tier = it.rarity === 'unique' ? 200 : 80;
+    const tier = { rare: 80, unique: 200, mythic: 260 }[it.rarity] || 80;   // mythic is the rarest — costs the most
     return tier + (it.ilvl || 1) * 8;
   }
 
@@ -9060,7 +9069,12 @@
       if (!c.aspects) c.aspects = [];
       if (c.aspects.indexOf(_epw) < 0) { c.aspects.push(_epw); sfx('legendary'); showHudToast('★ Aspect extracted: ' + POWERS[_epw].name + ' — added to your Codex'); }
     }
-    // Return any socketed gems to the inventory so they aren't destroyed
+    // Return any socketed gems to the inventory so they aren't destroyed — but only if
+    // there's room (net change is +gems −1 item), else the cap would be exceeded.
+    const _gemCount = (it.gems && it.gems.length) || 0;
+    if (_gemCount > 0 && (c.inventory.length - 1 + _gemCount) > inventoryCap()) {
+      showHudToast('Inventory full — make room for the returned gems.'); return;
+    }
     let gemsBack = 0;
     if (it.gems && it.gems.length) {
       it.gems.forEach(gemId => {
@@ -9385,7 +9399,7 @@
     const cost = upgradeCost(key);
     if (game.char.gold < cost) { showHudToast('Not enough gold.'); return; }
     game.char.gold -= cost;
-    if (!game.save.upgrades) game.save.upgrades = { pickup: 0, xpgain: 0, goldfind: 0, potions: 0 };
+    if (!game.save.upgrades) game.save.upgrades = { pickup: 0, xpgain: 0, goldfind: 0, potions: 0, fortune: 0, quarter: 0, apothecary: 0, warden: 0 };
     game.save.upgrades[key] = lvl + 1;
     // Potion Belt immediately tops up your flasks
     if (key === 'potions') game.char.potions = potionCapacity();
@@ -10205,7 +10219,7 @@
     if (c.inventory.length >= inventoryCap()) { showHudToast('Inventory full.'); sfx('error'); return; }
     c.gold -= cost; sfx('gold');
     // Rarity roll — skews to Magic/Rare with a real shot at Legendary/Mythic (Lucky Charm helps).
-    const luck = magicFindBonus() / 200;        // up to ~+16% from upgrades, +talents
+    const luck = (magicFindBonus() + (game.char.level || 1) * 0.25) / 200;   // upgrades/talents + a gentle level scale
     const r = rand() - luck;
     let rarity, prefLeg = false;
     if (r < 0.50) rarity = 'magic';
@@ -10223,6 +10237,7 @@
   }
   function renderGambler() {
     const el = $('gambler-content'); if (!el) return;
+    const _kf = listFocusIndex(el);
     const c = game.char, cost = gambleCost();
     const gEl = $('gambler-gold'); if (gEl) gEl.textContent = c.gold + 'g';
     el.innerHTML = '';
@@ -10245,6 +10260,7 @@
       card.innerHTML = `<div class="boon-name" style="color:#ff9a3c">${s.icon} ${s.name}</div><div class="boon-desc">Gamble for a random ${s.name.toLowerCase()} · ${cost}g</div>`;
       el.appendChild(card);
     });
+    listFocusRestore(el, _kf);
   }
   function openMysteryVendor() { rollMysteryVendor(); navigateTo('mystery-vendor'); }
 
