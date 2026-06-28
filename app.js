@@ -1131,6 +1131,7 @@
       mysteryVendor: null, // { day: number, baseId: string, bought: bool }
       hollowing: 0,        // 0-100 world corruption — rises as you delve, pushed back in town / by beacons
       factionRep: {},      // { [factionId]: reputation } — earned from boss/abyss/rift activity
+      actsSeen: {},        // { [actId]: true } — story beats revealed in the Chronicle
     };
   }
 
@@ -1228,6 +1229,7 @@
       // migrate: feature-batch fields for old saves
       if (obj.hollowing === undefined) obj.hollowing = 0;
       if (!obj.factionRep) obj.factionRep = {};
+      if (!obj.actsSeen) obj.actsSeen = {};
       if (!obj.bossesKilled) obj.bossesKilled = {};
       if (!obj.wardrobe) obj.wardrobe = {};
       if (obj.gameWon === undefined) obj.gameWon = false;
@@ -2311,6 +2313,8 @@
     showZoneToast('SANCTUARY');
     applyDerivedToChar(); // recompute stats since buff might have been adding damage
     updateHud();
+    // A queued story beat plays now that the player is safely back in town.
+    if (game._pendingAct) { const pa = game._pendingAct; game._pendingAct = null; showAct(pa); }
   }
   function enterBiome(biomeId, floor) {
     floor = floor || 1;
@@ -4432,6 +4436,8 @@
       if (e.id === 'hollowking') {
         game.bossAlive = false;
         game.save.gameWon = true;
+        if (!game.save.actsSeen) game.save.actsSeen = {};
+        game.save.actsSeen.finale = true;   // the victory screen is the finale beat; log it in the Chronicle
         game.char.gold += 2500;
         for (let i = 0; i < 4; i++) {           // grand finale loot: 1 mythic + 3 legendaries
           const it = rollItem(Math.max(1, e.ilvl + 2), i === 0 ? 'mythic' : 'unique', { preferLegendary: true });
@@ -4453,6 +4459,7 @@
           showHudToast(`UNLOCKED: ${BIOMES[idx + 1].name}`);
         }
       }
+      revealActForBiome(biomeId);   // unfurl this biome's story beat (shown on next town visit)
       // place a return-to-town portal where the boss fell
       game.world.portals.push({ x: e.x, y: e.y, kind: 'town', label: '→ Sanctuary' });
       // Unlock the next difficulty tier on a boss kill
@@ -8465,6 +8472,7 @@
     if (id === 'journey') renderJourney();
     if (id === 'paragon') renderParagonBoard();
     if (id === 'factions') renderFactions();
+    if (id === 'chronicle') renderChronicle();
     if (id === 'abyss-draft') renderBoonDraft();
     if (id === 'gambler') renderGambler();
     if (id === 'imprint') renderImprint();
@@ -8951,6 +8959,56 @@
     sfx('legendary'); saveGame(); applyDerivedToChar(); renderJourney();
     showHudToast(`★ ${ch.name} complete! +${r.gold}g, a reward, and the title "${ch.title}".`);
   }
+  // ============================================================
+  // THE CHRONICLE — a multi-act story revealed as the campaign advances. Each biome
+  // boss felled unfurls the next act; beats are recapped in the Chronicle screen.
+  // ============================================================
+  const ACTS = [
+    { id: 'prologue', after: null, title: 'Prologue — The Last Sanctuary',
+      text: 'When the Hollow King shattered the Glass Heart, the world began to forget itself. Color drained from the hills; the dead forgot to lie still. Only the Sanctuary still holds — a single lit window in a darkening house. You are the last they sent into the dark. Light a lantern. Go down.' },
+    { id: 'act1', after: 'crypts', title: 'Act I — The Crypts Remember',
+      text: 'Beneath the Sanctuary the dead keep the King\'s first secret: the Hollowing is not a plague but a hunger, and it learns. With the crypt-warden fallen, a stair opens onto green ruin — the Overgrowth, where the forest has begun to dream the King\'s dream.' },
+    { id: 'act2', after: 'overgrowth', title: 'Act II — The Choking Wild',
+      text: 'The Overgrowth swallowed a kingdom and wears its bones as trellis. Its keeper is dust now, but the cold beyond is worse: Frostpeak, where the Hollowing froze mid-scream and every icicle holds a face you almost know.' },
+    { id: 'act3', after: 'frostpeak', title: 'Act III — The Frozen Silence',
+      text: 'Frostpeak\'s warden lies shattered, and the silence breaks like ice underfoot. Heat returns — too much of it. The Infernal Reach burns ahead, where the King forged the chains that bind the world\'s unraveling. The closer you come, the more the air tastes of glass.' },
+    { id: 'act4', after: 'infernal', title: 'Act IV — The Infernal Reach',
+      text: 'You walked through fire and the fire blinked first. Beyond the forge-lord\'s ash lies the Voidspire — the wound in the world, the place the King climbed down from. There is no biome past it. There is only the throne.' },
+    { id: 'act5', after: 'voidspire', title: 'Act V — The Voidspire',
+      text: 'At the spire\'s peak the sky is a held breath. The Hollowing is thinnest here and somehow most complete, as if the world has agreed to end politely. The Hollow Throne waits beyond the last door. He has been waiting for you — he says so, in your own voice.' },
+    { id: 'finale', after: 'hollowking', title: 'Finale — The Hollow Throne',
+      text: 'The crown comes apart in your hands like frost on a warming pane. For a moment the world remembers green, remembers your name, remembers how to stay. Whether it lasts was never the King\'s to decide, nor yours. But the lantern is still lit, the Sanctuary still warm, and tonight the dead lie quiet.' },
+  ];
+  function showAct(id) {
+    const a = ACTS.find(x => x.id === id); if (!a) return;
+    const t = $('story-title'), b = $('story-text'); if (!t || !b) return;
+    t.textContent = a.title; b.textContent = a.text;
+    navigateTo('story');
+  }
+  function revealAct(id) {
+    if (!game.save.actsSeen) game.save.actsSeen = {};
+    if (game.save.actsSeen[id]) return false;
+    game.save.actsSeen[id] = true; saveGame();
+    game._pendingAct = id;   // surfaced on the next town visit so boss loot isn't interrupted
+    return true;
+  }
+  function revealActForBiome(biomeId) { const a = ACTS.find(x => x.after === biomeId); if (a) revealAct(a.id); }
+  function renderChronicle() {
+    const el = $('chronicle-content'); if (!el) return;
+    const _kf = listFocusIndex(el);
+    el.innerHTML = '';
+    const seen = (game.save && game.save.actsSeen) || {};
+    ACTS.forEach(a => {
+      const div = document.createElement('div');
+      div.className = 'chronicle-act' + (seen[a.id] ? '' : ' locked');
+      div.innerHTML = seen[a.id]
+        ? `<h3>${a.title}</h3><p>${a.text}</p>`
+        : `<h3>${a.title.replace(/—.*/, '— ???')}</h3><p>Undiscovered. Press deeper into the dark to reveal this chapter.</p>`;
+      el.appendChild(div);
+    });
+    listFocusRestore(el, _kf);
+  }
+
   function renderJourney() {
     const c = game.char; if (!c) return;
     const el = $('journey-content'); if (!el) return;
@@ -9855,6 +9913,7 @@
         game.char.hp = game.char.hpMax;
         game.char.mp = game.char.mpMax;
         saveGame();
+        revealAct('prologue');   // queue the opening story beat (shown on first town arrival)
         enterTown();
         return;
       }
@@ -9905,6 +9964,8 @@
       case 'menu-paragon': navigateTo('paragon'); return;
       case 'paragon-node': spendParagonNode(el.dataset.key); return;
       case 'menu-factions': navigateTo('factions'); return;
+      case 'menu-chronicle': navigateTo('chronicle'); return;
+      case 'story-continue': navigateTo('game'); return;
       case 'talent-alloc': {
         const id = el.dataset.node;
         if (canAllocTalent(game.char, id)) {

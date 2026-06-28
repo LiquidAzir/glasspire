@@ -290,6 +290,7 @@
         <button class="nav-item focusable" data-action="menu-quests">Quest Log</button>
         <button class="nav-item focusable" data-action="menu-bestiary">Bestiary</button>
         <button class="nav-item focusable" data-action="menu-factions">Factions</button>
+        <button class="nav-item focusable" data-action="menu-chronicle">The Chronicle</button>
         <button class="nav-item focusable" data-action="menu-upgrades">Permanent Upgrades</button>
         <button class="nav-item focusable" data-action="menu-use-scroll" id="menu-scroll-btn">Use Sanctuary Scroll</button>
         <button class="nav-item focusable" data-action="menu-return-dungeon" id="menu-return-dungeon-btn">Return to Dungeon</button>
@@ -313,6 +314,28 @@
         <h1>Factions</h1>
       </header>
       <div class="content" id="factions-content"></div>
+    </div>
+
+    <!-- ============================================================ -->
+    <!-- STORY INTERLUDE — a single act beat, shown on progression      -->
+    <!-- ============================================================ -->
+    <div id="story" class="screen hidden">
+      <div class="story-inner">
+        <h1 class="story-title" id="story-title"></h1>
+        <p class="story-text" id="story-text"></p>
+        <button class="story-continue focusable" data-action="story-continue">Continue &#8594;</button>
+      </div>
+    </div>
+
+    <!-- ============================================================ -->
+    <!-- THE CHRONICLE — recap of revealed story acts                   -->
+    <!-- ============================================================ -->
+    <div id="chronicle" class="screen hidden">
+      <header class="header">
+        <button class="back-btn focusable" data-action="back">&#8592;</button>
+        <h1>The Chronicle</h1>
+      </header>
+      <div class="content" id="chronicle-content"></div>
     </div>
 
     <!-- ============================================================ -->
