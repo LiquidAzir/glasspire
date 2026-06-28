@@ -640,6 +640,18 @@ html, body {
   animation: riftPulse 0.8s ease-in-out infinite;
 }
 @keyframes riftPulse { 0%,100% { opacity: 1; } 50% { opacity: 0.55; } }
+.hud-hollow {
+  background: linear-gradient(135deg, rgba(28,10,36,0.92), rgba(54,20,72,0.88));
+  padding: 6px 14px; border-radius: 16px; font-size: 13px; font-weight: 800; letter-spacing: 0.5px;
+  color: #d3a7ff; border: 1px solid rgba(176, 107, 255, 0.6);
+  text-shadow: 0 0 8px rgba(176, 107, 255, 0.8); backdrop-filter: blur(4px);
+  box-shadow: 0 2px 12px rgba(0,0,0,0.4); margin-top: 6px;
+}
+.hud-hollow.hidden { display: none; }
+.hud-hollow.high {
+  color: #ff7be0; border-color: rgba(255, 90, 200, 0.75);
+  text-shadow: 0 0 10px rgba(255, 90, 200, 0.85); animation: riftPulse 1.1s ease-in-out infinite;
+}
 .rift-card {
   background: linear-gradient(135deg, rgba(30,16,46,0.95), rgba(20,10,32,0.9));
   border: 1px solid rgba(179, 136, 255, 0.35);

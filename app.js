@@ -309,6 +309,11 @@
     warden:   { name: 'Sanctuary Warden',icon: '◇', max: 3, perLevel: '+5% Elemental Resist',    baseCost: 280 },
   };
   function magicFindBonus() { return upgradeLevel('fortune') * 8 + (talentEffects(game.char).mf || 0) + ((game.char && game.char.paragonBoard && game.char.paragonBoard.mf) || 0); }
+  // ===== THE HOLLOWING — world corruption that warps biome runs (harder foes, richer loot) =====
+  function hollowLevel() { return Math.max(0, Math.min(100, (game.save && game.save.hollowing) || 0)); }
+  function hollowEnemyMul() { return 1 + hollowLevel() / 100 * 0.6; }   // +60% enemy hp/dmg at full corruption
+  function hollowLootMul() { return 1 + hollowLevel() / 100 * 0.8; }    // +80% xp/gold at full corruption
+  function addHollowing(delta) { game.save.hollowing = Math.max(0, Math.min(100, hollowLevel() + delta)); }
   function inventoryCap() { return 24 + upgradeLevel('quarter') * 4; }
   function upgradeLevel(key) {
     return (game.save && game.save.upgrades && game.save.upgrades[key]) || 0;
@@ -675,6 +680,7 @@
     conduit:    { name: 'Conduit Pylon',    color: '#bff0ff', icon: '⚡', duration: 20, effect: 'conduit',    desc: 'Lightning auto-arcs to nearby foes 20s' },
     channeling: { name: 'Channeling Pylon', color: '#c489ff', icon: '∞', duration: 12, effect: 'channeling', desc: 'Free skills — no mana, no cooldown 12s' },
     frenzy:     { name: 'Frenzy Pylon',     color: '#ff9a3c', icon: '»', duration: 24, effect: 'frenzy',     desc: '+40% Attack & Move Speed 24s' },
+    beacon:     { name: 'Hollow Beacon',    color: '#b06bff', icon: '✦', duration: 0,  effect: 'beacon',     desc: 'Cleanse the corruption' },
     bloodthirst:{ name: 'Bloodthirst Pylon',color: '#ff5577', icon: '✚', duration: 20, effect: 'regen',      desc: 'Regenerate 4% Life/sec 20s' },
   };
   // effect -> short label for the fade toast
@@ -1069,6 +1075,8 @@
       worldState: null,    // persisted location for resume on reload
       savedDungeon: null,  // dungeon to return to after using Sanctuary Scroll
       mysteryVendor: null, // { day: number, baseId: string, bought: bool }
+      hollowing: 0,        // 0-100 world corruption — rises as you delve, pushed back in town / by beacons
+      factionRep: {},      // { [factionId]: reputation } — earned from boss/abyss/rift activity
     };
   }
 
@@ -1164,6 +1172,8 @@
       // migrate: permanent upgrades for old saves
       if (!obj.upgrades) obj.upgrades = { pickup: 0, xpgain: 0, goldfind: 0, potions: 0, fortune: 0, quarter: 0, apothecary: 0, warden: 0 };
       // migrate: feature-batch fields for old saves
+      if (obj.hollowing === undefined) obj.hollowing = 0;
+      if (!obj.factionRep) obj.factionRep = {};
       if (!obj.bossesKilled) obj.bossesKilled = {};
       if (!obj.wardrobe) obj.wardrobe = {};
       if (obj.gameWon === undefined) obj.gameWon = false;
@@ -2218,6 +2228,7 @@
     game.telegraphs = [];
   }
   function enterTown() {
+    addHollowing(-6);   // the Sanctuary is a safe haven — corruption recedes while you rest here
     game.world = generateTown();
     if (window.__GL) window.__GL.onZoneChange(game.world);
     if (window.__AUDIO) window.__AUDIO.music('town');
@@ -2266,12 +2277,25 @@
     // Chance of an ambush event a few seconds in (not floor 1, not boss floors)
     if (!game.world.isBoss && floor > 1 && roll(0.16)) game.world.ambush = { armed: true, delay: 5 + rand() * 6, remaining: 0 };
     spawnHireling();   // recruited companion joins the descent
+    // THE HOLLOWING — corruption creeps up as you delve and warps the run at depth.
+    addHollowing(2);
+    const hv = hollowLevel();
+    if (hv >= 20) {
+      game.world.corruption = hv;
+      const cm = hollowEnemyMul();
+      for (const e of game.enemies) { e.hpMax = (e.hpMax || e.hp) * cm; e.hp = e.hpMax; e.dmg *= cm; }
+      // A Hollow Beacon manifests on heavily corrupted floors — cleanse it to push the corruption back.
+      if (hv >= 40 && game.world.shrines) {
+        const free = game.world.shrines.find(s => !s.used && s.type !== 'beacon');
+        if (free) { free.type = 'beacon'; free.color = SHRINES.beacon.color; }
+      }
+    }
     // Tag the zone name with the difficulty tier (non-Normal)
     const diffId = game.save.difficulty || 'normal';
     if (diffId !== 'normal') game.world.name += ` [${DIFFICULTIES[diffId].short}]`;
     snapCamera();
     navigateTo('game');
-    showZoneToast(`${biome.shortName} — FLOOR ${floor}${diffId !== 'normal' ? ' · ' + DIFFICULTIES[diffId].name.toUpperCase() : ''}`);
+    showZoneToast(`${biome.shortName} — FLOOR ${floor}${diffId !== 'normal' ? ' · ' + DIFFICULTIES[diffId].name.toUpperCase() : ''}${hv >= 20 ? ` · ⚠ HOLLOWED ${hv}%` : ''}`);
     applyDerivedToChar();
     updateHud();
   }
@@ -3027,6 +3051,17 @@
     const def = SHRINES[sh.type];
     if (!def || sh.used) return;
     sh.used = true;
+    // Hollow Beacon — cleanse the world corruption (no buff) and yield a reward.
+    if (def.effect === 'beacon') {
+      const before = hollowLevel();
+      addHollowing(-25);
+      if (game.char) game.char.gold += 200 + (game.char.level || 1) * 10;
+      saveGame(); applyDerivedToChar();
+      showHudToast(`Hollow Beacon cleansed — corruption ${before}% → ${hollowLevel()}%`);
+      for (let i = 0; i < 30; i++) { const a = Math.random() * Math.PI * 2, spd = 1 + Math.random() * 3; addParticle({ x: sh.x, y: sh.y, vx: Math.cos(a) * spd, vy: Math.sin(a) * spd, color: def.color, life: 0.9 + Math.random() * 0.5, age: 0, size: 3 }); }
+      game.screenShake = Math.max(game.screenShake, 0.2); sfx('legendary');
+      return;
+    }
     game.activeBuffs = game.activeBuffs || {};
     // Set the timer for this buff type (overwrites if already active — fresh duration)
     game.activeBuffs[def.effect] = def.duration;
@@ -4196,6 +4231,8 @@
     const dropIlvlBonus = diff.ilvlBonus || 0;
     let xp = e.xp;
     let gold = Math.floor(irand(e.goldRange[0], e.goldRange[1]) * (e.boss ? 3 : 1) * (diff.lootMul || 1));
+    // The Hollowing — corrupted floors pay out richer xp/gold (the risk/reward of letting it spread).
+    if (game.world && game.world.corruption) { const lm = hollowLootMul(); xp = Math.round(xp * lm); gold = Math.round(gold * lm); }
     if (passives.scholar) xp = Math.floor(xp * 1.3);
     if (passives.greedy)  gold = Math.floor(gold * 1.3);
     // Talent tree — Insight (xp) + Avarice (gold).
@@ -8292,6 +8329,16 @@
       } else {
         riftEl.classList.add('hidden');
       }
+    }
+    // The Hollowing — corruption meter on warped biome floors
+    const hollowEl = $('hud-hollow');
+    if (hollowEl) {
+      const hv = hollowLevel();
+      if (hv >= 20 && game.world && game.world.corruption) {
+        hollowEl.classList.remove('hidden');
+        hollowEl.classList.toggle('high', hv >= 60);
+        hollowEl.innerHTML = `☣ HOLLOWING ${hv}%`;
+      } else { hollowEl.classList.add('hidden'); }
     }
     // Active shrine buffs (icon + remaining seconds)
     const buffsEl = $('hud-buffs');
