@@ -308,7 +308,7 @@
     apothecary:{ name: 'Apothecary',     icon: '⚗', max: 3, perLevel: '+18% potion healing',     baseCost: 260 },
     warden:   { name: 'Sanctuary Warden',icon: '◇', max: 3, perLevel: '+5% Elemental Resist',    baseCost: 280 },
   };
-  function magicFindBonus() { return upgradeLevel('fortune') * 8 + (talentEffects(game.char).mf || 0); }
+  function magicFindBonus() { return upgradeLevel('fortune') * 8 + (talentEffects(game.char).mf || 0) + ((game.char && game.char.paragonBoard && game.char.paragonBoard.mf) || 0); }
   function inventoryCap() { return 24 + upgradeLevel('quarter') * 4; }
   function upgradeLevel(key) {
     return (game.save && game.save.upgrades && game.save.upgrades[key]) || 0;
@@ -1037,6 +1037,7 @@
         paragonXp: 0,         // XP toward next paragon level
         paragonPoints: 0,     // unspent paragon points
         paragonStats: { str: 0, int: 0, dex: 0, vit: 0 }, // allocated paragon stat bonuses
+        paragonBoard: { dmgPct: 0, crit: 0, aspd: 0, hpPct: 0, armor: 0, res: 0, ms: 0, mf: 0 }, // Paragon Board % nodes
         selectedSkill: cls.skills[0],  // track which skill is active
         skillRunes: {},        // { [skillId]: runeId } — chosen augment per skill
         aspects: [],           // Legendary Aspect codex — power ids extracted via salvage, imprintable
@@ -1137,6 +1138,7 @@
       if (obj.char && obj.char.paragonXp === undefined)    obj.char.paragonXp = 0;
       if (obj.char && obj.char.paragonPoints === undefined) obj.char.paragonPoints = 0;
       if (obj.char && !obj.char.paragonStats) obj.char.paragonStats = { str: 0, int: 0, dex: 0, vit: 0 };
+      if (obj.char && !obj.char.paragonBoard) obj.char.paragonBoard = { dmgPct: 0, crit: 0, aspd: 0, hpPct: 0, armor: 0, res: 0, ms: 0, mf: 0 };
       if (obj.mysteryVendor === undefined) obj.mysteryVendor = null; // { day, baseId, bought }
       // migrate: auto-potion settings for old saves
       if (obj.char && obj.char.autoPotion === undefined) obj.char.autoPotion = true;
@@ -1354,6 +1356,19 @@
       if (abMods.hpPct)  hpMul   *= 1 + abMods.hpPct / 100;
     }
 
+    // ===== Paragon Board (% nodes — raw stats are handled via paragonStats above) =====
+    const pb = char.paragonBoard;
+    let pbMs = 0;
+    if (pb) {
+      if (pb.crit)   crit    += pb.crit * 0.2;
+      if (pb.armor)  def     += pb.armor * 2;
+      if (pb.res)    res     += pb.res * 0.3;
+      if (pb.dmgPct) dmgMul  *= 1 + pb.dmgPct * 0.5 / 100;
+      if (pb.aspd)   aspdMul *= 1 + pb.aspd * 0.4 / 100;
+      if (pb.hpPct)  hpMul   *= 1 + pb.hpPct * 0.6 / 100;
+      pbMs = (pb.ms || 0) * 0.3;
+    }
+
     const preMulDmg = dmg;
 
     // Apply final multipliers
@@ -1393,7 +1408,7 @@
 
     // Glass Cannon power: trade max life for raw damage.
     if (charPowers(char).has('glasscannon')) { dmg = Math.floor(dmg * 1.3); hpMax = Math.floor(hpMax * 0.75); }
-    return { dmg, def, hpMax, mpMax, crit, aspd, res: Math.min(75, res + upgradeLevel('warden') * 5 + (divineAura ? 20 : 0)), dr: Math.min(60, te.dr || 0), ms: (te.ms || 0) + frenzyMs + ((abMods && abMods.ms) || 0), bonusStats, breakdown };
+    return { dmg, def, hpMax, mpMax, crit, aspd, res: Math.min(75, res + upgradeLevel('warden') * 5 + (divineAura ? 20 : 0)), dr: Math.min(60, te.dr || 0), ms: (te.ms || 0) + frenzyMs + ((abMods && abMods.ms) || 0) + pbMs, bonusStats, breakdown };
   }
 
   // Count how many pieces of each set the player has equipped, return summed bonus
@@ -1502,12 +1517,13 @@
   // ============================================================
   // ITEM GENERATION
   // ============================================================
-  function rollAffix(rarity, ilvl) {
+  function rollAffix(rarity, ilvl, maxRoll) {
     // Mythic draws from the full (unique-tier) affix pool, rolled at a premium.
     const poolRarity = rarity === 'mythic' ? 'unique' : rarity;
     const pool = AFFIXES.filter(a => a.rarities.includes(poolRarity));
     const a = pick(pool) || AFFIXES[0]; // guard against an empty pool
-    let val = 1 + Math.floor(rand() * Math.min(a.max, 1 + ilvl));
+    const cap = Math.min(a.max, 1 + ilvl);
+    let val = maxRoll ? cap : (1 + Math.floor(rand() * cap));   // Primal items roll every affix at its max
     if (rarity === 'mythic') val = Math.ceil(val * 1.4);
     return { key: a.key, label: a.label, val };
   }
@@ -1541,12 +1557,14 @@
                       : rarity === 'rare'   ? (1 + irand(1, 2))
                       : rarity === 'mythic' ? 5
                       : 4;
+    // PRIMAL — a rare "perfected" roll (rare+ items): every affix lands at its maximum.
+    const isPrimal = !!opts.primal || ((rarity === 'rare' || rarity === 'unique' || rarity === 'mythic') && roll(0.04));
     const affixes = [];
     const usedKeys = new Set();
     for (let i = 0; i < affixCount; i++) {
-      let af = rollAffix(rarity, ilvl);
+      let af = rollAffix(rarity, ilvl, isPrimal);
       let tries = 0;
-      while (usedKeys.has(af.key) && tries++ < 6) af = rollAffix(rarity, ilvl);
+      while (usedKeys.has(af.key) && tries++ < 6) af = rollAffix(rarity, ilvl, isPrimal);
       if (usedKeys.has(af.key)) continue;
       usedKeys.add(af.key);
       affixes.push(af);
@@ -1576,6 +1594,7 @@
       sockets,
       gems: [],
       element,
+      primal: isPrimal,
       name: buildItemName(base, rarity, affixes),
     };
   }
@@ -5345,7 +5364,8 @@
       game.char.inventory.push(it.item);
       collectLook(it.item);   // unlock its appearance for the Wardrobe
       const rr = it.item && it.item.rarity;
-      if (rr === 'unique' || rr === 'mythic') sfx('legendary');
+      if (it.item && it.item.primal) { sfx('legendary'); floatText('✦ PRIMAL!', it.x, it.y - 1.0, 'crit'); burst(it.x, it.y, '#ff9a3c', 26); }
+      else if (rr === 'unique' || rr === 'mythic') sfx('legendary');
       else sfx('loot', { pitch: rr === 'rare' ? 1.25 : rr === 'magic' ? 1.12 : 1 });
       floatText(`+ ${it.item.name}`, it.x, it.y - 0.4, 'loot');
       saveGame();
@@ -8334,6 +8354,7 @@
     if (id === 'passives') renderPassives();
     if (id === 'talents') renderTalents();
     if (id === 'journey') renderJourney();
+    if (id === 'paragon') renderParagonBoard();
     if (id === 'abyss-draft') renderBoonDraft();
     if (id === 'gambler') renderGambler();
     if (id === 'imprint') renderImprint();
@@ -8650,6 +8671,55 @@
     }
   }
 
+  // ===== PARAGON BOARD — a richer post-cap allocation (% nodes + raw stats) =====
+  const PARAGON_NODES = {
+    off: { name: 'Offense', color: '#ff6a4d', nodes: [
+      { key: 'dmgPct', label: '% Damage', per: 0.5 }, { key: 'crit', label: '% Crit', per: 0.2 }, { key: 'aspd', label: '% Attack Speed', per: 0.4 } ] },
+    def: { name: 'Defense', color: '#8fb7ff', nodes: [
+      { key: 'hpPct', label: '% Maximum Life', per: 0.6 }, { key: 'armor', label: 'Armor', per: 2 }, { key: 'res', label: '% Elem Resist', per: 0.3 } ] },
+    utl: { name: 'Utility', color: '#7dffb0', nodes: [
+      { key: 'ms', label: '% Move Speed', per: 0.3 }, { key: 'mf', label: '% Magic Find', per: 1 } ] },
+    core: { name: 'Mastery', color: '#ffd27a', nodes: [
+      { key: 'str', label: 'Strength', per: 1, stat: true }, { key: 'int', label: 'Intellect', per: 1, stat: true }, { key: 'dex', label: 'Dexterity', per: 1, stat: true }, { key: 'vit', label: 'Vitality', per: 1, stat: true } ] },
+  };
+  function paragonNode(key) { for (const ck in PARAGON_NODES) { const n = PARAGON_NODES[ck].nodes.find(x => x.key === key); if (n) return n; } return null; }
+  function renderParagonBoard() {
+    const c = game.char; if (!c) return;
+    const el = $('paragon-content'); if (!el) return;
+    const _kf = listFocusIndex(el);
+    el.innerHTML = '';
+    const head = document.createElement('div');
+    head.className = 'abyss-intro';
+    head.innerHTML = `Paragon Level <b>${c.paragonLevel || 0}</b> · <span class="rarity-unique">${c.paragonPoints || 0}</span> unspent point${(c.paragonPoints || 0) === 1 ? '' : 's'}. You earn one each Paragon level (forever, past the cap) — pour them into the board.`;
+    el.appendChild(head);
+    for (const ck in PARAGON_NODES) {
+      const cat = PARAGON_NODES[ck];
+      const sec = document.createElement('div'); sec.className = 'sync-section';
+      sec.innerHTML = `<h3 style="color:${cat.color}">${cat.name}</h3>`;
+      cat.nodes.forEach(n => {
+        const alloc = n.stat ? ((c.paragonStats || {})[n.key] || 0) : ((c.paragonBoard || {})[n.key] || 0);
+        const tot = n.stat ? `+${alloc}` : `+${(alloc * n.per) % 1 ? (alloc * n.per).toFixed(1) : (alloc * n.per)}`;
+        const afford = (c.paragonPoints || 0) > 0;
+        const b = document.createElement('button');
+        b.className = 'nav-item focusable' + (afford ? '' : ' disabled');
+        if (afford) { b.dataset.action = 'paragon-node'; b.dataset.key = n.key; } else { b.tabIndex = -1; }
+        b.innerHTML = `+${n.per} ${n.label} <span class="pts">${tot} <span style="opacity:.6">(${alloc} pts)</span></span>`;
+        sec.appendChild(b);
+      });
+      el.appendChild(sec);
+    }
+    listFocusRestore(el, _kf);
+  }
+  function spendParagonNode(key) {
+    const c = game.char;
+    if (!c.paragonPoints || c.paragonPoints <= 0) { showHudToast('No paragon points.'); return; }
+    const n = paragonNode(key); if (!n) return;
+    if (n.stat) { if (!c.paragonStats) c.paragonStats = { str: 0, int: 0, dex: 0, vit: 0 }; c.paragonStats[key] = (c.paragonStats[key] || 0) + 1; }
+    else { if (!c.paragonBoard) c.paragonBoard = {}; c.paragonBoard[key] = (c.paragonBoard[key] || 0) + 1; }
+    c.paragonPoints -= 1;
+    applyDerivedToChar(); saveGame(); renderParagonBoard(); updateHud();
+  }
+
   function spendParagon(k) {
     const c = game.char;
     if (!c.paragonPoints || c.paragonPoints <= 0) { showHudToast('No paragon points.'); return; }
@@ -8763,8 +8833,8 @@
     c.glassTears = (c.glassTears || 0) + (r.tears || 0);
     c.craftDust = (c.craftDust || 0) + (r.dust || 0);
     if (r.item) {
-      const it = rollItem(Math.max(10, c.level + 4), r.item, { preferLegendary: r.item === 'unique' || r.item === 'mythic' });
-      if (it) { if (r.primal) it.primal = true; if (c.inventory.length < inventoryCap()) c.inventory.push(it); else { game.items.push({ x: game.world.player.x, y: game.world.player.y, item: it, age: 0 }); } }
+      const it = rollItem(Math.max(10, c.level + 4), r.item, { preferLegendary: r.item === 'unique' || r.item === 'mythic', primal: !!r.primal });
+      if (it) { if (c.inventory.length < inventoryCap()) c.inventory.push(it); else { game.items.push({ x: game.world.player.x, y: game.world.player.y, item: it, age: 0 }); } }
     }
     c.title = ch.title;
     c.journeyClaimed.push(id);
@@ -9722,6 +9792,8 @@
       case 'menu-talents': navigateTo('talents'); return;
       case 'menu-journey': navigateTo('journey'); return;
       case 'journey-claim': claimChapter(el.dataset.ch); return;
+      case 'menu-paragon': navigateTo('paragon'); return;
+      case 'paragon-node': spendParagonNode(el.dataset.key); return;
       case 'talent-alloc': {
         const id = el.dataset.node;
         if (canAllocTalent(game.char, id)) {
@@ -10148,8 +10220,8 @@
     }
 
     card.innerHTML = `
-      <div class="item-name rarity-${it.rarity}">${it.name}</div>
-      <div class="item-type">${base.type} · ilvl ${it.ilvl} · ${it.rarity.toUpperCase()}</div>
+      <div class="item-name rarity-${it.rarity}">${it.primal ? '✦ ' : ''}${it.name}</div>
+      <div class="item-type">${base.type} · ilvl ${it.ilvl} · ${it.rarity.toUpperCase()}${it.primal ? ' · <span class="primal-tag">PRIMAL</span>' : ''}</div>
       ${baseLines.map(l => `<div class="item-affix">${l}</div>`).join('')}
       ${(base.type === 'weapon' && weaponElement(it) !== 'physical') ? (function(){ const el = ELEMENTS[weaponElement(it)]; return `<div class="item-affix" style="color:${el.color}">${el.icon} ${el.name} damage</div>`; })() : ''}
       ${(function(){ const pw = (base.power && POWERS[base.power]) || (it.power && POWERS[it.power]); return pw ? `<div class="item-affix" style="color:#ffd27a">★ ${pw.name} — ${pw.desc}</div>` : ''; })()}
