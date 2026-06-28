@@ -308,12 +308,66 @@
     apothecary:{ name: 'Apothecary',     icon: '⚗', max: 3, perLevel: '+18% potion healing',     baseCost: 260 },
     warden:   { name: 'Sanctuary Warden',icon: '◇', max: 3, perLevel: '+5% Elemental Resist',    baseCost: 280 },
   };
-  function magicFindBonus() { return upgradeLevel('fortune') * 8 + (talentEffects(game.char).mf || 0) + ((game.char && game.char.paragonBoard && game.char.paragonBoard.mf) || 0); }
+  function magicFindBonus() { return upgradeLevel('fortune') * 8 + (talentEffects(game.char).mf || 0) + ((game.char && game.char.paragonBoard && game.char.paragonBoard.mf) || 0) + (factionTierOf('covenant') >= 4 ? 12 : 0); }
   // ===== THE HOLLOWING — world corruption that warps biome runs (harder foes, richer loot) =====
   function hollowLevel() { return Math.max(0, Math.min(100, (game.save && game.save.hollowing) || 0)); }
   function hollowEnemyMul() { return 1 + hollowLevel() / 100 * 0.6; }   // +60% enemy hp/dmg at full corruption
   function hollowLootMul() { return 1 + hollowLevel() / 100 * 0.8; }    // +80% xp/gold at full corruption
   function addHollowing(delta) { game.save.hollowing = Math.max(0, Math.min(100, hollowLevel() + delta)); }
+
+  // ===== FACTIONS — reputation earned from endgame activity; tiers grant rewards + a capstone perk =====
+  const FACTIONS = [
+    { id: 'vigil',    name: 'Order of the Vigil',  color: '#ffd45e', blurb: 'Sworn boss-slayers who keep the long watch. Earn favor by felling great foes.', perk: '+12% Damage' },
+    { id: 'covenant', name: 'The Ashen Covenant',  color: '#b06bff', blurb: 'Delvers bound to the deep. Earn favor descending the Abyss.',                 perk: '+12% Magic Find' },
+    { id: 'wardens',  name: 'Wardens of the Gate', color: '#6fd6ff', blurb: 'Rift-runners racing the collapse. Earn favor against the timer.',              perk: '+8% Attack Speed' },
+  ];
+  const FACTION_TIERS = [
+    { name: 'Neutral',  at: 0 },
+    { name: 'Friendly', at: 100,  reward: { gold: 500,  tears: 1 } },
+    { name: 'Honored',  at: 300,  reward: { gold: 1500, tears: 2 } },
+    { name: 'Revered',  at: 700,  reward: { gold: 3500, tears: 4, item: 'unique' } },
+    { name: 'Exalted',  at: 1500, reward: { gold: 8000, tears: 10, item: 'mythic' } },   // also unlocks the faction perk
+  ];
+  function factionRepOf(id) { return (game.save.factionRep && game.save.factionRep[id]) || 0; }
+  function factionTierFor(rep) { let t = 0; for (let i = 0; i < FACTION_TIERS.length; i++) if (rep >= FACTION_TIERS[i].at) t = i; return t; }
+  function factionTierOf(id) { return factionTierFor(factionRepOf(id)); }
+  function addRep(id, amt) {
+    if (!amt || !game.char) return;
+    if (!game.save.factionRep) game.save.factionRep = {};
+    const old = factionRepOf(id);
+    game.save.factionRep[id] = old + amt;
+    const oldT = factionTierFor(old), newT = factionTierFor(old + amt);
+    const fn = FACTIONS.find(f => f.id === id);
+    for (let t = oldT + 1; t <= newT; t++) {   // grant each newly-crossed tier exactly once (rep only rises)
+      const tier = FACTION_TIERS[t], r = tier.reward || {};
+      game.char.gold += r.gold || 0;
+      game.char.glassTears = (game.char.glassTears || 0) + (r.tears || 0);
+      if (r.item) {
+        const it = rollItem(Math.max(10, game.char.level + 4), r.item, { preferLegendary: true });
+        if (it) { if (game.char.inventory.length < inventoryCap()) game.char.inventory.push(it); else if (game.world && game.world.player) game.items.push({ x: game.world.player.x, y: game.world.player.y, item: it, age: 0 }); }
+      }
+      showHudToast(`★ ${fn.name}: ${tier.name}${t === 4 ? ` — perk unlocked: ${fn.perk}` : ''}!`);
+      sfx('legendary');
+    }
+    if (newT > oldT) applyDerivedToChar();   // Exalted perk takes effect immediately
+  }
+  function renderFactions() {
+    const el = $('factions-content'); if (!el) return;
+    const _kf = listFocusIndex(el);
+    el.innerHTML = '';
+    FACTIONS.forEach(f => {
+      const rep = factionRepOf(f.id), ti = factionTierOf(f.id), tier = FACTION_TIERS[ti], next = FACTION_TIERS[ti + 1];
+      const sec = document.createElement('div'); sec.className = 'faction-card';
+      let bar;
+      if (next) { const span = next.at - tier.at, prog = Math.max(0, Math.min(1, (rep - tier.at) / span));
+        bar = `<div class="faction-bar"><div class="faction-bar-fill" style="width:${Math.round(prog * 100)}%;background:${f.color}"></div></div><div class="faction-next">${rep} / ${next.at} rep → ${next.name}</div>`; }
+      else bar = `<div class="faction-next" style="color:${f.color}">EXALTED — ${rep} rep</div>`;
+      const exalted = ti >= 4;
+      sec.innerHTML = `<h3 style="color:${f.color}">${f.name} <span class="faction-rank">${tier.name}</span></h3><div class="faction-blurb">${f.blurb}</div>${bar}<div class="faction-perk ${exalted ? 'active' : ''}">Exalted perk: ${f.perk}${exalted ? ' ✓ active' : ''}</div>`;
+      el.appendChild(sec);
+    });
+    listFocusRestore(el, _kf);
+  }
   function inventoryCap() { return 24 + upgradeLevel('quarter') * 4; }
   function upgradeLevel(key) {
     return (game.save && game.save.upgrades && game.save.upgrades[key]) || 0;
@@ -1378,6 +1432,11 @@
       if (pb.hpPct)  hpMul   *= 1 + pb.hpPct * 0.6 / 100;
       pbMs = (pb.ms || 0) * 0.3;
     }
+
+    // ===== Faction Exalted perks (capstone rewards) =====
+    if (factionTierOf('vigil') >= 4)   dmgMul  *= 1.12;   // Order of the Vigil
+    if (factionTierOf('wardens') >= 4) aspdMul *= 1.08;   // Wardens of the Gate
+    // (The Ashen Covenant's +12% Magic Find is applied in magicFindBonus.)
 
     const preMulDmg = dmg;
 
@@ -2598,6 +2657,7 @@
     // Track personal best
     let newBest = false;
     if (level > (game.save.bestRift || 0)) { game.save.bestRift = level; newBest = true; }
+    addRep('wardens', level * 4);   // the Wardens of the Gate reward rift clears
     game.rift.active = false;
     game.rift = null;
     saveGame();
@@ -2643,6 +2703,7 @@
     floor = floor || 1;
     const a = (game.abyss && game.abyss.active) ? game.abyss : (game.abyss = freshAbyss());
     a.active = true;
+    addRep('covenant', floor * 4);   // the Ashen Covenant rewards descent into the Abyss
     const pool = riftEnemyPool();
     const palette = { wall: '#c489ff', floor: '#0c0716', accent: '#ff3df0' };
     const synth = { id: 'voidspire', shortName: 'ABYSS', enemies: pool, boss: null, palette };
@@ -4312,6 +4373,7 @@
 
     // Item drops — bosses get treasure hoard, normal enemies have a chance
     if (e.boss) {
+      addRep('vigil', 25);   // the Order of the Vigil prizes felled bosses
       // Boss treasure hoard: 2-3 items spread around the kill point
       const bossDropCount = 2 + (roll(0.5) ? 1 : 0);
       // The guaranteed legendary slot has a chance to ascend to mythic
@@ -8402,6 +8464,7 @@
     if (id === 'talents') renderTalents();
     if (id === 'journey') renderJourney();
     if (id === 'paragon') renderParagonBoard();
+    if (id === 'factions') renderFactions();
     if (id === 'abyss-draft') renderBoonDraft();
     if (id === 'gambler') renderGambler();
     if (id === 'imprint') renderImprint();
@@ -9841,6 +9904,7 @@
       case 'journey-claim': claimChapter(el.dataset.ch); return;
       case 'menu-paragon': navigateTo('paragon'); return;
       case 'paragon-node': spendParagonNode(el.dataset.key); return;
+      case 'menu-factions': navigateTo('factions'); return;
       case 'talent-alloc': {
         const id = el.dataset.node;
         if (canAllocTalent(game.char, id)) {
