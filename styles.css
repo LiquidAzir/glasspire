@@ -603,6 +603,21 @@ html, body {
   backdrop-filter: blur(4px);
   box-shadow: 0 2px 12px rgba(0,0,0,0.4);
 }
+.hud-auto {
+  margin-top: 4px;
+  align-self: flex-start;
+  padding: 3px 10px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  color: #ffd45e;
+  background: rgba(40,30,10,0.7);
+  border: 1px solid rgba(255,212,94,0.5);
+  text-shadow: 0 0 8px rgba(255,212,94,0.6);
+  animation: autopulse 1.4s ease-in-out infinite;
+}
+@keyframes autopulse { 0%,100% { opacity: 0.65; } 50% { opacity: 1; } }
 .hud-rift {
   background: linear-gradient(135deg, rgba(20,8,30,0.9), rgba(40,20,60,0.85));
   padding: 6px 14px;

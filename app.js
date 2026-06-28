@@ -1042,6 +1042,7 @@
         aspects: [],           // Legendary Aspect codex — power ids extracted via salvage, imprintable
         autoPotion: true,      // auto-drink a potion when HP drops below threshold
         autoPotionPct: 0.35,   // fraction of max HP that triggers an auto-potion
+        autoPlay: false,       // passive mode — the hero fights/loots/descends on its own
         hardcore: false,       // one life — permadeath when true (set at class select)
         transmog: { weapon: null, armor: null },  // appearance overrides (look id or null = item's own)
         hireling: null,        // recruited companion: { type, level } or null
@@ -1138,6 +1139,7 @@
       // migrate: auto-potion settings for old saves
       if (obj.char && obj.char.autoPotion === undefined) obj.char.autoPotion = true;
       if (obj.char && obj.char.autoPotionPct === undefined) obj.char.autoPotionPct = 0.35;
+      if (obj.char && obj.char.autoPlay === undefined) obj.char.autoPlay = false;
       // migrate: bestiary kill log for old saves
       if (!obj.bestiary) obj.bestiary = {};
       // migrate: crafting dust material for old saves
@@ -3780,6 +3782,117 @@
   // ============================================================
   // COMBAT — auto-attack tick
   // ============================================================
+  // ============================================================
+  // AUTO-PLAY — optional passive mode (toggled in the pause menu). The hero
+  // navigates the current realm on its own: fights, dodges telegraphs, grabs
+  // shrines + loot, and descends when the floor is clear. Returns true if it
+  // triggered a world transition this frame (so the caller skips the rest).
+  // ============================================================
+  function autoPlayTick(dt) {
+    const w = game.world; if (!w || w.kind !== 'dungeon') return false;
+    const p = w.player, c = game.char, cls = CLASSES[c.classId];
+
+    // 0) DODGE — flee any telegraph we're standing in that's about to detonate.
+    if (game.telegraphs) {
+      for (const tg of game.telegraphs) {
+        if (dist(tg, p) < tg.radius + 0.4 && (tg.windup - tg.age) < 0.7) {
+          const ax = p.x - tg.x, ay = p.y - tg.y, l = Math.hypot(ax, ay) || 1;
+          p._impulseX = ax / l; p._impulseY = ay / l; p._impulseT = 0.2;
+          return false;
+        }
+      }
+    }
+
+    // 1) Pick a target: nearest live enemy -> unused shrine -> loot -> descend portal.
+    let enemy = null, ed = Infinity;
+    for (const e of game.enemies) { if (e.hp <= 0 || e.hazard || e.inert) continue; const dd = dist(e, p); if (dd < ed) { ed = dd; enemy = e; } }
+    let shrine = null, sd = Infinity;
+    if (w.shrines) for (const sh of w.shrines) { if (sh.used) continue; const dd = dist(sh, p); if (dd < sd) { sd = dd; shrine = sh; } }
+    let item = null, idd = Infinity;
+    for (const gi of game.items) { const dd = dist(gi, p); if (dd < idd) { idd = dd; item = gi; } }
+
+    let target = null, mode = null, stop = 0.3;
+    if (enemy && ed < 12) { target = enemy; mode = 'enemy'; stop = Math.max(1.0, cls.attackRange * 0.7); autoPlayCast(enemy, ed); }
+    else if (shrine && sd < 7) { target = shrine; mode = 'shrine'; stop = 1.2; }
+    else if (item && idd < 16) { target = item; mode = 'loot'; stop = 0.4; }
+    else {
+      const portal = (w.portals || []).find(po => (po.kind === 'next' || po.kind === 'rift-next' || po.kind === 'abyss-next') && !po.locked);
+      if (portal) { target = portal; mode = 'descend'; stop = 0.7; }
+    }
+    if (!target) return false;   // nothing to do — idle in place
+
+    const td = dist(target, p);
+    if (td <= stop) {
+      const dx = target.x - p.x, dy = target.y - p.y, l = Math.hypot(dx, dy) || 1;
+      p.lastDir.x = dx / l; p.lastDir.y = dy / l;   // face it (auto-attack + directional skills aim here)
+      if (mode === 'shrine') { activateShrine(target); }
+      else if (mode === 'descend') { activatePortal(target); return true; }   // world transition
+      return false;
+    }
+    // 2) Navigate toward the target.
+    const dir = autoPlaySteer(target, td);
+    if (dir) { p._impulseX = dir.x; p._impulseY = dir.y; p._impulseT = 0.2; }
+    return false;
+  }
+  function autoPlayCast(enemy, ed) {
+    const p = game.world.player, c = game.char;
+    if (p.skillCd > 0 || ed > 4.8) return;
+    const skillId = getActiveSkillId(), skill = SKILLS[skillId];
+    if (!skill) return;
+    const cost = Math.round(skill.cost || CLASSES[c.classId].activeSkillCost);
+    if (c.mp < cost) return;
+    const dx = enemy.x - p.x, dy = enemy.y - p.y, l = Math.hypot(dx, dy) || 1;
+    p.lastDir.x = dx / l; p.lastDir.y = dy / l;
+    castActiveSkill();
+  }
+  // BFS flow-field steering — robust through corridors/mazes (vs. naive line-of-sight steering).
+  function autoPlaySteer(target, td) {
+    const p = game.world.player;
+    if (td < 2.4) { const dx = target.x - p.x, dy = target.y - p.y, l = Math.hypot(dx, dy) || 1; return { x: dx / l, y: dy / l }; }
+    const tgx = Math.floor(target.x), tgy = Math.floor(target.y), key = tgx + ',' + tgy;
+    if (!game._apField || game._apFieldKey !== key || (game._apFieldExp || 0) < performance.now()) {
+      game._apField = autoPlayBFS(tgx, tgy);
+      game._apFieldKey = key;
+      game._apFieldExp = performance.now() + 450;   // recompute the field ~every 0.45s
+    }
+    const field = game._apField; if (!field) return null;
+    const pgx = Math.floor(p.x), pgy = Math.floor(p.y);
+    const cur = (field[pgy] && field[pgy][pgx] >= 0) ? field[pgy][pgx] : 1e9;
+    let best = null, bestD = cur;
+    for (const o of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      const nx = pgx + o[0], ny = pgy + o[1];
+      const dv = (field[ny] && field[ny][nx] != null) ? field[ny][nx] : -1;
+      if (dv >= 0 && dv < bestD) { bestD = dv; best = [nx, ny]; }
+    }
+    let dx, dy;
+    if (best) { dx = (best[0] + 0.5) - p.x; dy = (best[1] + 0.5) - p.y; }
+    else { dx = target.x - p.x; dy = target.y - p.y; }   // no improving neighbor — nudge straight
+    const l = Math.hypot(dx, dy) || 1; return { x: dx / l, y: dy / l };
+  }
+  function autoPlayBFS(tgx, tgy) {
+    const w = game.world, W = w.w, H = w.h, grid = w.grid;
+    if (tgx < 0 || tgx >= W || tgy < 0 || tgy >= H) return null;
+    const df = []; for (let y = 0; y < H; y++) { const row = new Int16Array(W); row.fill(-1); df.push(row); }
+    let sx = tgx, sy = tgy;
+    if (grid[sy][sx] !== 0) {   // target on a wall/decor — snap to a floor neighbor
+      let ok = false;
+      for (const o of [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [-1, 1], [1, -1], [-1, -1]]) { const nx = sx + o[0], ny = sy + o[1]; if (nx >= 0 && nx < W && ny >= 0 && ny < H && grid[ny][nx] === 0) { sx = nx; sy = ny; ok = true; break; } }
+      if (!ok) return null;
+    }
+    const qx = [sx], qy = [sy]; df[sy][sx] = 0; let head = 0;
+    while (head < qx.length) {
+      const cx = qx[head], cy = qy[head]; head++; const d = df[cy][cx];
+      for (const o of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const nx = cx + o[0], ny = cy + o[1];
+        if (nx < 0 || nx >= W || ny < 0 || ny >= H) continue;
+        if (grid[ny][nx] !== 0) continue;
+        if (df[ny][nx] >= 0) continue;
+        df[ny][nx] = d + 1; qx.push(nx); qy.push(ny);
+      }
+    }
+    return df;
+  }
+
   function autoAttackTick(dt) {
     const p = game.world.player;
     p.atkCd = Math.max(0, p.atkCd - dt);
@@ -8142,6 +8255,7 @@
       else { cdEl.textContent = 'READY'; cdEl.classList.add('ready'); }
     }
     $('hud-zone').textContent = game.world ? game.world.name : '—';
+    const haEl = $('hud-auto'); if (haEl) haEl.classList.toggle('hidden', !(game.char && game.char.autoPlay && game.world && game.world.kind === 'dungeon'));
     // Greater Rift timer + progress
     const riftEl = $('hud-rift');
     if (riftEl) {
@@ -8276,6 +8390,8 @@
         const pct = Math.round((game.char.autoPotionPct || 0.35) * 100);
         apBtn.textContent = game.char.autoPotion ? `Auto-Potion: ON (${pct}%)` : 'Auto-Potion: OFF';
       }
+      const aplBtn = $('menu-autoplay-btn');
+      if (aplBtn && game.char) aplBtn.textContent = 'Auto-Play: ' + (game.char.autoPlay ? 'ON' : 'OFF');
       // Update 3D renderer toggle label (3D is the default)
       const rBtn = $('menu-render-btn');
       if (rBtn) rBtn.textContent = (localStorage.getItem('hl_render') !== '2d') ? 'Graphics: 3D' : 'Graphics: 2D';
@@ -9617,6 +9733,18 @@
           showHudToast(c.autoPotion ? `Auto-potion ON at ${pctLabel}% HP.` : 'Auto-potion OFF.');
         }
         return;
+      case 'menu-autoplay-toggle':
+        {
+          const c = game.char; if (!c) return;
+          c.autoPlay = !c.autoPlay;
+          game._apField = null; game._apFieldKey = null;   // drop any stale path
+          saveGame();
+          const aplBtn = $('menu-autoplay-btn');
+          if (aplBtn) aplBtn.textContent = 'Auto-Play: ' + (c.autoPlay ? 'ON' : 'OFF');
+          updateHud();
+          showHudToast(c.autoPlay ? 'Auto-Play ON — the hero will fight, loot and descend on its own.' : 'Auto-Play OFF.');
+        }
+        return;
       case 'menu-render-toggle':
         {
           // 3D is the default; toggle persists per-device ('2d' = opt out) and reloads.
@@ -10660,6 +10788,9 @@
     pollGamepad();   // Bluetooth/USB controller -> movement / action / menu (no-op if none)
 
     if (game.screen === 'game' && game.world && game.char && game.char.hp > 0) {
+      // Auto-play drives the player first; if it descended to a new realm, skip the rest this frame.
+      const apTransitioned = game.char.autoPlay ? autoPlayTick(dt) : false;
+      if (!apTransitioned) {
       tickPlayer(dt);
       autoAttackTick(dt);
       tickEnemies(dt);
@@ -10673,6 +10804,7 @@
       tickGauntlet(dt);
       tickAmbush(dt);
       tickInteraction();
+      }   // end !apTransitioned
       updateCamera();
       render();
       // periodic HUD updates
