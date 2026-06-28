@@ -1339,6 +1339,17 @@ html, body {
 .boon-name { font-size: 18px; font-weight: 700; margin-bottom: 4px; }
 .boon-desc { font-size: 13px; color: #c8c8d8; line-height: 1.35; }
 .gamble-result { margin: 0 4px 14px; font-size: 15px; padding: 8px 12px; background: rgba(255,154,60,0.1); border-radius: 8px; }
+/* The Journey */
+.journey-records { font-size: 12px; color: #b9b9d0; margin: 4px 4px 14px; padding: 8px 12px; background: rgba(20,16,32,0.5); border-radius: 8px; line-height: 1.5; }
+.journey-chapter { margin: 0 0 16px; padding: 12px 14px; background: rgba(20,16,32,0.45); border: 1px solid #333; border-radius: 10px; }
+.journey-chapter h3 { margin: 0 0 8px; font-size: 15px; }
+.journey-obj { font-size: 13px; color: #9a9ab0; padding: 3px 0; display: flex; align-items: center; gap: 7px; }
+.journey-obj.done { color: #cfe3ff; }
+.jo-check { color: #555; font-weight: 700; }
+.journey-obj.done .jo-check { color: #7dffb0; }
+.jo-prog { margin-left: auto; opacity: 0.7; font-size: 12px; }
+.journey-reward { margin-top: 8px; font-size: 12px; color: #8a8aa0; }
+.journey-claimed { margin-top: 8px; font-size: 13px; color: #7dffb0; font-weight: 600; }
 .reforge-modes { display: flex; gap: 8px; margin-top: 10px; }
 .reforge-mode { flex: 1; padding: 7px 6px; font-size: 12px; border: 1px solid #555; border-radius: 7px; background: rgba(30,24,44,0.5); color: #c8c8d8; cursor: pointer; }
 .reforge-mode.active { border-color: var(--gold); color: var(--gold); background: rgba(255,200,87,0.12); }

@@ -1040,6 +1040,8 @@
         selectedSkill: cls.skills[0],  // track which skill is active
         skillRunes: {},        // { [skillId]: runeId } — chosen augment per skill
         aspects: [],           // Legendary Aspect codex — power ids extracted via salvage, imprintable
+        journeyClaimed: [],    // ids of Journey chapters whose reward has been claimed
+        title: null,           // earned title (from Journey chapters)
         autoPotion: true,      // auto-drink a potion when HP drops below threshold
         autoPotionPct: 0.35,   // fraction of max HP that triggers an auto-potion
         autoPlay: false,       // passive mode — the hero fights/loots/descends on its own
@@ -1153,6 +1155,7 @@
       // migrate: per-skill runes for old saves
       if (obj.char && !obj.char.skillRunes) obj.char.skillRunes = {};
       if (obj.char && !obj.char.aspects) obj.char.aspects = [];
+      if (obj.char && !obj.char.journeyClaimed) obj.char.journeyClaimed = [];
       // migrate: difficulty tiers for old saves
       if (!obj.difficulty) obj.difficulty = 'normal';
       if (!obj.maxDifficulty) obj.maxDifficulty = 'normal';
@@ -8330,6 +8333,7 @@
     if (id === 'skills') renderSkills();
     if (id === 'passives') renderPassives();
     if (id === 'talents') renderTalents();
+    if (id === 'journey') renderJourney();
     if (id === 'abyss-draft') renderBoonDraft();
     if (id === 'gambler') renderGambler();
     if (id === 'imprint') renderImprint();
@@ -8392,6 +8396,8 @@
       }
       const aplBtn = $('menu-autoplay-btn');
       if (aplBtn && game.char) aplBtn.textContent = 'Auto-Play: ' + (game.char.autoPlay ? 'ON' : 'OFF');
+      const jBtn = $('menu-journey-btn');
+      if (jBtn && game.char) jBtn.innerHTML = 'The Journey' + (journeyHasClaimable() ? ' <span style="color:#ffd45e">●</span>' : '');
       // Update 3D renderer toggle label (3D is the default)
       const rBtn = $('menu-render-btn');
       if (rBtn) rBtn.textContent = (localStorage.getItem('hl_render') !== '2d') ? 'Graphics: 3D' : 'Graphics: 2D';
@@ -8563,7 +8569,7 @@
       ? `MAX (Paragon ${c.paragonLevel || 0})`
       : `${c.xp} / ${xpForLevel(c.level)}`;
     const rows = [
-      ['Class',    cls.name],
+      ['Class',    cls.name + (c.title ? ` <span style="color:#ffd45e">"${c.title}"</span>` : '')],
       ['Level',    c.level + (atCap ? ' ★' : '')],
       ['XP',       xpLine],
       ['Damage',   `${d.dmg}${dmgBreakdown}`],
@@ -8702,6 +8708,102 @@
       sec.innerHTML = `<div class="skill-header">Rune — ${aS.name}:</div><div class="rune-chips">${chips}</div>`;
       el.appendChild(sec);
     }
+  }
+
+  // ============================================================
+  // THE JOURNEY — a structured ladder of objectives (read from existing persistent
+  // counters) grouped into chapters; completing one grants a milestone reward + a title.
+  // ============================================================
+  function _jTotalKills() { return Object.values(game.save.bestiary || {}).reduce((a, b) => a + b, 0); }
+  function _jBossBiomes() { return Object.values(game.save.bossesKilled || {}).filter(v => v > 0).length; }
+  const JOURNEY = [
+    { id: 'ch1', name: 'Chapter I — Awakening', title: 'the Wanderer',
+      objectives: [
+        { label: 'Reach Level 10', tgt: 10, cur: () => game.char.level },
+        { label: 'Slay 100 foes', tgt: 100, cur: _jTotalKills },
+        { label: 'Defeat your first boss', tgt: 1, cur: _jBossBiomes },
+      ], reward: { gold: 500, tears: 2, dust: 20, item: 'rare' } },
+    { id: 'ch2', name: 'Chapter II — The Deepening', title: 'the Delver',
+      objectives: [
+        { label: 'Reach Level 25', tgt: 25, cur: () => game.char.level },
+        { label: 'Fell a boss in 3 biomes', tgt: 3, cur: _jBossBiomes },
+        { label: 'Reach Abyss Depth 5', tgt: 5, cur: () => game.save.bestAbyss || 0 },
+        { label: 'Learn a Legendary Aspect', tgt: 1, cur: () => (game.char.aspects || []).length },
+      ], reward: { gold: 1500, tears: 4, dust: 60, item: 'unique' } },
+    { id: 'ch3', name: 'Chapter III — Ascendant', title: 'the Ascendant',
+      objectives: [
+        { label: 'Reach Level 40', tgt: 40, cur: () => game.char.level },
+        { label: 'Reach Greater Rift 10', tgt: 10, cur: () => game.save.bestRift || 0 },
+        { label: 'Reach Abyss Depth 12', tgt: 12, cur: () => game.save.bestAbyss || 0 },
+        { label: 'Clear the Boss Gauntlet', tgt: 6, cur: () => game.save.bestGauntlet || 0 },
+        { label: 'Reach Paragon 5', tgt: 5, cur: () => game.char.paragonLevel || 0 },
+      ], reward: { gold: 4000, tears: 8, dust: 150, item: 'mythic' } },
+    { id: 'ch4', name: 'Chapter IV — Hollowbane', title: 'Hollowbane',
+      objectives: [
+        { label: 'Reach Level 60', tgt: 60, cur: () => game.char.level },
+        { label: 'Reach Abyss Depth 20', tgt: 20, cur: () => game.save.bestAbyss || 0 },
+        { label: 'Fell every biome boss', tgt: 5, cur: _jBossBiomes },
+        { label: 'Learn 5 Legendary Aspects', tgt: 5, cur: () => (game.char.aspects || []).length },
+      ], reward: { gold: 10000, tears: 20, dust: 400, item: 'mythic', primal: true } },
+  ];
+  function chapterComplete(ch) { return ch.objectives.every(o => o.cur() >= o.tgt); }
+  function journeyHasClaimable() {
+    const c = game.char; if (!c) return false;
+    const claimed = c.journeyClaimed || [];
+    return JOURNEY.some(ch => claimed.indexOf(ch.id) < 0 && chapterComplete(ch));
+  }
+  function claimChapter(id) {
+    const c = game.char, ch = JOURNEY.find(x => x.id === id);
+    if (!ch) return;
+    if (!c.journeyClaimed) c.journeyClaimed = [];
+    if (c.journeyClaimed.indexOf(id) >= 0) return;
+    if (!chapterComplete(ch)) { showHudToast('Complete every objective first.'); return; }
+    const r = ch.reward;
+    c.gold += r.gold || 0;
+    c.glassTears = (c.glassTears || 0) + (r.tears || 0);
+    c.craftDust = (c.craftDust || 0) + (r.dust || 0);
+    if (r.item) {
+      const it = rollItem(Math.max(10, c.level + 4), r.item, { preferLegendary: r.item === 'unique' || r.item === 'mythic' });
+      if (it) { if (r.primal) it.primal = true; if (c.inventory.length < inventoryCap()) c.inventory.push(it); else { game.items.push({ x: game.world.player.x, y: game.world.player.y, item: it, age: 0 }); } }
+    }
+    c.title = ch.title;
+    c.journeyClaimed.push(id);
+    sfx('legendary'); saveGame(); applyDerivedToChar(); renderJourney();
+    showHudToast(`★ ${ch.name} complete! +${r.gold}g, a reward, and the title "${ch.title}".`);
+  }
+  function renderJourney() {
+    const c = game.char; if (!c) return;
+    const el = $('journey-content'); if (!el) return;
+    const _kf = listFocusIndex(el);
+    el.innerHTML = '';
+    // Personal records
+    const rec = document.createElement('div');
+    rec.className = 'journey-records';
+    rec.innerHTML = `<b>Records</b> · Rift ${game.save.bestRift || 0} · Abyss ${game.save.bestAbyss || 0} · Gauntlet ${game.save.bestGauntlet || 0}/6` +
+      (c.title ? ` · <span style="color:#ffd45e">${CLASSES[c.classId].name} "${c.title}"</span>` : '');
+    el.appendChild(rec);
+    const claimed = c.journeyClaimed || [];
+    JOURNEY.forEach(ch => {
+      const done = chapterComplete(ch), isClaimed = claimed.indexOf(ch.id) >= 0;
+      const sec = document.createElement('div');
+      sec.className = 'journey-chapter';
+      let oh = '';
+      ch.objectives.forEach(o => {
+        const cur = Math.min(o.cur(), o.tgt), ok = o.cur() >= o.tgt;
+        oh += `<div class="journey-obj ${ok ? 'done' : ''}"><span class="jo-check">${ok ? '✓' : '○'}</span> ${o.label} <span class="jo-prog">${cur}/${o.tgt}</span></div>`;
+      });
+      const r = ch.reward;
+      const rewardTxt = `${r.gold}g · ${r.tears}◊ · a ${r.primal ? 'PRIMAL ' : ''}${r.item} · title "${ch.title}"`;
+      let foot;
+      if (isClaimed) foot = `<div class="journey-claimed">✓ Claimed — "${ch.title}"</div>`;
+      else if (done) foot = `<button class="boon-card focusable" data-action="journey-claim" data-ch="${ch.id}" style="border-color:#ffd45e"><div class="boon-name" style="color:#ffd45e">★ Claim Reward</div><div class="boon-desc">${rewardTxt}</div></button>`;
+      else foot = `<div class="journey-reward">Reward: ${rewardTxt}</div>`;
+      sec.innerHTML = `<h3 style="color:${done ? '#ffd45e' : '#cfe3ff'}">${ch.name}${done && !isClaimed ? ' ●' : ''}</h3>${oh}`;
+      const footEl = document.createElement('div'); footEl.innerHTML = foot;
+      sec.appendChild(footEl.firstChild || document.createElement('div'));
+      el.appendChild(sec);
+    });
+    listFocusRestore(el, _kf);
   }
 
   function renderTalents() {
@@ -9618,6 +9720,8 @@
       case 'menu-skills': navigateTo('skills'); return;
       case 'menu-passives': navigateTo('passives'); return;
       case 'menu-talents': navigateTo('talents'); return;
+      case 'menu-journey': navigateTo('journey'); return;
+      case 'journey-claim': claimChapter(el.dataset.ch); return;
       case 'talent-alloc': {
         const id = el.dataset.node;
         if (canAllocTalent(game.char, id)) {
