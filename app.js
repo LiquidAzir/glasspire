@@ -626,6 +626,23 @@
     'stormcaller-chain':  { type: 'amulet', name: 'Stormcaller Chain',   icon: '◈', base: { dmg: 6, aspd: 8, dex: 2 }, ilvl: 23, legendary: true, look: 'storm' },
     'oblivion-tear':      { type: 'amulet', name: 'Oblivion Tear',       icon: '◈', base: { dmg: 8, mp: 20, hp: 20 }, ilvl: 24, legendary: true, look: 'void' },
 
+    // ===== LEGENDARY BATCH II — new weapons (two grant build-defining powers) =====
+    'bloodletter-scythe': { type: 'weapon', name: 'Bloodletter',        icon: '☠', base: { dmg: 41, hp: 20 }, ilvl: 24, glyph: 'wep', legendary: true, look: 'soul',  power: 'lifesteal' },
+    'wrathbringer':       { type: 'weapon', name: 'Wrathbringer',       icon: '⚔', base: { dmg: 50, str: 3 }, ilvl: 24, glyph: 'wep', legendary: true, look: 'flame', power: 'berserker' },
+    'glacial-render':     { type: 'weapon', name: 'Glacial Render',     icon: '⚔', base: { dmg: 44, def: 10, vit: 2 }, ilvl: 23, glyph: 'wep', legendary: true, look: 'frost' },
+    'sunderpeak-maul':    { type: 'weapon', name: 'Sunderpeak Maul',    icon: '⚔', base: { dmg: 55, hp: 25 }, ilvl: 25, glyph: 'wep', legendary: true, look: 'flame' },
+    'astralweave-staff':  { type: 'weapon', name: 'Astralweave',        icon: '✦', base: { dmg: 43, mp: 55, int: 4 }, ilvl: 24, glyph: 'wep', legendary: true, look: 'star' },
+    'gale-recurve':       { type: 'weapon', name: 'Gale Recurve',       icon: '➹', base: { dmg: 40, dex: 4, crit: 5 }, ilvl: 24, glyph: 'wep', legendary: true, look: 'storm' },
+    'grave-warden-rod':   { type: 'weapon', name: 'Grave Warden',       icon: '☠', base: { dmg: 38, mp: 28, hp: 18 }, ilvl: 24, glyph: 'wep', legendary: true, look: 'bone' },
+
+    // ===== LEGENDARY BATCH II — new armor & accessories =====
+    'aurora-mantle':      { type: 'armor',  name: 'Aurora Mantle',      icon: '◇', base: { def: 30, mp: 50, int: 2 }, ilvl: 23, legendary: true, look: 'cape' },
+    'titanforged-plate':  { type: 'armor',  name: 'Titanforged Plate',  icon: '◇', base: { def: 46, hp: 40, vit: 3 }, ilvl: 24, legendary: true, look: 'plate' },
+    'duskveil-shroud':    { type: 'armor',  name: 'Duskveil Shroud',    icon: '◇', base: { def: 28, dex: 3, crit: 4 }, ilvl: 22, legendary: true, look: 'spectral' },
+    'crown-of-eternity':  { type: 'armor',  name: 'Crown of Eternity',  icon: '◆', base: { def: 16, hp: 22, mp: 22 }, ilvl: 24, legendary: true, look: 'crown' },
+    'eclipse-band':       { type: 'ring',   name: 'Eclipse Band',       icon: '○', base: { dmg: 10, crit: 6 }, ilvl: 23, legendary: true, look: 'void' },
+    'worldroot-charm':    { type: 'amulet', name: 'Worldroot Charm',    icon: '◈', base: { hp: 28, def: 10, vit: 3 }, ilvl: 23, legendary: true, look: 'spectral' },
+
     // ===== CONSUMABLES =====
     'sanctuary-scroll':   { type: 'consumable', name: 'Sanctuary Scroll', icon: '✉', base: {}, ilvl: 1 },
     'glass-tear':         { type: 'consumable', name: 'Glass Tear',       icon: '◊', base: {}, ilvl: 1 },
@@ -807,6 +824,8 @@
     bloodthirst:  { name: 'Bloodthirst',   desc: 'Killing an enemy heals you for 3% of max life.' },
     executioner:  { name: 'Executioner',   desc: '+60% damage to enemies below 25% life.' },
     glasscannon:  { name: 'Glass Cannon',  desc: '+30% damage dealt, but −25% maximum life.' },
+    lifesteal:    { name: 'Vampiric',      desc: 'Heal for 4% of all damage you deal.' },
+    berserker:    { name: 'Berserker',     desc: 'Deal up to +40% damage as your life runs low.' },
   };
   function charPowers(char) {
     const set = new Set();
@@ -4116,7 +4135,13 @@
     // Legendary powers (offensive multipliers)
     if (hasPower('executioner') && e.hp <= e.hpMax * 0.25) dmg = Math.floor(dmg * 1.6);
     if (hasPower('stormcharged')) dmg = Math.floor(dmg * 1.25);
+    // Berserker — the lower your life, the harder you hit (up to +40% at 0 HP).
+    if (hasPower('berserker') && game.char) dmg = Math.floor(dmg * (1 + (1 - game.char.hp / Math.max(1, game.char.hpMax)) * 0.4));
     e.hp -= dmg;
+    // Vampiric — siphon a sliver of the damage dealt back as health.
+    if (hasPower('lifesteal') && game.char && game.char.hp > 0 && game.char.hp < game.char.hpMax) {
+      game.char.hp = Math.min(game.char.hpMax, game.char.hp + Math.max(1, Math.floor(dmg * 0.04)));
+    }
     // Legendary powers (on-hit statuses), if the enemy survived the blow
     if (e.hp > 0) {
       if (hasPower('wildfire'))  applyStatus(e, 'burn',   { dmg: Math.floor(baseDmg * 0.4),  dt: 3 });
