@@ -1060,6 +1060,62 @@ export function buildEnemy_orb(opts) {
   return g;
 }
 
+// A squat gelatinous OOZE: translucent dome of gel + bright inner nucleus + a wet rim
+// ring + two dark eye dots + rising bubbles. Squashes and stretches as it idles. Bold,
+// rounded silhouette that reads well at small additive size.
+export function buildEnemy_slime(opts) {
+  const c = (opts && opts.color) || '#7dffb0';
+  const boss = !!(opts && opts.boss);
+  const s = boss ? 1.5 : 1;
+  const g = new T.Group();
+
+  // unique animated materials (squash/pulse must not bleed across instances)
+  const bodyMat = new T.MeshBasicMaterial({ color: new T.Color(c), transparent: true, opacity: 0.5, blending: T.AdditiveBlending, depthWrite: false });
+  const coreMat = new T.MeshBasicMaterial({ color: new T.Color(c), transparent: true, opacity: 0.95, blending: T.AdditiveBlending, depthWrite: false });
+
+  // wet rim ring at the base = the ooze footprint
+  const base = m(geo('slimeBase', () => new T.RingGeometry(0.3, 0.46, 18)), matAdd(c, 0.5));
+  base.rotation.x = -Math.PI / 2; base.position.y = 0.02;
+
+  // squashed translucent dome = the gel body
+  const body = m(geo('slimeBody', () => new T.SphereGeometry(0.42, 12, 10)), bodyMat);
+  body.scale.set(1, 0.7, 1); body.position.y = 0.3 * s;
+
+  // bright nucleus suspended inside
+  const core = m(geo('slimeCore', () => new T.IcosahedronGeometry(0.16, 0)), coreMat);
+  core.position.y = 0.26 * s;
+
+  // two dark eye dots on the front
+  const eyeMat = mat('#10231a');
+  const eL = m(geo('slimeEye', () => new T.CircleGeometry(0.05, 10)), eyeMat); eL.position.set(-0.12, 0.34 * s, 0.34);
+  const eR = m(geo('slimeEye', () => new T.CircleGeometry(0.05, 10)), eyeMat); eR.position.set(0.12, 0.34 * s, 0.34);
+
+  // rising bubbles inside the gel
+  const bubbles = [];
+  for (let i = 0; i < 3; i++) {
+    const b = m(geo('slimeBubble', () => new T.SphereGeometry(0.05, 6, 5)), matAdd(c, 0.6));
+    b.userData.ph = i / 3; bubbles.push(b); g.add(b);
+  }
+
+  g.add(base, body, core, eL, eR);
+
+  g.userData.anim = (grp, now) => {
+    // gelatinous squash-and-stretch
+    const sq = Math.sin(now / 380) * 0.12;
+    body.scale.set(1 + sq, 0.7 * (1 - sq), 1 + sq);
+    body.position.y = 0.3 * s * (0.94 + (1 - sq) * 0.06);
+    core.scale.setScalar(0.9 + Math.sin(now / 260) * 0.18);
+    coreMat.opacity = 0.7 + Math.sin(now / 300) * 0.25;
+    for (let i = 0; i < bubbles.length; i++) {
+      const b = bubbles[i];
+      const t = ((now / 1400) + b.userData.ph) % 1;
+      b.position.set((b.userData.ph - 0.5) * 0.3, 0.1 + t * 0.4, 0.12);
+      b.scale.setScalar((1 - t) * 0.9 + 0.1);
+    }
+  };
+  return g;
+}
+
 // Strengthened: brighter pulsing core + bold radial shard burst (jagged silhouette), taller crown spire, brighter facet edges; preserved signature, eye, floating-shard hands & anim hook.
 export function buildEnemy_crystal(opts) {
   const c = (opts && opts.color) || '#9a8cff';
