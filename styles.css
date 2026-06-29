@@ -41,8 +41,8 @@
 * { margin: 0; padding: 0; box-sizing: border-box; }
 
 html, body {
-  width: 600px;
-  height: 600px;
+  width: 100%;
+  height: 100%;
   overflow: hidden;
   background: var(--bg-page);
   color: var(--text);
@@ -50,11 +50,23 @@ html, body {
   -webkit-font-smoothing: antialiased;
   user-select: none;
 }
+/* Center the fixed 600x600 stage in the viewport. On the glasses the viewport IS
+   exactly 600x600, so the stage fills it with zero offset and fitDesktop() applies no
+   transform — the on-device layout is byte-for-byte unchanged. On PC/large screens the
+   stage sits centered with even letterboxing and is uniformly scaled to fit by
+   fitDesktop(). The phone path (body.touch-layout) opts OUT of this flex centering — it
+   positions #app absolutely to reserve a control band at the bottom. */
+body {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
 
 #app {
   width: 600px;
   height: 600px;
   position: relative;
+  transform-origin: center center;
 }
 
 /* --- screens --------------------------------------------- */
@@ -1613,15 +1625,16 @@ html, body {
    600x600 viewport + layout is completely unchanged. The transform is set by fitApp(). */
 html, body { height: 100%; }
 body.touch-layout {
+  display: block;        /* opt out of the flex centering; #app is positioned absolutely below */
   min-height: 100vh;
   background: #05060a;
   overflow: hidden;
 }
 body.touch-layout #app {
   position: absolute;
-  left: 50%;
+  left: 0;
   top: 0;
-  transform-origin: top center;
+  transform-origin: top left;   /* fitApp() sets explicit left/top; the scale grows from the corner */
 }
 .touch-btn {
   pointer-events: auto;

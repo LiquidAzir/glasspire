@@ -2874,7 +2874,26 @@
     const w = window.innerWidth || 600, h = window.innerHeight || 600;
     // fit the 600-wide game to the screen width, but never taller than (height - band)
     const s = Math.min(w / 600, Math.max(0.4, (h - TOUCH_BAND) / 600));
-    app.style.transform = `translateX(-50%) scale(${s})`;
+    // transform-origin is top-left, so place the scaled stage with explicit offsets:
+    // centered horizontally, and centered vertically in the area ABOVE the control band.
+    // The band is always cleared since 600*s <= h - TOUCH_BAND (so top + 600*s <= h - BAND).
+    const left = Math.max(0, (w - 600 * s) / 2);
+    const top = Math.max(0, (h - TOUCH_BAND - 600 * s) / 2);
+    app.style.left = left + 'px';
+    app.style.top = top + 'px';
+    app.style.transform = 'scale(' + s + ')';
+  }
+  // Non-touch (PC + glasses): the CSS flexbox centers the 600x600 stage; this just scales
+  // it uniformly to fit the window. On the glasses the window is exactly 600x600 so the
+  // scale is 1 and NO transform is set — the on-device layout is completely unchanged.
+  function fitDesktop() {
+    if (document.body.classList.contains('touch-layout')) return;  // the phone path owns layout
+    const app = document.getElementById('app');
+    if (!app) return;
+    const w = window.innerWidth, h = window.innerHeight;
+    if (!w || !h) return;   // ignore transient 0-size resizes
+    const s = Math.min(w / 600, h / 600);
+    app.style.transform = (s === 1) ? '' : ('scale(' + s + ')');   // exactly 600 (glasses) -> untouched
   }
   function applyTouchLayout() {
     if (!isTouchDevice()) return;
@@ -11172,6 +11191,11 @@
     setupInput();
     setupRender();
     applyTouchLayout();   // phones: device-width viewport + reserve a control band (glasses untouched)
+    if (!document.body.classList.contains('touch-layout')) {   // PC + glasses: center + scale to fit
+      fitDesktop();
+      window.addEventListener('resize', fitDesktop);
+      window.addEventListener('orientationchange', function () { setTimeout(fitDesktop, 80); });
+    }
     game.save = loadSave();
     if (game.save && game.save.v === 2) {
       // session ready (continue available)
