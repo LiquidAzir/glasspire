@@ -8734,6 +8734,70 @@ export const CAST_ANIMS = {
     ud.weaponMount.position.y = 0.14 * er * (1 - slam) - 0.1 * es * (1 - settle);
   }
 },
+  // ===== ROUND 3 SKILLS =====
+  crushingblow: (prog, pm, ud) => {
+    // overhead two-hand raise -> brutal slam down
+    let pitch, armUp, weapX, dy = 0;
+    if (prog < 0.4) { const t = prog / 0.4; pitch = -0.20 * t; armUp = -2.3 * t; weapX = -2.4 * t; dy = 0.05 * t; }
+    else { const t = (prog - 0.4) / 0.6, drive = t * t; pitch = -0.20 + 0.80 * drive; armUp = -2.3 + 3.1 * drive; weapX = -2.4 + 3.3 * drive; dy = 0.05 - 0.14 * Math.sin(Math.min(t * 1.4, 1) * Math.PI); }
+    pm.rotation.x = pitch; pm.position.y += dy;
+    if (ud.arms && ud.arms.length >= 2) { ud.arms[0].rotation.x = armUp; ud.arms[1].rotation.x = armUp; }
+    if (ud.weaponMount) ud.weaponMount.rotation.x = weapX;
+    if (ud.legs && ud.legs.length >= 2) { const sp = Math.sin(prog * Math.PI) * 0.2; ud.legs[0].rotation.z = sp; ud.legs[1].rotation.z = -sp; }
+  },
+  pyroclasm: (prog, pm, ud) => {
+    // inhale (rock back, arms gather) then exhale a cone (lunge forward, arms thrust)
+    const inhale = prog < 0.35 ? prog / 0.35 : 1;
+    const push = prog < 0.35 ? 0 : (prog - 0.35) / 0.65;
+    pm.rotation.x = 0.14 * inhale - 0.38 * push;
+    pm.position.y += -0.05 * inhale + 0.03 * push;
+    if (ud.arms && ud.arms.length >= 2) {
+      const ax = -0.3 * inhale - 1.5 * push;
+      ud.arms[0].rotation.x = ax; ud.arms[1].rotation.x = ax;
+      const az = 0.5 * inhale - 0.3 * push;
+      ud.arms[0].rotation.z = az; ud.arms[1].rotation.z = -az;
+    }
+    if (ud.weaponMount) ud.weaponMount.rotation.x = -0.2 * inhale - 1.2 * push;
+  },
+  pinningshot: (prog, pm, ud) => {
+    // draw the bow back, then snap the release
+    const draw = prog < 0.5 ? prog / 0.5 : 1;
+    const release = prog < 0.5 ? 0 : (prog - 0.5) / 0.5;
+    const snap = Math.sin(Math.min(release, 1) * Math.PI);
+    pm.rotation.z = -0.12 * draw + 0.06 * release;
+    pm.rotation.x = -0.06 * draw;
+    if (ud.arms && ud.arms.length >= 2) {
+      ud.arms[0].rotation.x = -1.2 - 0.3 * draw;
+      ud.arms[1].rotation.x = -0.4 - 0.9 * draw + 0.9 * release;
+    }
+    if (ud.weaponMount) { ud.weaponMount.rotation.x = -1.3 - 0.2 * draw; ud.weaponMount.rotation.z = 0.1 * snap; }
+    if (ud.legs && ud.legs.length >= 2) { ud.legs[0].rotation.x = 0.15 * draw; ud.legs[1].rotation.x = -0.1 * draw; }
+  },
+  darkpact: (prog, pm, ud) => {
+    // clutch inward (sacrifice) then erupt outward
+    const clutch = prog < 0.4 ? prog / 0.4 : 1;
+    const burst = prog < 0.4 ? 0 : (prog - 0.4) / 0.6;
+    const env = Math.sin(Math.min(burst, 1) * Math.PI);
+    pm.rotation.x = 0.26 * clutch - 0.16 * burst;
+    pm.position.y += -0.12 * clutch + 0.14 * env;
+    pm.scale.setScalar(1 - 0.06 * clutch + 0.08 * env);
+    if (ud.arms && ud.arms.length >= 2) {
+      const z = 0.9 * clutch - 1.4 * burst;
+      ud.arms[0].rotation.z = z; ud.arms[1].rotation.z = -z;
+      ud.arms[0].rotation.x = -0.3 * clutch - 0.6 * env; ud.arms[1].rotation.x = -0.3 * clutch - 0.6 * env;
+    }
+    if (ud.weaponMount) ud.weaponMount.rotation.z = -0.5 * clutch + 0.6 * burst;
+  },
+  divinecharge: (prog, pm, ud) => {
+    // forward charge: lean hard into the dash, weapon thrust ahead, ease out
+    const env = Math.sin(prog * Math.PI);
+    const drive = prog < 0.6 ? prog / 0.6 : 1 - (prog - 0.6) / 0.4 * 0.5;
+    pm.rotation.x = -0.45 * drive;
+    pm.position.y += 0.06 * env;
+    if (ud.arms && ud.arms.length >= 2) { ud.arms[0].rotation.x = -1.6 * drive; ud.arms[1].rotation.x = -1.2 * drive; }
+    if (ud.weaponMount) ud.weaponMount.rotation.x = -1.4 * drive;
+    if (ud.legs && ud.legs.length >= 2) { ud.legs[0].rotation.x = -0.5 * drive; ud.legs[1].rotation.x = 0.5 * drive; }
+  },
 };
 
 // WARRIOR — Whirlwind flourish: a spinning translucent blade-disc + streaks at waist height.
@@ -11746,5 +11810,108 @@ export function buildCastFx_judgment(opts){
     }
   };
 
+  return g;
+}
+
+// ===== ROUND 3 SKILL FLOURISHES =====
+// WARRIOR — Crushing Blow: a ground impact ~1 tile ahead — expanding ring + white flare + flung debris.
+export function buildCastFx_crushingblow(opts) {
+  const c = (opts && opts.color) || '#ffc857';
+  const g = new T.Group(); const Z = 0.9;
+  const newMat = (col, o) => new T.MeshBasicMaterial({ color: col, fog: false, transparent: true, opacity: o, blending: T.AdditiveBlending, depthWrite: false });
+  const ringMat = newMat(c, 0), flashMat = newMat('#ffffff', 0), shardMat = newMat(c, 0);
+  const ring = m(geo('cbRing', () => new T.RingGeometry(0.4, 0.95, 36)), ringMat); ring.rotation.x = -Math.PI / 2; ring.position.set(0, 0.05, Z); g.add(ring);
+  const flash = m(geo('cbFlash', () => new T.CircleGeometry(0.7, 24)), flashMat); flash.rotation.x = -Math.PI / 2; flash.position.set(0, 0.06, Z); g.add(flash);
+  const shards = [];
+  for (let i = 0; i < 8; i++) { const s = m(geo('cbShard', () => new T.BoxGeometry(0.09, 0.4, 0.09)), shardMat); s.userData.a = (i / 8) * Math.PI * 2; shards.push(s); g.add(s); }
+  g.userData.castAnim = (grp, prog) => {
+    if (prog < 0.45) { ringMat.opacity = 0; flashMat.opacity = 0; shardMat.opacity = 0; return; }
+    const k = (prog - 0.45) / 0.55, ef = 1 - k;
+    flashMat.opacity = ef * 0.9; flash.scale.setScalar(0.5 + 1.4 * k);
+    ringMat.opacity = ef; ring.scale.setScalar(0.6 + 2.8 * k);
+    shardMat.opacity = ef;
+    for (let i = 0; i < shards.length; i++) { const s = shards[i], a = s.userData.a, r = 0.4 + 1.6 * k; s.position.set(Math.cos(a) * r, 0.1 + 1.2 * Math.sin(Math.min(k * 1.3, 1) * Math.PI), Z + Math.sin(a) * r); s.rotation.z = a + k * 3; }
+  };
+  return g;
+}
+
+// MAGE — Pyroclasm: a forward fan of flame tongues that grows and flickers.
+export function buildCastFx_pyroclasm(opts) {
+  const c = (opts && opts.color) || '#ff7a3c';
+  const g = new T.Group(); const cone = 0.6;
+  const newMat = (col, o) => new T.MeshBasicMaterial({ color: col, fog: false, transparent: true, opacity: o, blending: T.AdditiveBlending, depthWrite: false });
+  const tongues = [];
+  for (let i = 0; i < 7; i++) {
+    const mat = newMat(i % 2 ? c : '#ffd24a', 0);
+    const fl = m(geo('pyTongue', () => new T.ConeGeometry(0.16, 1.1, 8)), mat);
+    fl.userData.ang = (i / 6 - 0.5) * cone * 2; fl.userData.mat = mat;
+    tongues.push(fl); g.add(fl);
+  }
+  g.userData.castAnim = (grp, prog, now) => {
+    const grow = prog < 0.35 ? prog / 0.35 : 1;
+    const fade = prog < 0.35 ? 1 : 1 - (prog - 0.35) / 0.65;
+    for (let i = 0; i < tongues.length; i++) {
+      const fl = tongues[i], a = fl.userData.ang, reach = 0.6 + 2.8 * grow;
+      fl.position.set(Math.sin(a) * reach * 0.5, 0.5, Math.cos(a) * reach * 0.5);
+      fl.rotation.set(Math.PI / 2, a, 0); fl.scale.set(1, reach, 1);
+      fl.userData.mat.opacity = (0.5 + 0.5 * Math.sin((now || 0) * 0.03 + i)) * fade * 0.9;
+    }
+  };
+  return g;
+}
+
+// RANGER — Pinning Shot: a gathering glint, then a bright bolt that lances forward.
+export function buildCastFx_pinningshot(opts) {
+  const c = (opts && opts.color) || '#9be57c';
+  const g = new T.Group();
+  const newMat = (col, o) => new T.MeshBasicMaterial({ color: col, fog: false, transparent: true, opacity: o, blending: T.AdditiveBlending, depthWrite: false });
+  const drawMat = newMat(c, 0), boltMat = newMat('#eaffd0', 0);
+  const glint = m(geo('psGlint', () => new T.OctahedronGeometry(0.13, 0)), drawMat); glint.position.set(0, 0.95, 0.35); g.add(glint);
+  const bolt = m(geo('psBolt', () => new T.BoxGeometry(0.08, 0.08, 1.6)), boltMat); bolt.position.set(0, 0.95, 0.6); g.add(bolt);
+  g.userData.castAnim = (grp, prog) => {
+    if (prog < 0.5) { const k = prog / 0.5; drawMat.opacity = 0.4 + 0.5 * k; glint.scale.setScalar(0.6 + 0.8 * k); boltMat.opacity = 0; }
+    else { const k = (prog - 0.5) / 0.5, ef = 1 - k; drawMat.opacity = 0.3 * ef; glint.scale.setScalar(1.4 * ef); boltMat.opacity = 0.95 * ef; bolt.position.z = 0.6 + 5.0 * k; bolt.scale.z = 1 + 2 * k; }
+  };
+  return g;
+}
+
+// SUMMONER — Dark Pact: a void ring that implodes inward, then erupts outward with dark motes.
+export function buildCastFx_darkpact(opts) {
+  const c = (opts && opts.color) || '#c489ff';
+  const g = new T.Group();
+  const newMat = (col, o) => new T.MeshBasicMaterial({ color: col, fog: false, transparent: true, opacity: o, blending: T.AdditiveBlending, depthWrite: false });
+  const ringMat = newMat(c, 0), coreMat = newMat('#1a0a26', 0);
+  const ring = m(geo('dpRing', () => new T.RingGeometry(0.5, 0.8, 32)), ringMat); ring.rotation.x = -Math.PI / 2; ring.position.y = 0.08; g.add(ring);
+  const core = m(geo('dpCore', () => new T.IcosahedronGeometry(0.3, 0)), coreMat); core.position.y = 0.9; g.add(core);
+  const motes = [];
+  for (let i = 0; i < 10; i++) { const mat = newMat(c, 0); const mo = m(geo('dpMote', () => new T.OctahedronGeometry(0.08, 0)), mat); mo.userData.a = (i / 10) * Math.PI * 2; mo.userData.mat = mat; motes.push(mo); g.add(mo); }
+  g.userData.castAnim = (grp, prog, now) => {
+    if (prog < 0.4) {
+      const k = prog / 0.4; ringMat.opacity = 0.6 * k; ring.scale.setScalar(1 - 0.6 * k); coreMat.opacity = 0.8 * k; core.scale.setScalar(0.5 + 0.7 * k);
+      for (let i = 0; i < motes.length; i++) { const mo = motes[i], r = 1.6 * (1 - k); mo.position.set(Math.cos(mo.userData.a) * r, 0.9, Math.sin(mo.userData.a) * r); mo.userData.mat.opacity = 0.8 * k; }
+    } else {
+      const k = (prog - 0.4) / 0.6, ef = 1 - k; ringMat.opacity = 0.9 * ef; ring.scale.setScalar(0.4 + 3.2 * k); coreMat.opacity = ef * 0.6; core.scale.setScalar(1.2 * ef);
+      for (let i = 0; i < motes.length; i++) { const mo = motes[i], r = 0.2 + 2.4 * k; mo.position.set(Math.cos(mo.userData.a) * r, 0.9 + Math.sin((now || 0) * 0.01 + i) * 0.2, Math.sin(mo.userData.a) * r); mo.userData.mat.opacity = ef * 0.9; }
+    }
+  };
+  return g;
+}
+
+// PALADIN — Divine Charge: a leading holy wedge + a trailing comet streak + flaring wings.
+export function buildCastFx_divinecharge(opts) {
+  const c = (opts && opts.color) || '#ffe9a8';
+  const g = new T.Group();
+  const newMat = (col, o) => new T.MeshBasicMaterial({ color: col, fog: false, transparent: true, opacity: o, blending: T.AdditiveBlending, depthWrite: false });
+  const trailMat = newMat(c, 0), wedgeMat = newMat('#ffffff', 0);
+  const trail = m(geo('dcTrail', () => new T.BoxGeometry(0.5, 0.5, 3.0)), trailMat); trail.position.set(0, 0.7, -0.8); g.add(trail);
+  const wedge = m(geo('dcWedge', () => new T.ConeGeometry(0.45, 1.0, 12)), wedgeMat); wedge.rotation.x = Math.PI / 2; wedge.position.set(0, 0.7, 0.8); g.add(wedge);
+  const wings = [];
+  for (let i = 0; i < 2; i++) { const mat = newMat(c, 0); const w = m(geo('dcWing', () => new T.PlaneGeometry(0.8, 1.2)), mat); w.userData.s = i ? 1 : -1; w.userData.mat = mat; w.position.set(i ? 0.4 : -0.4, 0.9, -0.2); wings.push(w); g.add(w); }
+  g.userData.castAnim = (grp, prog) => {
+    const env = Math.sin(prog * Math.PI);
+    trailMat.opacity = env * 0.8; trail.scale.z = 0.6 + 1.2 * prog;
+    wedgeMat.opacity = env * 0.95;
+    for (let i = 0; i < wings.length; i++) { wings[i].userData.mat.opacity = env * 0.6; wings[i].rotation.y = wings[i].userData.s * (0.5 + 0.6 * env); }
+  };
   return g;
 }

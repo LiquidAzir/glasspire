@@ -64,7 +64,7 @@
       attackSpeed: 1.05,      // attacks/sec
       damage: 12,
       attackKind: 'cleave',   // hits all enemies in arc
-      skills: ['whirlwind', 'leapslam', 'warcry', 'shieldwall', 'seismicrupture'],
+      skills: ['whirlwind', 'leapslam', 'warcry', 'shieldwall', 'seismicrupture', 'crushingblow'],
       activeSkill: 'whirlwind',
       activeSkillCost: 12,
     },
@@ -79,7 +79,7 @@
       attackSpeed: 1.2,
       damage: 9,
       attackKind: 'projectile-bolt',
-      skills: ['frostnova', 'chainlightning', 'meteor', 'blinkstrike', 'singularity'],
+      skills: ['frostnova', 'chainlightning', 'meteor', 'blinkstrike', 'singularity', 'pyroclasm'],
       activeSkill: 'frostnova',
       activeSkillCost: 24,
     },
@@ -94,7 +94,7 @@
       attackSpeed: 1.6,
       damage: 7,
       attackKind: 'projectile-arrow',
-      skills: ['multishot', 'poisontrap', 'piercingshot', 'volley', 'explosiveshot'],
+      skills: ['multishot', 'poisontrap', 'piercingshot', 'volley', 'explosiveshot', 'pinningshot'],
       activeSkill: 'multishot',
       activeSkillCost: 18,
     },
@@ -109,7 +109,7 @@
       attackSpeed: 1.0,
       damage: 6,
       attackKind: 'projectile-bone',
-      skills: ['raisedead', 'souldrain', 'corpseexplosion', 'boneprison', 'gravegrasp'],
+      skills: ['raisedead', 'souldrain', 'corpseexplosion', 'boneprison', 'gravegrasp', 'darkpact'],
       activeSkill: 'raisedead',
       activeSkillCost: 20,
     },
@@ -124,7 +124,7 @@
       attackSpeed: 1.0,
       damage: 11,
       attackKind: 'cleave',   // holy melee arc
-      skills: ['smite', 'consecration', 'shieldfaith', 'divineaura', 'judgment'],
+      skills: ['smite', 'consecration', 'shieldfaith', 'divineaura', 'judgment', 'divinecharge'],
       activeSkill: 'smite',
       activeSkillCost: 14,
     },
@@ -193,6 +193,18 @@
     judgment: { name: 'Judgment', cooldown: 10, cost: 22,
       desc: 'Unleash a holy nova — 290% damage to all enemies within 3.5 tiles and stagger them.' },
 
+    // ===== New skills (added round 3 — one more per class) =====
+    crushingblow: { name: 'Crushing Blow', cooldown: 7, cost: 16,
+      desc: 'Smash the nearest foe with a 350% overhead blow, stunning it 1.5s and splashing 200% damage to those beside it.' },
+    pyroclasm: { name: 'Pyroclasm', cooldown: 8, cost: 26,
+      desc: 'Exhale a 4.5-tile cone of fire, dealing 240% damage and setting every enemy in it ablaze.' },
+    pinningshot: { name: 'Pinning Shot', cooldown: 6, cost: 20,
+      desc: 'Nail the nearest enemy with a heavy bolt for 300% damage, rooting it in place for 2 seconds.' },
+    darkpact: { name: 'Dark Pact', cooldown: 9, cost: 18,
+      desc: 'Spend 15% of current Life to erupt with dark power — 330% damage to all enemies within 3.5 tiles.' },
+    divinecharge: { name: 'Divine Charge', cooldown: 8, cost: 20,
+      desc: 'Charge 4 tiles in a line of holy light, dealing 300% damage to all you pass through and healing 15% of max Life.' },
+
     // ===== Legendary-granted skills (only available with specific unique item equipped) =====
     demonslash: { name: 'Demon Slash', cooldown: 5, cost: 18, granted: true,
       desc: '(Demonslayer) Sweeping crescent of red flame: 350% damage in a 2.5-tile arc, sets all hit enemies on fire.' },
@@ -254,6 +266,11 @@
     shieldfaith:    { dur: 0.80, color: '#ffe9a8' },
     divineaura:     { dur: 0.72, color: '#fff0b0' },
     judgment:       { dur: 0.64, color: '#ffd45e' },
+    crushingblow:   { dur: 0.62, color: '#ffc857' },
+    pyroclasm:      { dur: 0.60, color: '#ff7a3c' },
+    pinningshot:    { dur: 0.50, color: '#9be57c' },
+    darkpact:       { dur: 0.66, color: '#c489ff' },
+    divinecharge:   { dur: 0.52, color: '#ffe9a8' },
   };
 
   const BIOMES = [
@@ -3921,6 +3938,85 @@
       for (let i = 0; i < 32; i++) { const a = (i / 32) * PI2, sp = 5 + rand() * 3; addParticle({ x: p.x, y: p.y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, color: i % 3 === 0 ? '#ffffff' : '#ffd45e', life: 0.5 + rand() * 0.3, age: 0, size: 2.5 + rand() * 2 }); }
       burst(p.x, p.y, '#ffe08a', 24);
       game.screenShake = Math.max(game.screenShake, 0.25);
+    }
+    // ===== ROUND 3 SKILLS =====
+    else if (skillId === 'crushingblow') {
+      const d = derived(c);
+      let near = null, nd = Infinity;
+      for (const e of game.enemies) { const dd = dist(e, p); if (dd < nd && dd <= 7) { nd = dd; near = e; } }
+      if (near) {
+        hitEnemy(near, Math.floor(d.dmg * 3.5), d.crit);
+        if (near.hp > 0) near.stagger = Math.max(near.stagger, 1.5);
+        for (const e of game.enemies) { if (e !== near && !e.hazard && dist(e, near) <= 1.8) hitEnemy(e, Math.floor(d.dmg * 2.0), d.crit); }
+        for (let i = 0; i < 22; i++) { const a = (i / 22) * PI2; addParticle({ x: near.x + Math.cos(a) * 0.4, y: near.y + Math.sin(a) * 0.4, vx: Math.cos(a) * 5, vy: Math.sin(a) * 5, color: i % 2 ? '#ffc857' : '#ffffff', life: 0.4 + rand() * 0.2, age: 0, size: 2.5 + rand() * 2 }); }
+        burst(near.x, near.y, '#ffffff', 16);
+        game.screenShake = Math.max(game.screenShake, 0.32);
+      } else { showHudToast('No target in range.'); }
+    }
+    else if (skillId === 'pyroclasm') {
+      const d = derived(c);
+      const dmg = Math.floor(d.dmg * 2.4);
+      const dir = (p.lastDir.x || p.lastDir.y) ? p.lastDir : { x: 0, y: 1 };
+      const ang0 = Math.atan2(dir.y, dir.x);
+      const reach = 4.5, halfCone = 0.6;   // ~34° to each side
+      for (const e of game.enemies) {
+        if (dist(e, p) > reach) continue;
+        let da = Math.abs(Math.atan2(e.y - p.y, e.x - p.x) - ang0);
+        if (da > Math.PI) da = 2 * Math.PI - da;
+        if (da <= halfCone) { hitEnemy(e, dmg, d.crit); if (e.hp > 0) applyStatus(e, 'burn', { dmg: Math.floor(d.dmg * 0.3), dt: 3 }); }
+      }
+      for (let i = 0; i < 26; i++) { const a = ang0 + (rand() - 0.5) * halfCone * 2, r = rand() * reach; addParticle({ x: p.x + Math.cos(a) * r, y: p.y + Math.sin(a) * r, vx: Math.cos(a) * 4, vy: Math.sin(a) * 4, color: i % 2 ? '#ff7a3c' : '#ffd24a', life: 0.4 + rand() * 0.3, age: 0, size: 2 + rand() * 2 }); }
+      burst(p.x + Math.cos(ang0), p.y + Math.sin(ang0), '#ff7a3c', 12);
+      game.screenShake = Math.max(game.screenShake, 0.16);
+    }
+    else if (skillId === 'pinningshot') {
+      const d = derived(c);
+      const dmg = Math.floor(d.dmg * 3.0);
+      let near = null, nd = Infinity;
+      for (const e of game.enemies) { const dd = dist(e, p); if (dd < nd && dd <= 8) { nd = dd; near = e; } }
+      if (near) {
+        hitEnemy(near, dmg, d.crit);
+        if (near.hp > 0) { near.frozen = Math.max(near.frozen || 0, 2.0); near.stagger = Math.max(near.stagger, 0.5); }
+        for (let i = 0; i < 8; i++) pushParticle(lerp(p.x, near.x, i / 8), lerp(p.y, near.y, i / 8), '#cfe7c0', 0.3);
+        for (let i = 0; i < 14; i++) addParticle({ x: near.x, y: near.y, vx: (rand() - 0.5) * 3, vy: (rand() - 0.5) * 3, color: '#9be57c', life: 0.4 + rand() * 0.2, age: 0, size: 2 });
+        burst(near.x, near.y, '#cfe7c0', 12);
+      } else { showHudToast('No target in range.'); }
+    }
+    else if (skillId === 'darkpact') {
+      const d = derived(c);
+      const lifeCost = Math.floor(c.hp * 0.15);
+      c.hp = Math.max(1, c.hp - lifeCost);
+      floatText(`-${lifeCost}`, p.x, p.y - 0.4, 'dmg');
+      const dmg = Math.floor(d.dmg * 3.3);
+      const radius = 3.5;
+      for (const e of game.enemies.filter(e => dist(e, p) <= radius)) { hitEnemy(e, dmg, d.crit); if (e.hp > 0) e.stagger = Math.max(e.stagger, 0.4); }
+      for (let i = 0; i < 30; i++) { const a = (i / 30) * PI2, sp = 4 + rand() * 3; addParticle({ x: p.x, y: p.y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, color: i % 3 === 0 ? '#c489ff' : '#6a2a9a', life: 0.5 + rand() * 0.3, age: 0, size: 2.5 + rand() * 2 }); }
+      burst(p.x, p.y, '#c489ff', 20);
+      game.screenShake = Math.max(game.screenShake, 0.22);
+    }
+    else if (skillId === 'divinecharge') {
+      const d = derived(c);
+      const dmg = Math.floor(d.dmg * 3.0);
+      const dir = (p.lastDir.x || p.lastDir.y) ? p.lastDir : { x: 0, y: 1 };
+      const sx = p.x, sy = p.y;
+      let tx = p.x, ty = p.y;
+      for (let i = 1; i <= 16; i++) {
+        const cx = p.x + dir.x * 4 * (i / 16), cy = p.y + dir.y * 4 * (i / 16);
+        const gx = Math.floor(clamp(cx, 0, game.world.w - 1)), gy = Math.floor(clamp(cy, 0, game.world.h - 1));
+        if (game.world.grid[gy][gx] !== 0) break;
+        tx = cx; ty = cy;
+      }
+      const vx = tx - sx, vy = ty - sy, len2 = vx * vx + vy * vy || 1;
+      for (const e of game.enemies) {
+        let t = ((e.x - sx) * vx + (e.y - sy) * vy) / len2; t = clamp(t, 0, 1);
+        if (Math.hypot(e.x - (sx + vx * t), e.y - (sy + vy * t)) <= 1.3) { hitEnemy(e, dmg, d.crit); if (e.hp > 0) e.stagger = Math.max(e.stagger, 0.6); }
+      }
+      for (let i = 0; i < 10; i++) pushParticle(lerp(sx, tx, i / 10), lerp(sy, ty, i / 10), '#ffe9a8', 0.35);
+      p.x = tx; p.y = ty;
+      const heal = Math.floor(c.hpMax * 0.15); c.hp = Math.min(c.hpMax, c.hp + heal);
+      floatText(`+${heal}`, p.x, p.y - 0.4, 'heal');
+      burst(p.x, p.y, '#ffe9a8', 18);
+      game.screenShake = Math.max(game.screenShake, 0.2);
     }
     } finally {
       game._skillDmgMul = 1;
