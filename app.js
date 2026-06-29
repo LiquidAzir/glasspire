@@ -4423,11 +4423,12 @@
         addParticle({ x: e.x, y: e.y, vx: Math.cos(a) * spd, vy: Math.sin(a) * spd,
           color: pick(['#ffc857', '#ffaa00', '#c77dff', '#6df1ff']), life: 0.8 + Math.random() * 0.5, age: 0, size: 3 });
       }
-    } else if (roll(0.09 * (1 + magicFindBonus() / 100))) {
-      // Normal-enemy drop — rarer overall, and most common (white) junk is discarded
-      // so the inventory stays clean. Magic-and-better always drop. (Fortune talent raises the rate.)
+    } else if (roll(0.05 * (1 + magicFindBonus() / 100))) {
+      // Normal-enemy drop — kept deliberately uncommon so the inventory stays clean.
+      // Common (white) junk never drops on the ground; only magic-and-better do.
+      // (Magic Find / the Fortune talent raise the rate.)
       const item = rollItem(Math.max(1, e.ilvl + dropIlvlBonus), null);
-      if (item && (item.rarity !== 'common' || roll(0.2))) {
+      if (item && item.rarity !== 'common') {
         game.items.push({ x: e.x, y: e.y, item, age: 0 });
       }
     }
@@ -9256,11 +9257,29 @@
       }
     } else {
       document.querySelector('[data-action="vendor-tab-sell"]').classList.add('active');
+      // Sell All header — bulk-sell junk (keeps Legendary+/gems). Shows count + total gold.
+      let bulkCount = 0, bulkGold = 0;
+      c.inventory.forEach(it => {
+        if (!it || isEquipped(it) || it.type === 'gem' || (RARITY_RANK[it.rarity] || 0) > 2) return;
+        bulkCount++; bulkGold += Math.max(2, Math.floor(itemCost(it) * 0.5));
+      });
+      const sellAllBtn = document.createElement('button');
+      sellAllBtn.className = 'inv-row focusable sell-all-row' + (bulkCount === 0 ? ' disabled' : '');
+      sellAllBtn.dataset.action = 'vendor-sell-all';
+      sellAllBtn.innerHTML = `
+        <div class="inv-icon">💰</div>
+        <div class="inv-meta">
+          <div class="inv-name" style="color:var(--gold)">Sell All</div>
+          <div class="inv-sub">${bulkCount} junk item${bulkCount === 1 ? '' : 's'} · keeps Legendary+ &amp; gems</div>
+        </div>
+        <div class="inv-equipped" style="color:var(--gold)">${bulkGold}g</div>
+      `;
+      list.appendChild(sellAllBtn);
       c.inventory.forEach((it, idx) => {
         const base = ITEM_BASES[it.baseId];
         if (!base) return;
         const equipped = isEquipped(it);
-        const price = Math.max(1, Math.floor(itemCost(it) * 0.4));
+        const price = Math.max(1, Math.floor(itemCost(it) * 0.5));
         const row = document.createElement('button');
         row.className = 'inv-row focusable' + (equipped ? ' disabled' : '');
         row.dataset.action = 'vendor-sell';
@@ -10247,6 +10266,7 @@
       case 'vendor-tab-reroll': game.vendorMode = 'reroll'; renderVendor(); return;
       case 'vendor-buy':        vendorBuy(parseInt(el.dataset.idx, 10)); return;
       case 'vendor-sell':       vendorSell(parseInt(el.dataset.idx, 10)); return;
+      case 'vendor-sell-all':   sellAllSellable(); return;
       case 'vendor-reroll':     (game.reforgeMode === 'keep' ? reforgeKeepBest : rerollItem)(parseInt(el.dataset.idx, 10)); return;
       case 'reforge-mode':      game.reforgeMode = el.dataset.mode; renderVendor(); return;
 
@@ -10580,6 +10600,27 @@
     const price = Math.max(2, Math.floor(itemCost(it) * 0.5));
     game.char.gold += price;
     game.char.inventory.splice(idx, 1);
+    saveGame();
+    renderVendor();
+  }
+  // Bulk-sell all non-equipped JUNK (common/magic/rare gear). Legendary (unique), mythic,
+  // and gems are protected so a great drop is never vendored by accident.
+  function sellAllSellable() {
+    const c = game.char;
+    let count = 0, gold = 0;
+    for (let i = c.inventory.length - 1; i >= 0; i--) {
+      const it = c.inventory[i];
+      if (!it || isEquipped(it)) continue;
+      if (it.type === 'gem') continue;                     // gems are socket materials — keep
+      if ((RARITY_RANK[it.rarity] || 0) > 2) continue;     // keep Legendary (unique) + Mythic
+      gold += Math.max(2, Math.floor(itemCost(it) * 0.5));
+      c.inventory.splice(i, 1);
+      count++;
+    }
+    if (count === 0) { showHudToast('Nothing to bulk-sell (Legendary+ and gems are kept).'); sfx('error'); return; }
+    c.gold += gold;
+    sfx('gold');
+    showHudToast(`Sold ${count} item${count === 1 ? '' : 's'} · +${gold}g`);
     saveGame();
     renderVendor();
   }

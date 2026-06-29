@@ -983,6 +983,11 @@ body {
 .inv-row.disabled:focus {
   opacity: 0.75;
 }
+.sell-all-row {
+  border-color: rgba(255, 200, 80, 0.35);
+  background: linear-gradient(90deg, rgba(255, 200, 80, 0.08), transparent);
+  margin-bottom: 8px;
+}
 
 /* rarity colors */
 .rarity-common  { color: var(--rarity-common); }
