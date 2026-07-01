@@ -37,13 +37,74 @@
   } catch (e) { uid = uid || makeId(); }
 
   function url() { return base + '/v1/save?u=' + encodeURIComponent(uid); }
-  var pushTimer = 0, lastSent = '';
+  /* cloud-write-reduce-v1 — content-deduped, throttled, backoff-aware cloud push.
+     Keeps glasspire off the shared glassrealm-saves KV free-tier daily write cap by
+     zeroing the `t` timestamp in the dedup signature, throttling non-flush pushes to
+     >=60s apart, cooling down ~60s after a failed write, and marking synced ONLY on
+     a successful put. Flush (hide/pagehide) bypasses throttle; explicit (manual)
+     punches through backoff. Local saves are untouched (localStorage stays instant). */
+  var pushTimer = 0, lastSig = '', lastPushAt = 0, backoffUntil = 0, pendingObj = null, pendingFlush = false, pendingExplicit = false;
+  var THROTTLE_MS = 60000, BACKOFF_MS = 60000, DEBOUNCE_MS = 2500;
+
+  function sigOf(obj) {
+    var body;
+    try { body = JSON.stringify(obj); } catch (e) { return null; }
+    // Zero the timestamp so unchanged state (e.g. mobile screen-lock storms that only
+    // bump `t`) produces the same signature and is deduped → no KV write.
+    return body.replace(/"t"\s*:\s*\d+/g, '"t":0');
+  }
 
   function fetchTimeout(u, opts, ms) {
     var c = new AbortController();
     var id = setTimeout(function () { c.abort(); }, ms);
     opts = opts || {}; opts.signal = c.signal;
     return fetch(u, opts).finally(function () { clearTimeout(id); });
+  }
+
+  // Actually perform the PUT. Resolves true on a 200 success, false otherwise.
+  function doPut(sig, body) {
+    return fetchTimeout(url(), { method: 'PUT', headers: { 'content-type': 'application/json' }, body: body }, 6000)
+      .then(function (r) {
+        if (r && r.ok) {
+          lastSig = sig;        // mark synced ONLY after a successful put
+          lastPushAt = Date.now();
+          backoffUntil = 0;
+          return true;
+        }
+        backoffUntil = Date.now() + BACKOFF_MS;   // cool down ~60s after a failed write (e.g. daily-cap 503)
+        return false;
+      })
+      .catch(function () {
+        backoffUntil = Date.now() + BACKOFF_MS;
+        return false;
+      });
+  }
+
+  // Schedule (or reschedule) the debounced push. Keeps the latest obj/flags so rapid
+  // bursts coalesce into one write after DEBOUNCE_MS.
+  function scheduleDebounced(obj, flush, explicit, delay) {
+    pendingObj = obj; pendingFlush = flush; pendingExplicit = explicit;
+    clearTimeout(pushTimer);
+    pushTimer = setTimeout(function () { runPush(pendingObj, pendingFlush, pendingExplicit); }, delay == null ? DEBOUNCE_MS : delay);
+  }
+
+  // The debounced push body: re-evaluates dedup/throttle/backoff at fire time.
+  function runPush(obj, flush, explicit) {
+    if (!enabled || !obj) { pendingObj = null; return; }
+    var sig = sigOf(obj);
+    if (sig == null) { pendingObj = null; return; }
+    if (sig === lastSig) { pendingObj = null; return; }       // unchanged → no write (even on flush)
+    var now = Date.now();
+    if (!explicit && backoffUntil && now < backoffUntil) {    // backoff: reschedule for when the cooldown ends
+      scheduleDebounced(obj, flush, explicit, backoffUntil - now); return;
+    }
+    if (!flush && lastPushAt && now - lastPushAt < THROTTLE_MS) {  // throttle non-flush to 1/min
+      scheduleDebounced(obj, flush, explicit, THROTTLE_MS - (now - lastPushAt)); return;
+    }
+    pendingObj = null;
+    var body;
+    try { body = JSON.stringify(obj); } catch (e) { return; }
+    doPut(sig, body);
   }
 
   window.__CLOUD = {
@@ -73,18 +134,30 @@
       catch (e) { try { location.reload(); } catch (e2) {} }
       return true;
     },
-    // Push a snapshot object to the cloud (debounced 2.5s; skips no-op repeats).
-    push: function (obj) {
+    // Push a snapshot object to the cloud. Back-compat: push(obj) === push(obj,false,false).
+    //   flush=true  → bypass throttle (used on visibilitychange/pagehide); still deduped.
+    //   explicit=true → bypass backoff (used by a manual "save to cloud" action).
+    push: function (obj, flush, explicit) {
       if (!enabled || !obj) return;
-      var body;
-      try { body = JSON.stringify(obj); } catch (e) { return; }
-      if (body === lastSent) return;
-      clearTimeout(pushTimer);
-      pushTimer = setTimeout(function () {
-        lastSent = body;
-        fetchTimeout(url(), { method: 'PUT', headers: { 'content-type': 'application/json' }, body: body }, 6000)
-          .catch(function () { if (lastSent === body) lastSent = ''; });  // retry next save, but don't wipe a newer in-flight push's dedup
-      }, 2500);
+      flush = !!flush; explicit = !!explicit;
+      var sig = sigOf(obj);
+      if (sig == null) return;
+      if (sig === lastSig) return;                            // unchanged → no write, even on flush
+      var now = Date.now();
+      if (!explicit && backoffUntil && now < backoffUntil) {  // backoff: reschedule for the cooldown tail
+        scheduleDebounced(obj, flush, explicit, backoffUntil - now); return;
+      }
+      if (!flush && lastPushAt && now - lastPushAt < THROTTLE_MS) {  // throttle non-flush to >=60s apart
+        scheduleDebounced(obj, flush, explicit, THROTTLE_MS - (now - lastPushAt)); return;
+      }
+      scheduleDebounced(obj, flush, explicit);               // debounced 2.5s (rapid bursts coalesce)
+    },
+    // Mark an object as already synced (e.g. after adopting a cloud pull) so we don't
+    // immediately echo it back as a fresh write. Sets lastSig from the obj's sig.
+    markSynced: function (obj) {
+      if (!enabled || !obj) return;
+      var sig = sigOf(obj);
+      if (sig != null) { lastSig = sig; lastPushAt = Date.now(); backoffUntil = 0; }
     },
   };
 })();

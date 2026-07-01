@@ -11396,9 +11396,26 @@
         game._cloudPullPending = false;
         // Adopt the cloud save ONLY if no run has started yet — check the guard BEFORE
         // mergeRemoteSave writes localStorage, so an in-progress run is never overwritten.
-        if (remote && !game.world && mergeRemoteSave(remote)) game.save = loadSave();
+        if (remote && !game.world && mergeRemoteSave(remote)) {
+          game.save = loadSave();
+          // The adopted save is already cloud truth — mark it synced so we don't echo it
+          // back as a fresh write. (cloud-write-reduce-v1)
+          if (window.__CLOUD.markSynced) window.__CLOUD.markSynced(game.save);
+        }
         if (game.screen === 'title') renderTitle();
       });
+      // cloud-write-reduce-v1 — lifecycle flushes + safety net so a tab hard-killed
+      // without a visibility event still syncs, and idle changes eventually reach cloud.
+      document.addEventListener('visibilitychange', function () {
+        if (document.hidden) { try { saveGame(); window.__CLOUD.push(game.save, true); } catch (e) {} }
+      });
+      window.addEventListener('pagehide', function () {
+        try { saveGame(); window.__CLOUD.push(game.save, true); } catch (e) {}
+      });
+      // 5-min safety-net: pushes any unsynced change even with no user action to trigger it.
+      setInterval(function () {
+        try { if (window.__CLOUD && window.__CLOUD.enabled) window.__CLOUD.push(game.save); } catch (e) {}
+      }, 300000);
     }
     // expose for debugging (old alias kept for back-compat)
     window.__hollowlight = window.__glasspire = { game, enterBiome, enterTown, CLASSES, BIOMES };
