@@ -150,6 +150,10 @@
       if (!flush && lastPushAt && now - lastPushAt < THROTTLE_MS) {  // throttle non-flush to >=60s apart
         scheduleDebounced(obj, flush, explicit, THROTTLE_MS - (now - lastPushAt)); return;
       }
+      if (flush) {                                           // flush bypasses debounce too — send now so a
+        runPush(obj, flush, explicit);                       // closing tab (pagehide/visibilitychange) doesn't lose it
+        return;
+      }
       scheduleDebounced(obj, flush, explicit);               // debounced 2.5s (rapid bursts coalesce)
     },
     // Mark an object as already synced (e.g. after adopting a cloud pull) so we don't
