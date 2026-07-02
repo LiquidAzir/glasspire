@@ -168,6 +168,19 @@ function disposeWorld() {
   worldGroup = null;
 }
 
+// Per-biome baked art profile: a glowing wall-base band, a floor motif, and decor
+// colour. All of this is baked ONCE into the merged world mesh (no per-frame cost),
+// and every colour is emissive/bright so it reads as light on the additive panel.
+const BIOME_ART = {
+  crypts:     { trim: '#79dcff', motif: 'runes', mcol: '#9fe4ff', mb: 1.0,  dens: 0.20 },
+  overgrowth: { trim: '#6bffab', motif: 'moss',  mcol: '#a6ff7a', mb: 0.85, dens: 0.30 },
+  frostpeak:  { trim: '#d2eeff', motif: 'ice',   mcol: '#eaf7ff', mb: 1.05, dens: 0.26 },
+  infernal:   { trim: '#ff8a3c', motif: 'lava',  mcol: '#ffb047', mb: 1.2,  dens: 0.26 },
+  tempest:    { trim: '#8fc4ff', motif: 'arc',   mcol: '#ffe066', mb: 1.15, dens: 0.22 },
+  voidspire:  { trim: '#c49bff', motif: 'rift',  mcol: '#d8a9ff', mb: 1.05, dens: 0.24 },
+  town:       { trim: '#ffcf8a', motif: 'inlay', mcol: '#ffe1a6', mb: 0.8,  dens: 0.16 },
+};
+
 function buildWorld(world) {
   const grid = world.grid, W = world.w, H = world.h;
   const pal = world.palette || { wall: '#6df1ff', floor: '#221a14', accent: '#6df1ff' };
@@ -176,7 +189,10 @@ function buildWorld(world) {
   const floorCol = mul(pal.floor, 2.15);
   const wallTop = mul(pal.wall, 1.05);
   const wallSide = mul(pal.wall, 0.46);
-  const decorCol = mul(pal.accent, 1.4);
+  const art = BIOME_ART[world.biomeId] || (world.kind === 'town' ? BIOME_ART.town
+    : { trim: pal.accent, motif: 'runes', mcol: pal.accent, mb: 1.0, dens: 0.2 });
+  const trimCol = mul(art.trim, 0.9);   // glowing skirting where wall meets floor
+  const BAND = 0.18;                     // height of that base band
 
   const isFloor = (x, y) => y >= 0 && y < H && x >= 0 && x < W && grid[y][x] === 0;
   const pos = [], col = [];
@@ -185,6 +201,52 @@ function buildWorld(world) {
     // two tris (a,b,c) (a,c,d); DoubleSide material so winding never matters in Stage 1
     pos.push(ax, ay, az, bx, by, bz, cx, cy, cz, ax, ay, az, cx, cy, cz, dx, dy, dz);
     for (let i = 0; i < 6; i++) col.push(c.r, c.g, c.b);
+  }
+  // deterministic 0..1 hash so baked detail is stable across rebuilds (no flicker).
+  function h01(x, y, s) { const n = (((x * 73856093) ^ (y * 19349663) ^ (s * 83492791)) >>> 0); return (n % 10000) / 10000; }
+  // a thin bright quad lying flat on the floor, centred at (cx,cz), rotated by `ang`.
+  function floorBar(cx, cz, ang, hl, hw, yy) {
+    const dx = Math.cos(ang), dz = Math.sin(ang), px = -dz, pz = dx;
+    quad(cx + dx * hl + px * hw, yy, cz + dz * hl + pz * hw,
+         cx + dx * hl - px * hw, yy, cz + dz * hl - pz * hw,
+         cx - dx * hl - px * hw, yy, cz - dz * hl - pz * hw,
+         cx - dx * hl + px * hw, yy, cz - dz * hl + pz * hw, _color);
+  }
+  // a wall side face split into a bright base band + the normal upper wall (no z-fight).
+  function sideFace(x0, z0, x1, z1) {
+    _color.set(trimCol);
+    quad(x0, 0, z0,  x1, 0, z1,  x1, BAND, z1,  x0, BAND, z0, _color);
+    _color.set(wallSide).multiplyScalar(0.9 + h01(x0, z0, 7) * 0.22);
+    quad(x0, BAND, z0,  x1, BAND, z1,  x1, WALLH, z1,  x0, WALLH, z0, _color);
+  }
+  // biome-specific glowing motif baked onto a floor tile.
+  function floorMotif(x, y) {
+    if (h01(x, y, 1) >= art.dens) return;
+    _color.set(art.mcol).multiplyScalar(art.mb * (0.7 + h01(x, y, 5) * 0.5));
+    const cx = x + 0.5, cz = y + 0.5, a = h01(x, y, 2) * Math.PI, yy = 0.03;
+    switch (art.motif) {
+      case 'lava': case 'rift':            // molten / void seams cracking the floor
+        floorBar(cx, cz, a, 0.34, 0.035, yy);
+        if (h01(x, y, 3) < 0.45) floorBar(cx + 0.08, cz + 0.08, a + 0.6, 0.2, 0.03, yy);
+        break;
+      case 'arc':                          // a jagged crackle of stored lightning
+        floorBar(cx - 0.12, cz - 0.05, a, 0.18, 0.028, yy);
+        floorBar(cx + 0.1, cz + 0.06, a + 0.9, 0.16, 0.028, yy);
+        break;
+      case 'ice':                          // a frost star
+        floorBar(cx, cz, a, 0.3, 0.03, yy);
+        floorBar(cx, cz, a + Math.PI / 2, 0.3, 0.03, yy);
+        break;
+      case 'moss': case 'inlay':           // a soft glowing patch / tile inlay
+        floorBar(cx, cz, a, 0.17, 0.15, yy);
+        break;
+      default:                             // 'runes' — a small carved ring
+        floorBar(cx, cz - 0.18, 0, 0.18, 0.028, yy);
+        floorBar(cx, cz + 0.18, 0, 0.18, 0.028, yy);
+        floorBar(cx - 0.18, cz, Math.PI / 2, 0.18, 0.028, yy);
+        floorBar(cx + 0.18, cz, Math.PI / 2, 0.18, 0.028, yy);
+        break;
+    }
   }
 
   for (let y = 0; y < H; y++) {
@@ -195,25 +257,28 @@ function buildWorld(world) {
         const h = ((x * 73 + y * 41) & 7) / 7;
         _color.set(floorCol).multiplyScalar(0.9 + h * 0.2);
         quad(x, 0, y,  x + 1, 0, y,  x + 1, 0, y + 1,  x, 0, y + 1, _color);
+        floorMotif(x, y);                  // baked biome detail on top
       } else if (g === 1) {
         const nearFloor = isFloor(x, y - 1) || isFloor(x, y + 1) || isFloor(x - 1, y) || isFloor(x + 1, y);
         if (!nearFloor) continue;
-        // roof (top face)
-        _color.set(wallTop);
+        // roof (top face) — faint per-tile variation so long walls aren't dead-flat
+        _color.set(wallTop).multiplyScalar(0.82 + h01(x, y, 9) * 0.32);
         quad(x, WALLH, y,  x + 1, WALLH, y,  x + 1, WALLH, y + 1,  x, WALLH, y + 1, _color);
-        // floor-facing side faces (3D walls)
-        _color.set(wallSide);
-        if (isFloor(x, y + 1)) quad(x, 0, y + 1,  x + 1, 0, y + 1,  x + 1, WALLH, y + 1,  x, WALLH, y + 1, _color);  // south
-        if (isFloor(x, y - 1)) quad(x, 0, y,      x + 1, 0, y,      x + 1, WALLH, y,      x, WALLH, y,     _color);  // north
-        if (isFloor(x - 1, y)) quad(x, 0, y,      x, 0, y + 1,      x, WALLH, y + 1,      x, WALLH, y,     _color);  // west
-        if (isFloor(x + 1, y)) quad(x + 1, 0, y,  x + 1, 0, y + 1,  x + 1, WALLH, y + 1,  x + 1, WALLH, y, _color);  // east
+        // floor-facing side faces (3D walls) — each gets a glowing base band
+        if (isFloor(x, y + 1)) sideFace(x, y + 1, x + 1, y + 1);  // south
+        if (isFloor(x, y - 1)) sideFace(x, y,     x + 1, y);      // north
+        if (isFloor(x - 1, y)) sideFace(x, y,     x, y + 1);      // west
+        if (isFloor(x + 1, y)) sideFace(x + 1, y, x + 1, y + 1);  // east
       } else if (g === 2) {
-        // decor: a short glowing pillar
-        const dh = WALLH * 0.7;
-        _color.set(decorCol);
-        quad(x + 0.25, dh, y + 0.25,  x + 0.75, dh, y + 0.25,  x + 0.75, dh, y + 0.75,  x + 0.25, dh, y + 0.75, _color);
-        quad(x + 0.25, 0, y + 0.75,   x + 0.75, 0, y + 0.75,   x + 0.75, dh, y + 0.75,   x + 0.25, dh, y + 0.75, _color);
-        quad(x + 0.25, 0, y + 0.25,   x + 0.75, 0, y + 0.25,   x + 0.75, dh, y + 0.25,   x + 0.25, dh, y + 0.25, _color);
+        // decor: a glowing biome-coloured obelisk with a bright cap
+        const dh = WALLH * 0.78;
+        _color.set(art.mcol).multiplyScalar(0.95);
+        quad(x + 0.3, 0, y + 0.3,  x + 0.7, 0, y + 0.3,  x + 0.7, dh, y + 0.3,  x + 0.3, dh, y + 0.3, _color);  // north
+        quad(x + 0.3, 0, y + 0.7,  x + 0.7, 0, y + 0.7,  x + 0.7, dh, y + 0.7,  x + 0.3, dh, y + 0.7, _color);  // south
+        quad(x + 0.3, 0, y + 0.3,  x + 0.3, 0, y + 0.7,  x + 0.3, dh, y + 0.7,  x + 0.3, dh, y + 0.3, _color);  // west
+        quad(x + 0.7, 0, y + 0.3,  x + 0.7, 0, y + 0.7,  x + 0.7, dh, y + 0.7,  x + 0.7, dh, y + 0.3, _color);  // east
+        _color.set(art.mcol).multiplyScalar(1.45);   // bright cap glow
+        quad(x + 0.28, dh, y + 0.28,  x + 0.72, dh, y + 0.28,  x + 0.72, dh, y + 0.72,  x + 0.28, dh, y + 0.72, _color);
       }
     }
   }
