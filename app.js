@@ -1163,6 +1163,7 @@
         autoPotion: true,      // auto-drink a potion when HP drops below threshold
         autoPotionPct: 0.35,   // fraction of max HP that triggers an auto-potion
         autoPlay: false,       // passive mode — the hero fights/loots/descends on its own
+        lootFilter: 'off',     // auto-salvage gear at/below this rarity on pickup (off|common|magic|rare)
         hardcore: false,       // one life — permadeath when true (set at class select)
         transmog: { weapon: null, armor: null },  // appearance overrides (look id or null = item's own)
         hireling: null,        // recruited companion: { type, level } or null
@@ -1264,6 +1265,7 @@
       if (obj.char && obj.char.autoPotion === undefined) obj.char.autoPotion = true;
       if (obj.char && obj.char.autoPotionPct === undefined) obj.char.autoPotionPct = 0.35;
       if (obj.char && obj.char.autoPlay === undefined) obj.char.autoPlay = false;
+      if (obj.char && obj.char.lootFilter === undefined) obj.char.lootFilter = 'off';
       // migrate: bestiary kill log for old saves
       if (!obj.bestiary) obj.bestiary = {};
       // migrate: crafting dust material for old saves
@@ -3173,8 +3175,26 @@
     p.dashCd = 1.5;
     // Dodge-roll: brief invulnerability (i-frames) — slip through attacks.
     p.iframes = 0.4;
+    p._pdArmed = true;             // this roll can still earn a Perfect Dodge
     floatText('DODGE', p.x, p.y - 0.6, 'heal');
     sfx('uiBack');
+  }
+
+  // PERFECT DODGE — negating a real hit with dash i-frames is a skill, so reward it:
+  // a short damage window, a mana kick, and a shaved dash cooldown to enable a chain.
+  function perfectDodge() {
+    const p = game.world.player, now = performance.now();
+    if (!p._pdArmed || (p._pdCd && now < p._pdCd)) return;   // once per roll, min ~0.6s apart
+    p._pdArmed = false;            // consumed — re-armed by the next dash
+    p._pdCd = now + 600;
+    game._dodgeDmgUntil = now + 3000;                        // +25% damage (read in hitEnemy)
+    if (game.char) game.char.mp = Math.min(game.char.mpMax || game.char.mp, game.char.mp + 10);
+    p.dashCd = Math.max(0, (p.dashCd || 0) - 0.6);
+    floatText('PERFECT!', p.x, p.y - 1.0, 'crit');
+    burst(p.x, p.y, '#ffd27a', 18);
+    game.screenShake = Math.max(game.screenShake, 0.12);
+    sfx('shrine');
+    updateHud();
   }
 
   // ============================================================
@@ -4053,6 +4073,78 @@
     } else if (type === 'frozen') {
       // Use existing e.frozen (already a numeric timer) so existing AI checks keep working
       e.frozen = Math.max(e.frozen || 0, params.dt || 0);
+    } else if (type === 'shock') {
+      // Lightning "shock": no DoT — a timed vulnerability (amps all damage) + reaction fuel.
+      e.shockUntil = performance.now() + (params.ms || 2500);
+    }
+  }
+
+  // ============================================================
+  // ELEMENTAL REACTIONS — combining TWO elements on one enemy pays off mid-fight.
+  // Fuel: every hit seeds its weapon element's status (seedElement); a hit of a
+  // DIFFERENT element then reacts (elementReact). Mono-element builds never self-react
+  // (you seed and re-seed the same status), so this adds build depth without inflating
+  // single-element damage — the payoff is opt-in via deliberately pairing elements
+  // (e.g. a Frost Nova cast + a fire weapon → MELT). Consumes the status it reacts with.
+  // ============================================================
+  function seedElement(e, elem, baseDmg) {
+    if (!e || e.hp <= 0) return;
+    switch (elem) {
+      case 'fire':      if (roll(0.30)) applyStatus(e, 'burn',   { dmg: Math.floor(baseDmg * 0.22), dt: 3 }); break;
+      case 'poison':    if (roll(0.30)) applyStatus(e, 'poison', { dmg: Math.floor(baseDmg * 0.20), dt: 4 }); break;
+      case 'cold':      if (roll(0.14)) e.frozen = Math.max(e.frozen || 0, 0.6); break;
+      case 'lightning': if (roll(0.35)) applyStatus(e, 'shock', { ms: 2500 }); break;
+      // void seeds nothing — it is the detonator (see elementReact).
+    }
+  }
+  function elementReact(e, elem, baseDmg) {
+    if (!e || e.hp <= 0 || elem === 'physical') return;
+    const now = performance.now();
+    if (e._reactCd && now < e._reactCd) return;   // at most one reaction per ~0.35s per enemy
+    const s = e.statusEffects || (e.statusEffects = {});
+    const shocked = e.shockUntil && now < e.shockUntil;
+    const my = Math.floor(derived(game.char).dmg);
+    const react = (label, col, sound) => {
+      e._reactCd = now + 350;
+      floatText(label, e.x + (rand() - 0.5) * 0.3, e.y - 1.05, 'crit');
+      burst(e.x, e.y, col, 16);
+      sfxT(sound || 'nova', 60);
+    };
+    const strike = (frac) => { const d = Math.max(1, Math.floor(my * frac)); e.hp -= d; floatText(`${d}`, e.x + (rand() - 0.5) * 0.3, e.y - 0.4, 'crit'); if (e.hp <= 0) killEnemy(e); };
+
+    // VOID — the amplifier: consume EVERY status for a big single-target burst.
+    if (elem === 'void') {
+      let had = false;
+      if (s.burn)   { s.burn = null;   had = true; }
+      if (s.poison) { s.poison = null; had = true; }
+      if (e.frozen > 0) { e.frozen = 0; had = true; }
+      if (shocked)  { e.shockUntil = 0; had = true; }
+      if (had) { react('COLLAPSE', '#c489ff'); strike(1.4); }
+      return;
+    }
+    // FIRE
+    if (elem === 'fire') {
+      if (e.frozen > 0) { e.frozen = 0; react('MELT', '#ff9a3c'); strike(0.9); return; }              // thermal shock
+      if (s.poison)     { react('TOXIC BLOOM', '#9be57c'); comboBurst(e, 'poison', 0.5, 2.4); s.poison = null; return; }
+    }
+    // COLD
+    if (elem === 'cold') {
+      if (s.burn)  { s.burn = null; react('STEAM', '#bfe9ff');
+        for (const o of game.enemies) if (o !== e && o.hp > 0 && dist(o, e) <= 2.2) o.frozen = Math.max(o.frozen || 0, 0.5); return; }
+      if (shocked) { e.shockUntil = 0; e.frozen = Math.max(e.frozen || 0, 1.4); react('FLASH FREEZE', '#6df1ff'); return; }
+    }
+    // LIGHTNING
+    if (elem === 'lightning') {
+      if (e.frozen > 0) { e.frozen = 0; react('SUPERCONDUCT', '#bff0ff'); comboBurst(e, 'cold', 0.6, 2.6); return; }
+      if (s.poison)     { react('ELECTROLYSIS', '#9be57c');                                            // arc the poison to a neighbour
+        let best = null, bd = 1e9;
+        for (const o of game.enemies) { if (o === e || o.hp <= 0) continue; const dd = dist(o, e); if (dd < bd && dd <= 3) { bd = dd; best = o; } }
+        if (best) applyStatus(best, 'poison', { dmg: s.poison.dmg, dt: s.poison.dt }); return; }
+      if (s.burn)       { s.burn = null; e.stagger = Math.max(e.stagger, 0.3); react('OVERLOAD', '#ffd27a'); strike(0.7); return; }
+    }
+    // POISON — feed a burn into a stronger, longer poison.
+    if (elem === 'poison') {
+      if (s.burn) { const bd = (s.burn.dmg || Math.floor(baseDmg * 0.2)); s.burn = null; applyStatus(e, 'poison', { dmg: Math.floor(bd * 1.2), dt: 5 }); react('CATALYZE', '#b6ff6a'); return; }
     }
   }
 
@@ -4254,13 +4346,20 @@
     if (hasPower('stormcharged')) dmg = Math.floor(dmg * 1.25);
     // Berserker — the lower your life, the harder you hit (up to +40% at 0 HP).
     if (hasPower('berserker') && game.char) dmg = Math.floor(dmg * (1 + (1 - game.char.hp / Math.max(1, game.char.hpMax)) * 0.4));
+    // Shocked (lightning reaction fuel): the enemy takes +18% from ALL damage while it lasts.
+    if (e.shockUntil && performance.now() < e.shockUntil) dmg = Math.floor(dmg * 1.18);
+    // Perfect-dodge reward window: +25% damage for a few seconds after a well-timed roll.
+    if (game._dodgeDmgUntil && performance.now() < game._dodgeDmgUntil) dmg = Math.floor(dmg * 1.25);
     e.hp -= dmg;
     // Vampiric — siphon a sliver of the damage dealt back as health.
     if (hasPower('lifesteal') && game.char && game.char.hp > 0 && game.char.hp < game.char.hpMax) {
       game.char.hp = Math.min(game.char.hpMax, game.char.hp + Math.max(1, Math.floor(dmg * 0.04)));
     }
-    // Legendary powers (on-hit statuses), if the enemy survived the blow
+    // Legendary powers (on-hit statuses) + elemental reactions, if the enemy survived.
     if (e.hp > 0) {
+      // React with statuses left by PRIOR hits first, then seed this hit's element.
+      elementReact(e, pElem, baseDmg);
+      seedElement(e, pElem, baseDmg);
       if (hasPower('wildfire'))  applyStatus(e, 'burn',   { dmg: Math.floor(baseDmg * 0.4),  dt: 3 });
       if (hasPower('venomfang')) applyStatus(e, 'poison', { dmg: Math.floor(baseDmg * 0.35), dt: 4 });
       if (hasPower('permafrost') && roll(0.25)) e.frozen = Math.max(e.frozen || 0, 0.7);
@@ -5228,9 +5327,11 @@
   // ============================================================
   function damagePlayer(rawDmg, element) {
     if (game.char.hp <= 0) return; // already dead — prevent multiple death triggers
-    // Dodge-roll i-frames: slip through the hit entirely.
+    // Dodge-roll i-frames: slip through the hit entirely — and a well-timed roll that
+    // actually negates an incoming hit earns a Perfect Dodge reward.
     if (game.world.player.iframes && game.world.player.iframes > 0) {
       floatText('DODGE', game.world.player.x, game.world.player.y - 0.4, 'heal');
+      perfectDodge();
       return;
     }
     // Shrine of Warding: total invulnerability
@@ -5589,6 +5690,32 @@
     }
   }
 
+  // ---- LOOT FILTER — auto-salvage trash gear on pickup (QoL, pairs with Auto-Play) ----
+  // Cycles OFF → Common → Common+Magic → Common→Rare. Gear at/below the chosen rank is
+  // salvaged straight to Glass Dust instead of filling the inventory. Uniques/Mythics are
+  // never auto-salvaged; gold, gems and consumables are never filtered.
+  const LOOT_FILTER_ORDER = ['off', 'common', 'magic', 'rare'];
+  const LOOT_FILTER_RANK  = { off: -1, common: 0, magic: 1, rare: 2 };
+  const LOOT_FILTER_LABEL = { off: 'OFF', common: 'Common', magic: 'Common+Magic', rare: 'Common→Rare' };
+  function isGearItem(item) {
+    const base = item && ITEM_BASES[item.baseId];
+    return !!(base && (base.type === 'weapon' || base.type === 'armor' || base.type === 'ring' || base.type === 'amulet'));
+  }
+  // Salvage an item that never entered the inventory: credit dust + learn any Aspect/look.
+  // No saveGame() here — it rides the next normal save (keeps cloud writes down).
+  function autoSalvageGear(item) {
+    const c = game.char; if (!c) return 0;
+    const base = ITEM_BASES[item.baseId];
+    const pw = (base && base.power) || item.power;
+    if (pw && POWERS[pw]) {
+      if (!c.aspects) c.aspects = [];
+      if (c.aspects.indexOf(pw) < 0) { c.aspects.push(pw); sfx('legendary'); showHudToast('★ Aspect extracted: ' + POWERS[pw].name); }
+    }
+    const yld = SALVAGE_YIELD[item.rarity] || 1;
+    c.craftDust = (c.craftDust || 0) + yld;
+    return yld;
+  }
+
   function tickInteraction() {
     if (!game.world) return;
     const p = game.world.player;
@@ -5626,6 +5753,20 @@
     for (let i = 0; i < game.items.length; i++) {
       const gi = game.items[i];
       if (dist(gi, p) < pickRadius) { it = gi; idx = i; break; }
+    }
+    // Loot filter: trash gear at/below the chosen rarity is salvaged instead of picked up.
+    if (it && it.item) {
+      const fltRank = LOOT_FILTER_RANK[(game.char && game.char.lootFilter) || 'off'];
+      const rr = it.item.rarity;
+      const hasGems = it.item.gems && it.item.gems.length;   // never auto-salvage socketed gear
+      if (fltRank >= 0 && !hasGems && isGearItem(it.item) && (RARITY_RANK[rr] || 0) <= fltRank) {
+        game.items.splice(idx, 1);
+        collectLook(it.item);                                // still learn its appearance for the Wardrobe
+        const yld = autoSalvageGear(it.item);
+        floatText(`salvaged +${yld}`, it.x, it.y - 0.4, 'xp');
+        game.nearbyItem = null;
+        return;
+      }
     }
     if (it && game.char.inventory.length < inventoryCap()) {
       game.items.splice(idx, 1);
@@ -8697,6 +8838,8 @@
       }
       const aplBtn = $('menu-autoplay-btn');
       if (aplBtn && game.char) aplBtn.textContent = 'Auto-Play: ' + (game.char.autoPlay ? 'ON' : 'OFF');
+      const lfBtn = $('menu-lootfilter-btn');
+      if (lfBtn && game.char) lfBtn.textContent = 'Loot Filter: ' + (LOOT_FILTER_LABEL[game.char.lootFilter] || 'OFF');
       const jBtn = $('menu-journey-btn');
       if (jBtn && game.char) jBtn.innerHTML = 'The Journey' + (journeyHasClaimable() ? ' <span style="color:#ffd45e">●</span>' : '');
       // Update 3D renderer toggle label (3D is the default)
@@ -10271,6 +10414,19 @@
           if (aplBtn) aplBtn.textContent = 'Auto-Play: ' + (c.autoPlay ? 'ON' : 'OFF');
           updateHud();
           showHudToast(c.autoPlay ? 'Auto-Play ON — the hero will fight, loot and descend on its own.' : 'Auto-Play OFF.');
+        }
+        return;
+      case 'menu-lootfilter-toggle':
+        {
+          const c = game.char; if (!c) return;
+          const cur = LOOT_FILTER_ORDER.indexOf(c.lootFilter || 'off');
+          c.lootFilter = LOOT_FILTER_ORDER[(cur + 1) % LOOT_FILTER_ORDER.length];
+          saveGame();
+          const lfBtn = $('menu-lootfilter-btn');
+          if (lfBtn) lfBtn.textContent = 'Loot Filter: ' + (LOOT_FILTER_LABEL[c.lootFilter] || 'OFF');
+          showHudToast(c.lootFilter === 'off'
+            ? 'Loot Filter OFF — all gear is picked up.'
+            : 'Loot Filter: ' + LOOT_FILTER_LABEL[c.lootFilter] + ' gear auto-salvaged to dust.');
         }
         return;
       case 'menu-render-toggle':
