@@ -94,6 +94,7 @@
     overgrowth: { root: 130.8, steps: [0, 2, 4, 7, 9] },
     frostpeak: { root: 146.8, steps: [0, 2, 5, 7, 10] },
     infernal: { root: 98, steps: [0, 1, 4, 6, 8] },          // dissonant
+    tempest: { root: 123.5, steps: [0, 2, 5, 6, 10] },       // charged, unresolved (storm)
     void: { root: 116.5, steps: [0, 2, 3, 7, 8] },
     town: { root: 174.6, steps: [0, 4, 7, 11, 14] },         // brighter, hopeful
   };

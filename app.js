@@ -276,27 +276,32 @@
   const BIOMES = [
     { id: 'crypts',   name: 'The Crypts',          shortName: 'CRYPTS',
       palette: { wall: '#6df1ff', floor: '#1a2a3a', accent: '#c489ff' },
-      enemies: ['skeleton', 'ghoul', 'wraith', 'bonearcher', 'cryptooze'],
+      enemies: ['skeleton', 'ghoul', 'wraith', 'bonearcher', 'cryptooze', 'boneknight'],
       boss: 'lich',
       unlocked: true },
     { id: 'overgrowth', name: 'Overgrown Ruins',   shortName: 'OVERGROWTH',
       palette: { wall: '#51e6a4', floor: '#1a2a1a', accent: '#ffc857' },
-      enemies: ['spider', 'thorn', 'wisp', 'mossstalker', 'sporepod'],
+      enemies: ['spider', 'thorn', 'wisp', 'mossstalker', 'sporepod', 'direwasp'],
       boss: 'druid',
       unlocked: false },
     { id: 'frostpeak', name: 'Frozen Peaks',       shortName: 'FROSTPEAK',
       palette: { wall: '#a0e0ff', floor: '#1a1f2a', accent: '#ffffff' },
-      enemies: ['wolf', 'frostgiant', 'icebat', 'rimecrawler', 'frostshade'],
+      enemies: ['wolf', 'frostgiant', 'icebat', 'rimecrawler', 'frostshade', 'frostwidow'],
       boss: 'wyrm',
       unlocked: false },
     { id: 'infernal', name: 'Infernal Depths',     shortName: 'INFERNAL',
       palette: { wall: '#ff7043', floor: '#2a1010', accent: '#ffc857' },
-      enemies: ['imp', 'hellhound', 'demon', 'cinderling', 'magmaslime'],
+      enemies: ['imp', 'hellhound', 'demon', 'cinderling', 'magmaslime', 'brimstonebrute'],
       boss: 'archdemon',
+      unlocked: false },
+    { id: 'tempest', name: 'The Tempest Reach',   shortName: 'TEMPEST',
+      palette: { wall: '#7db8ff', floor: '#141a2e', accent: '#ffe066' },
+      enemies: ['stormhusk', 'galewisp', 'thunderhound', 'arcsentinel', 'riftmoth', 'voltcaster'],
+      boss: 'stormsovereign',
       unlocked: false },
     { id: 'voidspire', name: 'The Void Spire',    shortName: 'VOIDSPIRE',
       palette: { wall: '#b388ff', floor: '#0d0d1a', accent: '#00e5ff' },
-      enemies: ['voidling', 'nullweaver', 'crystalsentinel', 'voidspawn', 'riftcaster'],
+      enemies: ['voidling', 'nullweaver', 'crystalsentinel', 'voidspawn', 'riftcaster', 'oblivionmite'],
       boss: 'voidlord',
       unlocked: false },
   ];
@@ -457,6 +462,20 @@
     magmaslime:  { name: 'Magma Slime',  glyph: '◞', color: '#ff7043', hp: 54, dmg: 15, speed: 1.4, range: 1.2, attackKind: 'melee',       xp: 21, goldRange: [5, 11], trait: null,     shape: 'slime' },
     voidspawn:   { name: 'Voidspawn',    glyph: '◬', color: '#c9a6ff', hp: 38, dmg: 15, speed: 3.6, range: 1.0, attackKind: 'melee',       xp: 22, goldRange: [5, 11], trait: 'split',   shape: 'void' },
     riftcaster:  { name: 'Riftcaster',   glyph: '◎', color: '#00e5ff', hp: 32, dmg: 14, speed: 2.6, range: 5.0, attackKind: 'ranged-soul', xp: 26, goldRange: [6, 12], trait: 'silence', shape: 'weaver', projColor: '#00e5ff' },
+    // ===== ENEMY BATCH III — one more foe per original biome (reuse shapes + traits) =====
+    boneknight:    { name: 'Bone Knight',    glyph: '♞', color: '#dcd6c0', hp: 44, dmg: 11, speed: 1.9, range: 1.2, attackKind: 'melee',       xp: 14, goldRange: [3, 7],  trait: 'slam',    shape: 'skeleton' },
+    direwasp:      { name: 'Dire Wasp',      glyph: '✺', color: '#c8e06a', hp: 20, dmg: 10, speed: 4.2, range: 1.0, attackKind: 'melee',       xp: 13, goldRange: [3, 6],  trait: 'flyby',   shape: 'bat' },
+    frostwidow:    { name: 'Frost Widow',    glyph: '✶', color: '#cfeaff', hp: 30, dmg: 12, speed: 3.6, range: 1.0, attackKind: 'melee',       xp: 15, goldRange: [4, 8],  trait: 'swarm',   shape: 'spider' },
+    brimstonebrute:{ name: 'Brimstone Brute',glyph: '⛧', color: '#ff6a2c', hp: 104,dmg: 22, speed: 2.2, range: 1.3, attackKind: 'melee',       xp: 30, goldRange: [7, 15], trait: 'cleave',  shape: 'giant' },
+    oblivionmite:  { name: 'Oblivion Mite',  glyph: '◬', color: '#c9a6ff', hp: 40, dmg: 16, speed: 3.8, range: 1.0, attackKind: 'melee',       xp: 24, goldRange: [6, 12], trait: 'split',   shape: 'void' },
+    // ===== THE TEMPEST REACH — the new biome's roster (lightning; weak to cold) =====
+    stormhusk:     { name: 'Storm Husk',     glyph: '☠', color: '#bfe0ff', hp: 48, dmg: 17, speed: 2.1, range: 4.6, attackKind: 'ranged-soul', xp: 24, goldRange: [5, 11], trait: null,      shape: 'skeleton', projColor: '#bfe0ff' },
+    galewisp:      { name: 'Gale Wisp',      glyph: '∗', color: '#ffe066', hp: 30, dmg: 15, speed: 4.0, range: 4.2, attackKind: 'ranged-soul', xp: 22, goldRange: [5, 10], trait: 'erratic', shape: 'orb',      projColor: '#ffe066' },
+    thunderhound:  { name: 'Thunderhound',   glyph: '☼', color: '#8fd0ff', hp: 62, dmg: 19, speed: 4.2, range: 1.1, attackKind: 'melee',       xp: 26, goldRange: [6, 12], trait: 'charge',  shape: 'beast' },
+    arcsentinel:   { name: 'Arc Sentinel',   glyph: '⬡', color: '#dce8ff', hp: 122,dmg: 24, speed: 1.8, range: 1.3, attackKind: 'melee',       xp: 36, goldRange: [9, 18], trait: 'reflect', shape: 'crystal' },
+    riftmoth:      { name: 'Rift Moth',      glyph: '✺', color: '#b7c8ff', hp: 34, dmg: 16, speed: 3.8, range: 1.0, attackKind: 'melee',       xp: 23, goldRange: [5, 11], trait: 'flyby',   shape: 'bat' },
+    voltcaster:    { name: 'Voltcaster',     glyph: '◎', color: '#a9d4ff', hp: 42, dmg: 16, speed: 2.6, range: 5.0, attackKind: 'ranged-soul', xp: 28, goldRange: [7, 13], trait: 'silence', shape: 'weaver',   projColor: '#a9d4ff' },
+    stormsovereign:{ name: 'The Storm Sovereign', glyph: '♆', color: '#7db8ff', hp: 1320, dmg: 36, speed: 2.7, range: 5.6, attackKind: 'ranged-soul', xp: 440, goldRange: [200, 400], boss: true, trait: 'multiatk', shape: 'caster', projColor: '#ffe066' },
     // Treasure Goblin — flees instead of fighting; kill it before it escapes for a jackpot.
     goblin:         { name: 'Treasure Goblin',  glyph: '$', color: '#ffd24a', hp: 60, dmg: 0, speed: 3.4, range: 0, attackKind: 'none', xp: 20, goldRange: [0, 0],
       trait: 'flee', shape: 'goblin' },
@@ -497,6 +516,18 @@
     magmaslime:      'A creeping tongue of cooling lava. Touching it is exactly as bad as it sounds.',
     voidspawn:       'A shard of the Spire\'s hunger, eager to divide and divide again.',
     riftcaster:      'It tears small holes in the world and reaches through to unmake your magic.',
+    boneknight:      'A crypt-champion still girded for a war that ended ages ago. Its slam cracks the flagstones.',
+    direwasp:        'A hand-span of stinger and spite. It strafes in from the canopy before you hear the wings.',
+    frostwidow:      'Its web freezes where it lands. The pack descends the moment one of them tastes warmth.',
+    brimstonebrute:  'Forge-slag given fists and fury. Its cleave carries the heat of the Infernal in every swing.',
+    oblivionmite:    'A splinter of the Spire\'s hunger, small enough to overlook — until it splits, and splits again.',
+    stormhusk:       'A husk hollowed by the storm, throwing crackling bolts that were once its own breath.',
+    galewisp:        'A knot of loose lightning drifting the updrafts. It never travels in a straight line.',
+    thunderhound:    'It runs ahead of its own thunderclap. By the time you flinch, the charge has already landed.',
+    arcsentinel:     'A faceted warden humming with stored charge — strike it and the blow returns as a spark.',
+    riftmoth:        'Vast wings beaded with static. It drinks the storm and sheds it on anything it touches.',
+    voltcaster:      'It conducts the Reach\'s endless lightning into a lance and silences the arts of the living.',
+    stormsovereign:  'Crowned in the eye of the endless storm, the Sovereign is what the King\'s unmaking sounds like — a scream that learned to hold a shape.',
   };
 
   // ITEM BASES — weapon, armor, ring, amulet
@@ -681,6 +712,29 @@
     'eclipse-band':       { type: 'ring',   name: 'Eclipse Band',       icon: '○', base: { dmg: 10, crit: 6 }, ilvl: 23, legendary: true, look: 'void' },
     'worldroot-charm':    { type: 'amulet', name: 'Worldroot Charm',    icon: '◈', base: { hp: 28, def: 10, vit: 3 }, ilvl: 23, legendary: true, look: 'spectral' },
 
+    // ===== BATCH III — normal bases (Tempest-tier, smooths the top-end drop pool) =====
+    'tempest-glaive':     { type: 'weapon', name: 'Tempest Glaive',      icon: '⚔', base: { dmg: 34 }, ilvl: 22, glyph: 'wep' },
+    'stormcaller-staff':  { type: 'weapon', name: 'Stormcaller Staff',   icon: '✦', base: { dmg: 33, mp: 34 }, ilvl: 19, glyph: 'wep' },
+    'galewind-bow':       { type: 'weapon', name: 'Galewind Bow',        icon: '➹', base: { dmg: 34 }, ilvl: 22, glyph: 'wep' },
+    'voltaic-wand':       { type: 'weapon', name: 'Voltaic Wand',        icon: '☠', base: { dmg: 30, mp: 16 }, ilvl: 19, glyph: 'wep' },
+    'stormforged-mail':   { type: 'armor',  name: 'Stormforged Mail',    icon: '◇', base: { def: 32, hp: 15 }, ilvl: 20 },
+    'stormweave-robe':    { type: 'armor',  name: 'Stormweave Robe',     icon: '◇', base: { def: 18, mp: 48 }, ilvl: 19 },
+    'stormcrest-helm':    { type: 'armor',  name: 'Stormcrest Helm',     icon: '◆', base: { def: 12, hp: 12 }, ilvl: 18 },
+    'gale-treads':        { type: 'armor',  name: 'Gale Treads',         icon: '◈', base: { def: 10 }, ilvl: 18 },
+    'tempest-signet':     { type: 'ring',   name: 'Tempest Signet',      icon: '○', base: {}, ilvl: 18 },
+    'stormglass-charm':   { type: 'amulet', name: 'Stormglass Charm',    icon: '◈', base: { mp: 10 }, ilvl: 20 },
+
+    // ===== LEGENDARY BATCH III — Tempest-themed & beyond (some grant powers) =====
+    'tempest-cleaver':    { type: 'weapon', name: 'Tempest Cleaver',     icon: '⚔', base: { dmg: 52, dex: 3 }, ilvl: 25, glyph: 'wep', legendary: true, look: 'storm', power: 'stormcharged' },
+    'skybreaker':         { type: 'weapon', name: 'Skybreaker',          icon: '✦', base: { dmg: 44, mp: 55, int: 4 }, ilvl: 25, glyph: 'wep', legendary: true, look: 'storm' },
+    'thundercall-bow':    { type: 'weapon', name: 'Thundercall',         icon: '➹', base: { dmg: 42, aspd: 8, dex: 3 }, ilvl: 25, glyph: 'wep', legendary: true, look: 'storm', power: 'stormcharged' },
+    'riftwarden-rod':     { type: 'weapon', name: 'Riftwarden Rod',      icon: '☠', base: { dmg: 40, mp: 30 }, ilvl: 25, glyph: 'wep', legendary: true, look: 'void',  power: 'echo' },
+    'stormlord-plate':    { type: 'armor',  name: 'Stormlord Plate',     icon: '◇', base: { def: 46, hp: 38, vit: 3 }, ilvl: 25, legendary: true, look: 'plate' },
+    'phoenix-shroud':     { type: 'armor',  name: 'Phoenix Shroud',      icon: '◇', base: { def: 30, mp: 40 }, ilvl: 24, legendary: true, look: 'wings', power: 'wildfire' },
+    'crown-of-storms':    { type: 'armor',  name: 'Crown of Storms',     icon: '◆', base: { def: 16, dmg: 6, dex: 2 }, ilvl: 24, legendary: true, look: 'crown' },
+    'galeheart-pendant':  { type: 'amulet', name: 'Galeheart Pendant',   icon: '◈', base: { dmg: 6, aspd: 10, dex: 2 }, ilvl: 24, legendary: true, look: 'storm' },
+    'voltaic-loop':       { type: 'ring',   name: 'Voltaic Loop',        icon: '○', base: { dmg: 12, crit: 5 }, ilvl: 24, legendary: true, look: 'storm', power: 'stormcharged' },
+
     // ===== CONSUMABLES =====
     'sanctuary-scroll':   { type: 'consumable', name: 'Sanctuary Scroll', icon: '✉', base: {}, ilvl: 1 },
     'glass-tear':         { type: 'consumable', name: 'Glass Tear',       icon: '◊', base: {}, ilvl: 1 },
@@ -776,6 +830,19 @@
       bonusDesc: '3pc: +30% Damage, +50 MP, +50 HP',
       bonus: { dmgMul: 0.3, mp: 50, hp: 50 },
     },
+    // ---- Tempest-tier sets ----
+    tempestweave: {
+      name: "Tempestweave Regalia",
+      pieces: ['stormcaller-staff', 'stormweave-robe', 'tempest-signet'],
+      bonusDesc: '3pc: +30% Damage, +60 MP, +15% Attack Speed',
+      bonus: { dmgMul: 0.3, mp: 60, aspdMul: 0.15 },
+    },
+    stormsworn: {
+      name: "Stormsworn Panoply",
+      pieces: ['tempest-glaive', 'stormforged-mail', 'stormglass-charm'],
+      bonusDesc: '3pc: +28% Damage, +8% Crit, +30 Armor',
+      bonus: { dmgMul: 0.28, crit: 8, def: 30 },
+    },
   };
 
   // ============================================================
@@ -832,6 +899,7 @@
     overgrowth: { weak: 'fire',      resist: 'poison', element: 'poison' },
     frostpeak:  { weak: 'fire',      resist: 'cold',   element: 'cold' },
     infernal:   { weak: 'cold',      resist: 'fire',   element: 'fire' },
+    tempest:    { weak: 'cold',      resist: 'lightning', element: 'lightning' },
     void:       { weak: 'lightning', resist: 'void',   element: 'void' },
   };
   const ENEMY_ELEM = {};   // optional per-enemy overrides (sparse; biome theme is the default)
@@ -1170,7 +1238,7 @@
         sigils: 0,             // Nightmare Sigils — consumed to open keyed Nightmare dungeons
       },
       stash: [],
-      unlockedBiomes: { crypts: true, overgrowth: false, frostpeak: false, infernal: false, voidspire: false },
+      unlockedBiomes: { crypts: true, overgrowth: false, frostpeak: false, infernal: false, tempest: false, voidspire: false },
       bossesKilled: {},
       bestiary: {},   // { [enemyId]: killCount } — populated as enemies are slain
       bestRift: 0,    // deepest Greater Rift level cleared
@@ -1239,6 +1307,15 @@
       // migrate: add voidspire biome for old saves
       if (obj.unlockedBiomes && !('voidspire' in obj.unlockedBiomes)) {
         obj.unlockedBiomes.voidspire = false;
+      }
+      // migrate: insert the Tempest Reach biome (between Infernal and Voidspire) for old saves.
+      // Unlock it if Infernal is already cleared; and if the player was already PAST this point
+      // (Voidspire boss down), credit its boss so the Hollow Throne gate doesn't re-lock on them.
+      if (obj.unlockedBiomes && !('tempest' in obj.unlockedBiomes)) {
+        obj.unlockedBiomes.tempest = !!(obj.bossesKilled && obj.bossesKilled.infernal > 0);
+      }
+      if (obj.bossesKilled && obj.bossesKilled.voidspire > 0 && !obj.bossesKilled.tempest) {
+        obj.bossesKilled.tempest = 1;
       }
       // migrate: add sanctuaryScrolls for old saves
       if (obj.char && obj.char.sanctuaryScrolls === undefined) {
@@ -9278,8 +9355,10 @@
     { id: 'act3', after: 'frostpeak', title: 'Act III — The Frozen Silence',
       text: 'Frostpeak\'s warden lies shattered, and the silence breaks like ice underfoot. Heat returns — too much of it. The Infernal Reach burns ahead, where the King forged the chains that bind the world\'s unraveling. The closer you come, the more the air tastes of glass.' },
     { id: 'act4', after: 'infernal', title: 'Act IV — The Infernal Reach',
-      text: 'You walked through fire and the fire blinked first. Beyond the forge-lord\'s ash lies the Voidspire — the wound in the world, the place the King climbed down from. There is no biome past it. There is only the throne.' },
-    { id: 'act5', after: 'voidspire', title: 'Act V — The Voidspire',
+      text: 'You walked through fire and the fire blinked first. But the forge-lord\'s ash does not settle — it rises, caught in a screaming wind. Beyond lies the Tempest Reach, where the King\'s unmaking guttered out of the flame and into endless storm, and the sky itself has forgotten how to be still.' },
+    { id: 'act4b', after: 'tempest', title: 'Act V — The Tempest Reach',
+      text: 'The storm had a heart, and now it is quiet. In the lull you can finally see the far shore: the Voidspire — the wound in the world, the place the King climbed down from. There is no biome past it. There is only the throne.' },
+    { id: 'act5', after: 'voidspire', title: 'Act VI — The Voidspire',
       text: 'At the spire\'s peak the sky is a held breath. The Hollowing is thinnest here and somehow most complete, as if the world has agreed to end politely. The Hollow Throne waits beyond the last door. He has been waiting for you — he says so, in your own voice.' },
     { id: 'finale', after: 'hollowking', title: 'Finale — The Hollow Throne',
       text: 'The crown comes apart in your hands like frost on a warming pane. For a moment the world remembers green, remembers your name, remembers how to stay. Whether it lasts was never the King\'s to decide, nor yours. But the lantern is still lit, the Sanctuary still warm, and tonight the dead lie quiet.' },
