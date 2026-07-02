@@ -40,11 +40,16 @@
   /* cloud-write-reduce-v1 — content-deduped, throttled, backoff-aware cloud push.
      Keeps glasspire off the shared glassrealm-saves KV free-tier daily write cap by
      zeroing the `t` timestamp in the dedup signature, throttling non-flush pushes to
-     >=60s apart, cooling down ~60s after a failed write, and marking synced ONLY on
+     >=5min apart, cooling down ~60s after a failed write, and marking synced ONLY on
      a successful put. Flush (hide/pagehide) bypasses throttle; explicit (manual)
-     punches through backoff. Local saves are untouched (localStorage stays instant). */
+     punches through backoff. Local saves are untouched (localStorage stays instant).
+
+     THROTTLE is 5min (not 60s): the worst case is Auto-Play / long grinds, which change
+     the save content genuinely every write (position/XP/gold/loot) so dedup can't
+     suppress them — only the throttle caps the rate. 5min = ~288 writes/day even running
+     24h, safely under the 1000/day KV cap; 60s would be ~1440/day → over cap. */
   var pushTimer = 0, lastSig = '', lastPushAt = 0, backoffUntil = 0, pendingObj = null, pendingFlush = false, pendingExplicit = false;
-  var THROTTLE_MS = 60000, BACKOFF_MS = 60000, DEBOUNCE_MS = 2500;
+  var THROTTLE_MS = 300000, BACKOFF_MS = 60000, DEBOUNCE_MS = 2500;
 
   function sigOf(obj) {
     var body;
@@ -62,8 +67,13 @@
   }
 
   // Actually perform the PUT. Resolves true on a 200 success, false otherwise.
-  function doPut(sig, body) {
-    return fetchTimeout(url(), { method: 'PUT', headers: { 'content-type': 'application/json' }, body: body }, 6000)
+  // flush=true adds keepalive so a PUT fired from pagehide/visibilitychange survives
+  // the tab being torn down. Browsers cap keepalive bodies at ~64KB, so only opt in
+  // when the body fits — a larger save falls back to a normal fetch (best-effort).
+  function doPut(sig, body, flush) {
+    var opts = { method: 'PUT', headers: { 'content-type': 'application/json' }, body: body };
+    if (flush && body.length < 60000) opts.keepalive = true;
+    return fetchTimeout(url(), opts, 6000)
       .then(function (r) {
         if (r && r.ok) {
           lastSig = sig;        // mark synced ONLY after a successful put
@@ -104,7 +114,7 @@
     pendingObj = null;
     var body;
     try { body = JSON.stringify(obj); } catch (e) { return; }
-    doPut(sig, body);
+    doPut(sig, body, flush);
   }
 
   window.__CLOUD = {
