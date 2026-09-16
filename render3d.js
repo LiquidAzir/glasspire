@@ -710,6 +710,8 @@ function drawOverlays(game) {
     const labels={vendor:'Trader',stash:'Vault',quests:'Bounties',waypoint:'Waystone',mystery:'Mystery',mercenary:'Hirelings',gambler:'Gambler'};
     octx.font='600 12px sans-serif';octx.textAlign='center';octx.textBaseline='middle';
     for(const npc of game.world.npcs||[]){
+      // The active character already has a contextual pinch pill above them.
+      if(npc===game.nearbyNpc)continue;
       const label=labels[npc.role]||npc.name,p=projectToScreen(npc.x+.5,2.05,npc.y+.5);
       if(!p.vis||p.x<20||p.x>580||p.y<44||p.y>440)continue;
       const width=octx.measureText(label).width+10;
@@ -738,6 +740,7 @@ function drawOverlays(game) {
     octx.font = 'bold 11px sans-serif'; octx.textAlign = 'center'; octx.textBaseline = 'middle';
     for (const pt of game.world.portals) {
       if (!pt.label) continue;
+      if (!game.nearbyNpc && pt === game.nearbyPortal) continue;
       const p = projectToScreen(pt.x, 1.7, pt.y);
       if (!p.vis || p.x < -80 || p.x > 680 || p.y < -20 || p.y > 620) continue;
       const tw = octx.measureText(pt.label).width;

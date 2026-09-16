@@ -13,7 +13,7 @@ Both suites use isolated browser contexts, block external requests, and enable p
 ## Verified app changes
 
 - New Hero initially focuses Warrior. Replacing an existing hero requires an explicit confirmation whose default is Keep current hero. Enter and focused-element click activate the same gameplay/menu control; Tab and menu arrows stay within visible enabled controls. First focus is scrolled into view. The code picker has reachable Submit and Cancel through D-pad alone.
-- A short movement tap travels roughly one tile. Held input clears on menus, blur, touch cancellation and disconnected controllers. Player movement, Dash and Leap Slam respect a 0.22-tile footprint; movement is swept in small steps to avoid skipping walls. Legacy dungeon coordinates that fall inside a newly generated obstruction move to nearby supported ground.
+- A short neural-band/keyboard swipe travels 2.3 base tiles; sustained keyboard movement consumes that burst budget, and direct touch/controller movement stops on release. Held input clears on menus, blur, touch cancellation and disconnected controllers. Player movement, Dash and Leap Slam respect a 0.22-tile footprint; movement is swept in small steps to avoid skipping walls. Legacy dungeon coordinates that fall inside a newly generated obstruction move to nearby supported ground.
 - Saved dead heroes reopen the recovery screen; respawning charges the existing gold penalty once and saves the town checkpoint. Hardcore death cannot restart the dead character or recreate the deleted save. Deliberately unequipped weapons stay unequipped after reload instead of spawning duplicate starter gear.
 - Full-bag bounty rewards go to the existing stash instead of being discarded. Purchase and stash-capacity checks preserve items/currency. A bounty turn-in that grants a level leaves the level-up screen intact. Frame processing stops when death, level-up or a zone transition interrupts the run.
 - Delayed Starfall impacts and floating rewards follow active simulation time and are cleared on zone changes. They cannot strike while a menu is open or leak into another map. Volatile-enemy death cannot grant a post-mortem level-up revival; destroyed crystals leave the enemy list.
@@ -53,3 +53,25 @@ node tests/gear-progression.generation.cjs
 The combat suite exposes private functions only by intercepting the loopback response in its disposable browser; production receives no extra privileged hook. All browser tests use disposable saves and block external requests. `combat-controls.browser.cjs` uses the original `REALM_*` variables. Other suites document their own variables at the top of each file.
 
 Second-round evidence is outside the repo at `../.visual-review/spire-systems/`. Its `before/manifest.json` freezes the completed visual-overhaul files before this audit, rather than treating the old GitHub version as this round's baseline. The local review runs on5255, playable updated game on5251, and frozen second-round baseline on5254; all preview game servers disable cloud configuration.
+
+## Movement and Back comfort pass
+
+Run `node tests/movement-feel.browser.cjs`. This suite defaults to `http://127.0.0.1:5265`; `REALM_URL`, `REALM_EVIDENCE`, and `PLAYWRIGHT_PATH` override the server, evidence directory, and Playwright module. Like the combat suite, it exposes existing private movement/poll routines only in an intercepted loopback response and uses disposable state. It reads but never modifies `legacy-save.json`.
+
+**39/39 passing**, with no runtime errors or external/cloud requests:
+
+- All four single swipes cover 2.3 base tiles, equal within floating-point error at 20/30/60 simulation frames per second. The previous build covered 1.0/1.33/1.5 tiles respectively.
+- Reversal and perpendicular turns replace the active burst; two opposite inputs before a frame retain the latest direction. Held keyboard movement keeps its original speed and has zero release drift. Direct controller taps are preserved without adding a long burst.
+- Held keyboard, actual phone pointer release/cancel, controller disconnect, menu/resume, action/focused click, blur, background visibility and zone changes cancel movement as appropriate. Swept motion remains legal against walls, inside corners and single-tile obstacles.
+- Escape, Backspace, BrowserBack/GoBack key events and an in-game Back action open the menu. Actual browser Back first pauses gameplay, closes nested inventory one level, and allows exit from the main menu. Reload/Continue and repeated Resume/Back cycles reuse one guard instead of accumulating history entries. Held Back repeats do not cross screens.
+- The legacy character's class, level, gold, inventory and equipment survive save/reload. Screenshots were inspected at 600×600 and native touch 390×844.
+
+Evidence: `../.visual-review/spire-feel/controls/baseline/` and `current/`. Open-grid and obstacle fixtures isolate movement from enemy AI and procedural generation; separate real-town captures verify rendering/UI. These browser checks do not establish physical neural-band event timing or the exact native Back mapping of every glasses host. The root integration pass also runs and inspects the supplied develop-web-game client.
+
+## Context actions and scenery
+
+`node tests/context-actions.browser.cjs` uses the same `REALM_URL`, `REALM_EVIDENCE` and `PLAYWRIGHT_PATH` variables. It passes 263 assertions across keyboard Enter, focused clicks and native phone taps: all five classes, mana/rune costs, cooldowns, silence, channeling, seven NPC roles, portals, shrines, locked/invalid/wall-obscured targets, stale caches and full-bag automatic loot. The highlighted name, action label, readiness and actual dispatch must agree. Separate real-time walking captures verify that leaving a character changes Talk to Cast and clears the world prompt.
+
+`node tests/scenery.cjs` passes 27 checks covering 24 maps, unchanged world data, blocked prop footprints, target clearings, valid deterministic geometry, resource disposal and the fixed framebuffer. See [SCENERY.md](../SCENERY.md) for its `SPIRE_URL` / `SPIRE_SCENERY_EVIDENCE` options and measured before/after budgets.
+
+The final built package passed these two suites plus movement/Back and rendering on port 5268. Browser history assertions await the actual destination instead of relying on a fixed delay, because exiting the Journal can require two asynchronous traversals. Paused-fixture exports in this headless environment intermittently omitted static HUD layers; normal real-time input captures and UI assertions were clean. The review uses cropped scenery comparisons and normal walk-away captures for its control examples. No runtime workaround was introduced for those partial fixture rasters.

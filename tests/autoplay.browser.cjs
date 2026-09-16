@@ -11,7 +11,7 @@ const check = (name, pass, detail) => report.checks.push({ name, pass, detail })
     const context = await browser.newContext({ viewport: { width: 600, height: 600 }, serviceWorkers: 'block' });
     await context.route('**/*', r => new URL(r.request().url()).hostname === '127.0.0.1' ? r.continue() : r.abort());
     const page = await context.newPage(); page.on('pageerror', e => report.errors.push(e.message));
-    await page.goto('http://127.0.0.1:5251/?test=1'); await page.waitForFunction(() => window.__hollowlight?.test);
+    await page.goto((process.env.REALM_URL || 'http://127.0.0.1:5251').replace(/\/$/, '') + '/?test=1'); await page.waitForFunction(() => window.__hollowlight?.test);
     const prepare = async ({ full = false, filter = 'off', gemmed = false, wall = false, classId = 'warrior' }) => {
       await page.evaluate(({ full, filter, gemmed, wall, classId }) => {
         const h = __hollowlight; h.test.start(classId); h.test.hold(true); h.enterBiome('crypts', 1);

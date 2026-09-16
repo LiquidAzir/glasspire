@@ -9,13 +9,19 @@ python -m http.server 5187 --directory .
 # then open http://localhost:5187
 ```
 
-Arrow keys move, Enter is the pinch, Escape opens the in-game menu.
+Swipe or briefly press an arrow to travel about 2.3 tiles at base speed. Hold a direction to keep moving; turn to redirect immediately. The phone D-pad and gamepad move while held and stop on release. Walls still stop movement, and tapping an action stops a swipe burst.
+
+Enter is the pinch: **Cast** uses your active skill, **Talk** opens the highlighted character, **Enter** uses an unlocked portal, and **Use** activates a shrine. The action label and HUD show the current target, cooldown, and mana availability. Ordinary attacks and nearby loot collection remain automatic.
+
+Escape, Backspace, or the browser's Back action opens the in-game Journal/menu. Resume is selected first. From the menu, use **Save & Quit** to return to the title, or the browser's Back action again to leave the app. Nested screens return through the menu before leaving.
 
 Combo gestures (deliberate multi-tap patterns):
 
 - `↑↓↑↓` — open menu (inventory, skills, quests)
 - `←→←→` — drink a health potion
-- `↑↑↑` — dash forward (2s cooldown)
+- `↑↑↑` — dash forward (1.5s cooldown)
+
+Each dungeon biome has deterministic scenery and floor motifs, using the existing lightweight art kit. Tall decorations sit on blocked tiles; walkable paths and interaction targets remain clear. See [SCENERY.md](SCENERY.md) for rendering budgets and validation.
 
 ## Deploy to Render
 

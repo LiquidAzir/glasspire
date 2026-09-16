@@ -141,9 +141,9 @@
       <div class="content about-body">
 
         <h2 class="about-section-title focusable" tabindex="0">Controls</h2>
-        <div class="about-row"><span class="kbd">↑ ↓ ← →</span><span>Move your hero. Hold to walk.</span></div>
-        <div class="about-row"><span class="kbd">Pinch</span><span>Interact nearby, pick up an item, or use your skill. Enter also works.</span></div>
-        <div class="about-row"><span class="kbd">Menu</span><span>Open your journal. Glasses shortcut: ↑↓↑↓.</span></div>
+        <div class="about-row"><span class="kbd">↑ ↓ ← →</span><span>A swipe travels a few steps. Hold a direction to keep moving. Pinch stops your hero and uses the highlighted action.</span></div>
+        <div class="about-row"><span class="kbd">Pinch</span><span>Stop and use the highlighted action: cast your skill, or interact when beside a character, open portal, or unused shrine. Loot is collected automatically. Enter also works.</span></div>
+        <div class="about-row"><span class="kbd">Back</span><span>Open the Field Journal. You can also choose Menu or swipe ↑↓↑↓.</span></div>
         <div class="about-row"><span class="kbd">Potion</span><span>Drink a health potion. Glasses shortcut: ←→←→.</span></div>
         <div class="about-row"><span class="kbd">Dash</span><span>Dodge in your last movement direction. Or tap a direction three times.</span></div>
         <div class="about-row"><span class="kbd">Controller</span><span>Left stick or D-pad moves. A selects, B goes back or opens Menu. X uses Skill, Y drinks a Potion, and RB dashes.</span></div>
@@ -277,13 +277,13 @@
         <div id="hud-toast" class="hud-toast"></div>
       </div>
       <nav class="game-actions" aria-label="Adventure actions">
-        <button class="game-action focusable primary-action" data-action="game-interact" id="game-interact"><span class="action-glyph" aria-hidden="true">◇</span><span>Interact</span></button>
+        <button class="game-action focusable primary-action" data-action="game-interact" id="game-interact"><span class="action-glyph" id="game-interact-icon" aria-hidden="true">✦</span><span id="game-interact-label">Cast</span></button>
         <button class="game-action focusable" data-action="game-skill"><span class="action-glyph" aria-hidden="true">✦</span><span>Skill</span></button>
         <button class="game-action focusable has-shortcut" data-action="game-potion"><span class="action-glyph potion-glyph" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M9 3h6v3l-1 1v3l5 5v5H5v-5l5-5V7L9 6Z" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M7 15h10v4H7Z" fill="currentColor"/></svg></span><span>Potion</span><span class="action-shortcut" aria-label="Shortcut: left right left right">←→←→</span></button>
         <button class="game-action focusable has-shortcut" data-action="game-dash"><span class="action-glyph" aria-hidden="true">»</span><span>Dash</span><span class="action-shortcut" aria-label="Shortcut: tap any direction three times">↑↑↑</span></button>
         <button class="game-action focusable has-shortcut" data-action="game-menu"><span class="action-glyph" aria-hidden="true">☰</span><span>Menu</span><span class="action-shortcut" aria-label="Shortcut: up down up down">↑↓↑↓</span></button>
       </nav>
-      <p id="phone-game-hint" class="phone-game-hint">Walk near a character, then tap Interact.</p>
+      <p id="phone-game-hint" class="phone-game-hint">Hold the D-pad to move. Tap Cast to stop and cast your skill.</p>
       <!-- Touch controls live at body level (after #app) so on phones they sit in the
            reserved band BELOW the scaled game, not over the play area. -->
     </div>
@@ -753,7 +753,7 @@
       <button class="touch-btn touch-right" data-touch-key="ArrowRight" aria-label="Right">▶</button>
       <button class="touch-btn touch-down" data-touch-key="ArrowDown" aria-label="Down">▼</button>
     </div>
-    <button class="touch-btn touch-pinch" data-touch-key="Enter" aria-label="Interact">◇<span>Interact</span></button>
+    <button class="touch-btn touch-pinch" data-touch-key="Enter" id="touch-action" aria-label="Cast selected skill"><span class="touch-action-icon" id="touch-action-icon" aria-hidden="true">✦</span><span id="touch-action-label">Cast</span></button>
     <button class="touch-btn touch-menu" data-action="game-menu" aria-label="Menu">Menu</button>
   </div>
   <script src="config.js"></script>

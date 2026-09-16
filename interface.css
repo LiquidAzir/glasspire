@@ -216,6 +216,9 @@ body.touch-layout .hud-toast { bottom: 318px; }
 .touch-btn:active { background: #4a5039; transform: none; }
 .touch-pinch { right: 23px; bottom: 31px; width: 112px; height: 112px; font-size: 34px; color: #efd19a; border-color: #bcad76; }
 .touch-pinch span { display: block; font-size: 16px; margin-top: 2px; }
+.touch-pinch .touch-action-icon { font-size: 34px; line-height: 1; margin: 0; }
+#hud-skill-cd { white-space: nowrap; flex-shrink: 0; }
+.primary-action[data-available="false"], .touch-pinch[data-available="false"] { border-color: #a79a81; color: #e0cfb5; }
 .touch-menu { display: none; }
 
 @media (max-width: 480px) {

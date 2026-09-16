@@ -54,7 +54,8 @@ fs.mkdirSync(out, {recursive:true});
     assert.equal(await run(()=>__hollowlight.game.activeFloor),1);
   });
   await check('nearby NPC and loot across wall are not interaction targets', async () => {
-    await fixture();const r=await run(()=>{const h=__hollowlight,g=h.game;g.save.upgrades.pickup=2;g.world.npcs=[{id:'captain',x:5.51,y:5}];g.items=[{x:6.01,y:5.5,item:h.test.item('rusted-sword'),age:0}];h.test.interact();const blocked={npc:!!g.nearbyNpc,ground:g.items.length};g.world.grid[5][5]=0;h.test.interact();return{blocked,open:{npc:!!g.nearbyNpc,ground:g.items.length}};});
+    // A target needs a supported role, just like the real Captain in Sanctuary.
+    await fixture();const r=await run(()=>{const h=__hollowlight,g=h.game;g.save.upgrades.pickup=2;g.world.npcs=[{id:'captain',role:'quests',x:5.51,y:5}];g.items=[{x:6.01,y:5.5,item:h.test.item('rusted-sword'),age:0}];h.test.interact();const blocked={npc:!!g.nearbyNpc,ground:g.items.length};g.world.grid[5][5]=0;h.test.interact();return{blocked,open:{npc:!!g.nearbyNpc,ground:g.items.length}};});
     assert.deepEqual(r,{blocked:{npc:false,ground:1},open:{npc:true,ground:0}});
   });
   await check('boss exploration time and hidden nearby time do not trigger enrage', async () => {

@@ -17,7 +17,7 @@
     tile: 28,                 // pixels per tile
     viewTiles: 21,            // 21 * 28 ≈ 588, with 6px margin per side
     playerSpeed: 10,          // tiles/sec — fast but controllable in corridors
-    stepImpulse: 0.08,        // sec — a short pinch-pad tap moves about one tile; holds stay fast
+    stepImpulse: 0.23,        // sec — a neural swipe travels 2.3 base tiles; holds consume this budget too
     comboWindow: 500,         // ms — tight window for the 3-tap dash (quick taps only)
     comboHold: 1500,          // ms — generous gap allowed between 4-tap combo swipes (slow EMG)
     minComboGap: 30,          // ms — to reject key repeat ghosts
@@ -1112,6 +1112,34 @@
   // ============================================================
   // NAVIGATION
   // ============================================================
+  const BACK_STATE = 'hollowlightNavigation';
+  let browserBackArmed = window.history.state?.[BACK_STATE] === 'play';
+  function armGameBack() {
+    // One same-URL entry catches the first native Back. Reuse it across menus
+    // and reloads; never keep pushing entries that would trap someone in the app.
+    try {
+      if (window.history.state?.[BACK_STATE] !== 'play') {
+        const state = window.history.state && typeof window.history.state === 'object' ? window.history.state : {};
+        window.history.replaceState({ ...state, [BACK_STATE]: 'base' }, '');
+        window.history.pushState({ ...state, [BACK_STATE]: 'play' }, '');
+      }
+      browserBackArmed = true;
+    } catch (_) { /* Keyboard and on-screen Back remain available. */ }
+  }
+  function onBrowserBack(event) {
+    const fromGame = browserBackArmed;
+    browserBackArmed = event.state?.[BACK_STATE] === 'play';
+    if (!fromGame || event.state?.[BACK_STATE] !== 'base') return;
+    if (game.screen === 'game') openInGameMenu();
+    else if (game.screen === 'menu' || game.screen === 'title') {
+      saveGame();
+      // Already in the exit menu: allow Back to reach the page/app underneath.
+      window.history.back();
+    } else if (game.world && game.screen !== 'death') {
+      navigateBack();
+      if (game.screen !== 'game') armGameBack();
+    }
+  }
   function navigateTo(id, opts) {
     opts = opts || {};
     if (!screens[id]) return;
@@ -1121,13 +1149,7 @@
     }
     // clear held keys and impulse when leaving the game screen to prevent stuck movement
     if (game.screen === 'game' && id !== 'game') {
-      game.keys = {};
-      game.tapped = {};
-      if (game.world && game.world.player) {
-        game.world.player._impulseT = 0;
-        game.world.player._impulseX = 0;
-        game.world.player._impulseY = 0;
-      }
+      clearMovement();
       // snapshot world position so player resumes here on next load
       saveGame();
     }
@@ -1140,9 +1162,11 @@
       game._actionsFocus = false;
       onScreenEnter(id);
       focusFirst(screens[id]);
+      if (id === 'game') armGameBack();
     }
   }
   function navigateBack() {
+    if (game.screen === 'game') { openInGameMenu(); return; }
     if (game.screen === 'death') return; // a dead hero must use the explicit recovery action
     if (game.history.length === 0) return;
     const prev = game.history.pop();
@@ -1154,6 +1178,7 @@
   function focusFirst(container) {
     const list = focusableItems(container);
     const el = container.id === 'game' ? (container.querySelector('[data-action="game-interact"]') || container)
+      : container.id === 'menu' ? (list.find(item => item.dataset.action === 'menu-resume') || list[0])
       : container.id === 'code-picker' ? (container.querySelector('.picker-slot') || list[0])
       : list.find(item => !['back', 'menu-resume'].includes(item.dataset.action)) || list[0];
     if (el) {
@@ -3062,6 +3087,7 @@
   // INPUT
   // ============================================================
   function setupInput() {
+    window.addEventListener('popstate', onBrowserBack);
     document.addEventListener('keydown', onKeyDown);
     document.addEventListener('keyup', onKeyUp);
     document.addEventListener('click', e => {
@@ -3085,6 +3111,7 @@
 
   function clearMovement() {
     game.keys = {}; game.tapped = {}; game.comboBuffer = [];
+    game.moveTap = null;
     const p = game.world && game.world.player;
     if (p) { p._impulseT = 0; p._impulseX = 0; p._impulseY = 0; }
   }
@@ -3225,6 +3252,12 @@
 
   function onKeyDown(e) {
     let key = e.key;
+    // Display hosts differ: some emit Escape, others a browser-back key.
+    const nativeBack = key === 'BrowserBack' || key === 'GoBack';
+    if (nativeBack && e.repeat) { e.preventDefault(); return; }
+    const editingBack = document.activeElement && /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName);
+    if ((nativeBack && game.screen === 'game') || (key === 'Backspace' && !editingBack)) key = 'Escape';
+    if (nativeBack && game.screen !== 'game') return; // let the host/browser leave from the menu
     // On PC, the Spacebar mirrors Enter (the "pinch" / action / select) — except while
     // typing in a text field, where space should still type a space.
     if (key === ' ' || key === 'Spacebar') {
@@ -3237,7 +3270,7 @@
     // Block arrow key repeats everywhere — they cause stuck movement in game
     // (stale held-key state from EMG wristband persists across screen transitions)
     // and janky navigation in menus. Held-movement uses game.keys + keyup instead.
-    // Enter/Escape repeats are allowed through for menu selection reliability.
+    // A held confirm/back button must never cross several screens at once.
     if (e.repeat && ['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Enter','Escape'].includes(key)) { e.preventDefault(); return; }
     if (key === 'Tab') {
       const list = focusableItems(screens[game.screen]);
@@ -3267,7 +3300,7 @@
 
     if (key === 'Escape') {
       if (inGame) {
-        navigateTo('menu');
+        openInGameMenu();
       } else {
         navigateBack();
       }
@@ -3300,18 +3333,22 @@
       }
       // movement keys — set both current state AND tap queue
       // tap queue ensures sub-frame taps (keydown+keyup between frames) are never lost
-      if (key === 'ArrowUp')    { game.keys.up = true;    game.tapped.up = true;    e.preventDefault(); }
-      if (key === 'ArrowDown')  { game.keys.down = true;  game.tapped.down = true;  e.preventDefault(); }
-      if (key === 'ArrowLeft')  { game.keys.left = true;  game.tapped.left = true;  e.preventDefault(); }
-      if (key === 'ArrowRight') { game.keys.right = true; game.tapped.right = true; e.preventDefault(); }
+      const move = { ArrowUp: ['up', 0, -1], ArrowDown: ['down', 0, 1], ArrowLeft: ['left', -1, 0], ArrowRight: ['right', 1, 0] }[key];
+      if (move) {
+        game.keys[move[0]] = true; game.tapped[move[0]] = true;
+        // Keep the most recent swipe if two turns arrive between frames. Direct
+        // phone/controller input stops on release instead of acquiring a glide.
+        game.moveTap = { x: move[1], y: move[2], duration: e._touch ? 0 : CFG.stepImpulse };
+        e.preventDefault();
+      }
       if (key === 'Enter') {
         const active = document.activeElement;
         if (!e._touch && active && active.matches('.focusable[data-action]') && active.closest('#game')) active.click();
         else onPinch();
         e.preventDefault();
       }
-      if (key.toLowerCase() === 'q') { drinkPotion(); e.preventDefault(); }
-      if (key === 'Shift') { tryDash(); e.preventDefault(); }
+      if (key.toLowerCase() === 'q') { clearMovement(); drinkPotion(); e.preventDefault(); }
+      if (key === 'Shift') { clearMovement(); tryDash(); e.preventDefault(); }
       return;
     }
 
@@ -3449,14 +3486,54 @@
   // ============================================================
   // PINCH: context-sensitive
   // ============================================================
+  const INTERACTIVE_NPC_ROLES = new Set(['vendor', 'stash', 'quests', 'waypoint', 'mystery', 'mercenary', 'gambler']);
+  const INTERACTIVE_PORTALS = new Set(['next', 'rift-next', 'abyss-next', 'town']);
+
+  // Resolve from the current world/player each time. A cached object from an old
+  // zone, a used shrine or a sealed portal must never consume a combat pinch.
+  function nearbyInteractionTargets() {
+    const w = game.world, p = w && w.player;
+    const targets = { npc: null, portal: null, shrine: null };
+    if (!p) return targets;
+    let npcDistance = 1.4, portalDistance = 2.0, shrineDistance = 1.8;
+    for (const npc of w.npcs || []) {
+      if (!INTERACTIVE_NPC_ROLES.has(npc.role)) continue;
+      const point = { x: npc.x + 0.5, y: npc.y + 0.5 }, distance = dist(point, p);
+      if (distance < npcDistance && hasLineOfSight(p, point)) { npcDistance = distance; targets.npc = npc; }
+    }
+    for (const portal of w.portals || []) {
+      if (portal.locked || !INTERACTIVE_PORTALS.has(portal.kind)) continue;
+      const distance = dist(portal, p);
+      if (distance < portalDistance && hasLineOfSight(p, portal)) { portalDistance = distance; targets.portal = portal; }
+    }
+    for (const shrine of w.shrines || []) {
+      if (shrine.used || !SHRINES[shrine.type]) continue;
+      const distance = dist(shrine, p);
+      if (distance < shrineDistance && hasLineOfSight(p, shrine)) { shrineDistance = distance; targets.shrine = shrine; }
+    }
+    return targets;
+  }
+
+  function resolveContextAction() {
+    if (!game.world || !game.char || game.char.hp <= 0) return { type: 'none', name: 'Unavailable', label: 'Action', status: '', available: false, glyph: '◇' };
+    const targets = nearbyInteractionTargets();
+    if (targets.npc) return { type: 'npc', target: targets.npc, name: targets.npc.name || 'Character', label: 'Talk', status: 'TALK', available: true, glyph: '◇' };
+    if (targets.portal) return { type: 'portal', target: targets.portal, name: targets.portal.label || (targets.portal.kind === 'town' ? 'Sanctuary' : 'Next floor'), label: 'Enter', status: 'ENTER', available: true, glyph: '↗' };
+    if (targets.shrine) return { type: 'shrine', target: targets.shrine, name: SHRINES[targets.shrine.type].name, label: 'Use', status: 'USE', available: true, glyph: '◇' };
+    const state = skillCastState();
+    return { type: 'skill', id: state.id, name: state.skill.name, label: 'Cast', status: state.status, available: !state.blocked, reason: state.blocked, cost: state.free ? 0 : state.cost, cooldown: state.free ? 0 : Math.max(0, game.world.player.skillCd || 0), glyph: '✦' };
+  }
+
   function onPinch() {
     if (game.screen !== 'game' || !game.char || game.char.hp <= 0) return;
-    tickInteraction(); // never act on an old zone's cached NPC/portal
-    if (game.nearbyNpc) { openNpc(game.nearbyNpc); return; }
-    if (game.nearbyPortal) { activatePortal(game.nearbyPortal); return; }
-    if (game.nearbyShrine) { activateShrine(game.nearbyShrine); return; }
-    if (game.nearbyItem) { pickupItem(game.nearbyItem); return; }
-    castActiveSkill();
+    clearMovement();
+    tickInteraction(); // retain normal automatic loot pickup before acting
+    const action = resolveContextAction();
+    if (action.type === 'npc') openNpc(action.target);
+    else if (action.type === 'portal') activatePortal(action.target);
+    else if (action.type === 'shrine') activateShrine(action.target);
+    else if (action.type === 'skill') castActiveSkill();
+    updateHud();
   }
 
   function activateShrine(sh) {
@@ -3557,20 +3634,27 @@
     return skills;
   }
 
-  function castActiveSkill() {
+  function skillCastState() {
     const c = game.char;
     const cls = CLASSES[c.classId];
-    const skillId = getActiveSkillId();
-    const skill = SKILLS[skillId];
+    const id = getActiveSkillId(), skill = SKILLS[id], rune = getSkillRune(id);
     const p = game.world.player;
-    // Nullweaver silence check
-    if (p.silenced && p.silenced > 0) { showHudToast('SILENCED!'); return; }
-    const echoing = !!game._echoing;   // a free Echo recast bypasses cost + cooldown
-    // Channeling Pylon: skills are free (no mana, no cooldown) for its duration
-    const free = echoing || !!(game.activeBuffs && game.activeBuffs.channeling > 0);
-    if (!free && p.skillCd > 0) { showHudToast(`Skill cooling: ${p.skillCd.toFixed(1)}s`); return; }
-    const rune = getSkillRune(skillId);
+    const free = !!game._echoing || !!(game.activeBuffs && game.activeBuffs.channeling > 0);
     const cost = Math.round((skill.cost || cls.activeSkillCost) * (rune ? (rune.costMul || 1) : 1));
+    const blocked = p.silenced > 0 ? 'silenced' : !free && p.skillCd > 0 ? 'cooldown' : !free && c.mp < cost ? 'mana' : null;
+    const status = blocked === 'silenced' ? 'SILENCED' : blocked === 'cooldown' ? p.skillCd.toFixed(1) + 's' : blocked === 'mana' ? 'NO MANA' : free ? 'FREE' : 'READY';
+    return { id, skill, rune, free, cost, blocked, status };
+  }
+
+  function castActiveSkill() {
+    const c = game.char, p = game.world.player;
+    const echoing = !!game._echoing;
+    const state = skillCastState();
+    const { id: skillId, skill, rune, free, cost } = state;
+    if (state.blocked) {
+      showHudToast(state.blocked === 'silenced' ? 'SILENCED!' : state.blocked === 'cooldown' ? `Skill cooling: ${p.skillCd.toFixed(1)}s` : 'Not enough mana');
+      return;
+    }
     if (!free) {
       if (c.mp < cost) { showHudToast('Not enough mana'); return; }
       c.mp -= cost;
@@ -5763,40 +5847,36 @@
 
     let vx = 0, vy = 0;
 
-    // Track active input — check BOTH held keys AND tap queue
-    // The tap queue catches sub-frame taps (keydown+keyup between frames)
-    if (game.keys.up    || game.tapped.up)    vy -= 1;
-    if (game.keys.down  || game.tapped.down)  vy += 1;
-    if (game.keys.left  || game.tapped.left)  vx -= 1;
-    if (game.keys.right || game.tapped.right) vx += 1;
-
-    // Clear tap queue now that we've read it
-    game.tapped = {};
-
-    // Step impulse: when a key is pressed, guarantee movement for at least stepImpulse seconds
-    // even if the key is released immediately (common with glasses D-pad taps)
-    if (vx !== 0 || vy !== 0) {
-      const len = Math.sqrt(vx * vx + vy * vy);
-      p._impulseX = vx / len;
-      p._impulseY = vy / len;
-      p._impulseT = CFG.stepImpulse;
+    if (game.keys.up) vy -= 1;
+    if (game.keys.down) vy += 1;
+    if (game.keys.left) vx -= 1;
+    if (game.keys.right) vx += 1;
+    const tap = game.moveTap;
+    game.moveTap = null; game.tapped = {};
+    if (tap) {
+      p._impulseX = tap.x; p._impulseY = tap.y;
+      p._impulseT = tap.duration;
     }
-
-    // Apply movement: either from held keys or remaining impulse
-    if (p._impulseT > 0) {
-      const mx = p._impulseX || 0;
-      const my = p._impulseY || 0;
-      if (mx !== 0 || my !== 0) {
+    const held = vx !== 0 || vy !== 0;
+    if (held) {
+      const length = Math.hypot(vx, vy);
+      p._impulseX = vx / length; p._impulseY = vy / length;
+    }
+    // Budget is spent while held as well as released. Clamp its final frame so
+    // an isolated swipe covers the same distance at 20, 30 and 60 fps.
+    const moveTime = held || (tap && tap.duration === 0) ? dt : Math.min(dt, Math.max(0, p._impulseT || 0));
+    if (moveTime > 0) {
+      const mx = p._impulseX || 0, my = p._impulseY || 0;
+      if (mx || my) {
         p.lastDir.x = mx; p.lastDir.y = my;
-        const slowMul = (p.curses && p.curses.slow > 0) ? 0.5 : 1;  // Crippling curse
-        const sp = CFG.playerSpeed * dt * slowMul * (game._msMul || 1);
-        tryMove(p, mx * sp, my * sp);
-      }
-      // Only consume impulse when keys are released AND no tap queued
-      if (vx === 0 && vy === 0) {
-        p._impulseT -= dt;
+        const slowMul = p.curses && p.curses.slow > 0 ? 0.5 : 1;
+        const distance = CFG.playerSpeed * moveTime * slowMul * (game._msMul || 1);
+        const beforeX = p.x, beforeY = p.y;
+        tryMove(p, mx * distance, my * distance);
+        if (Math.abs(p.x - beforeX) + Math.abs(p.y - beforeY) < 1e-8) p._impulseT = 0;
       }
     }
+    p._impulseT = Math.max(0, (p._impulseT || 0) - dt);
 
     p.skillCd = Math.max(0, p.skillCd - dt);
     if (p.dashCd !== undefined) p.dashCd = Math.max(0, p.dashCd - dt);
@@ -6036,34 +6116,10 @@
     if (!game.world) return;
     settleGroundLoot();
     const p = game.world.player;
-    // NPC nearby
-    let near = null, nd = 1.4;
-    if (game.world.npcs) {
-      for (const n of game.world.npcs) {
-        const d = dist({ x: n.x + 0.5, y: n.y + 0.5 }, p);
-        if (d < nd && hasLineOfSight(p, { x:n.x + 0.5, y:n.y + 0.5 })) { nd = d; near = n; }
-      }
-    }
-    game.nearbyNpc = near;
-    // Portal — larger radius for fast D-pad movement
-    let pn = null, pd = 2.0;
-    if (game.world.portals) {
-      for (const po of game.world.portals) {
-        const d = dist(po, p);
-        if (d < pd && hasLineOfSight(p, po)) { pd = d; pn = po; }
-      }
-    }
-    game.nearbyPortal = pn;
-    // Shrine — large pinch radius for fast D-pad movement
-    let sn = null, sdist = 1.8;
-    if (game.world.shrines) {
-      for (const sh of game.world.shrines) {
-        if (sh.used) continue;
-        const d = dist(sh, p);
-        if (d < sdist && hasLineOfSight(p, sh)) { sdist = d; sn = sh; }
-      }
-    }
-    game.nearbyShrine = sn;
+    const targets = nearbyInteractionTargets();
+    game.nearbyNpc = targets.npc;
+    game.nearbyPortal = targets.portal;
+    game.nearbyShrine = targets.shrine;
     // Item — auto-pickup if close (Lodestone upgrade widens the radius)
     const pickRadius = 0.6 + 0.6 * upgradeLevel('pickup');
     let it = null, idx = -1;
@@ -8986,9 +9042,11 @@
   // HUD
   // ============================================================
   function updateHud() {
+    const action = resolveContextAction();
     const phoneHint = $('phone-game-hint');
     if (phoneHint && game.world) {
-      const message = game.world.kind === 'town' ? 'Walk near a character, then tap Interact.' : 'Attacks are automatic. Use Skill and Dash in combat.';
+      const verb = action.type === 'npc' ? 'talk' : action.type === 'portal' ? 'enter' : action.type === 'shrine' ? 'use the shrine' : 'cast your skill';
+      const message = `Hold the D-pad to move. Tap ${action.label} to stop and ${verb}.`;
       if (phoneHint.textContent !== message) phoneHint.textContent = message;
     }
     if (!game.char) return;
@@ -9000,13 +9058,21 @@
     $('hud-mp-fill').style.height = clamp(100 * c.mp / c.mpMax, 0, 100).toFixed(1) + '%';
     $('hud-mp-label').textContent = Math.max(0, Math.ceil(c.mp));
     $('hud-xp-fill').style.width = clamp(100 * c.xp / xpForLevel(c.level), 0, 100).toFixed(1) + '%';
-    const skillName = SKILLS[getActiveSkillId()].name;
-    $('hud-skill-name').textContent = skillName;
+    $('hud-skill-name').textContent = action.name;
+    $('hud-skill-icon').textContent = action.glyph;
     const cdEl = $('hud-skill-cd');
     const p = game.world ? game.world.player : null;
-    if (p) {
-      if (p.skillCd > 0) { cdEl.textContent = p.skillCd.toFixed(1) + 's'; cdEl.classList.remove('ready'); }
-      else { cdEl.textContent = 'READY'; cdEl.classList.add('ready'); }
+    cdEl.textContent = action.status;
+    cdEl.classList.toggle('ready', action.available);
+    for (const [buttonId, labelId, iconId] of [['game-interact', 'game-interact-label', 'game-interact-icon'], ['touch-action', 'touch-action-label', 'touch-action-icon']]) {
+      const button = $(buttonId), label = $(labelId), icon = $(iconId);
+      if (label) label.textContent = action.label;
+      if (icon) icon.textContent = action.glyph;
+      if (button) {
+        button.dataset.context = action.type;
+        button.dataset.available = String(action.available);
+        button.setAttribute('aria-label', `${action.label} ${action.name}${action.status ? '. ' + action.status : ''}`);
+      }
     }
     $('hud-zone').textContent = game.world ? game.world.name : '—';
     const haEl = $('hud-auto'); if (haEl) haEl.classList.toggle('hidden', !(game.char && game.char.autoPlay && game.world && game.world.kind === 'dungeon'));
@@ -10555,6 +10621,7 @@
   // ============================================================
   function handleAction(action, el) {
     if (game.screen === 'game' && ['game-interact', 'game-skill', 'game-dash', 'game-potion'].includes(action)) {
+      clearMovement();
       // A completed action returns directional input to movement. Otherwise Tab
       // -> Skill -> Enter leaves the player trapped navigating the action rail.
       game._actionsFocus = false;
@@ -11933,7 +12000,11 @@
     const n = v => Number.isFinite(v) ? Math.round(v * 100) / 100 : null;
     const pos = o => ({ x: n(o.x), y: n(o.y) });
     const near = rows => p ? rows.filter(o => dist(o, p) < 12).sort((a, b) => dist(a, p) - dist(b, p)).slice(0, 16) : [];
-    const interaction = game.nearbyNpc ? { type: 'npc', name: game.nearbyNpc.name } : game.nearbyPortal ? { type: 'portal', kind: game.nearbyPortal.kind, locked: !!game.nearbyPortal.locked } : game.nearbyShrine ? { type: 'shrine', kind: game.nearbyShrine.type } : { type: 'skill', name: c ? getActiveSkillId() : null };
+    const action = resolveContextAction();
+    const interaction = { type: action.type, name: action.type === 'skill' ? action.id : action.name, displayName: action.name, label: action.label, status: action.status, available: action.available,
+      ...(action.type === 'skill' ? { reason: action.reason, manaCost: action.cost, cooldown: action.cooldown } : {}),
+      ...(action.type === 'portal' ? { kind: action.target.kind, locked: !!action.target.locked } : {}),
+      ...(action.type === 'shrine' ? { kind: action.target.type } : {}) };
     return JSON.stringify({ screen: game.screen, paused: !simulationActive(), coordinates: 'Tiles: x increases right/east, y increases down/south; origin is the upper-left grid corner.', zone: w ? { name: w.name, kind: w.kind, biome: game.activeBiomeId, floor: game.activeFloor, width: w.w, height: w.h } : null,
       player: p && c ? { ...pos(p), radius: 0.22, class: c.classId, hp: n(c.hp), hpMax: c.hpMax, mana: n(c.mp), level: c.level, xp: c.xp, gold: c.gold, potions: c.potions, inventory: c.inventory.length, dashCooldown: n(p.dashCd || 0), skillCooldown: n(p.skillCd), facing: p.lastDir } : null,
       enemies: near(game.enemies).map(e => ({ name: e.name, ...pos(e), hp: n(e.hp), boss: !!e.boss })),
