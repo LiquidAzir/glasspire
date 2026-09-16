@@ -7,7 +7,7 @@ const output = path.resolve(root, 'dist');
 const files = [
   'index.html', 'styles.css', 'interface.css', 'config.js', 'cloud.js',
   'audio.js', 'app.js', 'render3d.js', 'builders.js', 'spire-art.js', 'spire-world.js',
-  'favicon.png', 'manifest.webmanifest', 'vendor/three-0.169.0.module.js',
+  'favicon.png', 'favicon-32.png', 'apple-touch-icon.png', 'icon-512.png', 'manifest.webmanifest', 'vendor/three-0.169.0.module.js',
   'assets/spire-kit.json',
   ...['warrior', 'mage', 'ranger', 'summoner', 'paladin', 'gate'].map(name => `ui-art/${name}.svg`),
 ];
