@@ -2,11 +2,13 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=600, height=600, initial-scale=1.0, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="mrbd-web-app-capable" content="yes">
   <title>HollowLight</title>
   <link rel="icon" type="image/png" href="favicon.png">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="interface.css">
   <!-- 3D renderer (opt-in via ?gl=1). Three.js is self-hosted in vendor/. -->
   <script type="importmap">
   { "imports": { "three": "./vendor/three-0.169.0.module.js" } }
@@ -23,20 +25,20 @@
         <div class="title-embers" id="title-embers"></div>
         <div class="title-vignette"></div>
         <div class="title-emblem">
-          <div class="title-beam"></div>
-          <div class="title-glyph"></div>
+          <img class="title-gate" src="ui-art/gate.svg" alt="" width="260" height="350">
         </div>
-        <h1 class="title-name">HOLLOWLIGHT</h1>
+        <p class="title-eyebrow">A CHRONICLE OF THE HOLLOW</p>
+        <h1 class="title-name">HollowLight</h1>
         <div class="title-divider"></div>
-        <p class="title-tagline">An action RPG for Meta Ray-Ban Display</p>
+        <p class="title-tagline">Carry a little light into the dark.</p>
         <nav class="title-menu">
           <button class="title-btn focusable" data-action="title-continue" id="title-continue">Continue</button>
           <button class="title-btn focusable" data-action="title-new">New Hero</button>
-          <button class="title-btn focusable" data-action="title-about">About</button>
+          <button class="title-btn focusable" data-action="title-about">How to Play</button>
           <button class="title-btn focusable" data-action="title-honor">Roll of Honor</button>
           <button class="title-btn focusable" data-action="title-sync">Sync Save</button>
         </nav>
-        <p class="title-hint">↑↓ navigate &middot; pinch to select</p>
+        <p class="title-hint">↑↓ choose · pinch or Enter to select</p>
       </div>
     </div>
 
@@ -48,41 +50,44 @@
         <button class="back-btn focusable" data-action="back">&#8592;</button>
         <h1>Choose Your Class</h1>
       </header>
-      <div class="content class-grid">
+      <div class="content class-select-content">
+        <p class="class-intro">Your hero attacks automatically. Choose how you fight.</p>
+        <div class="class-grid">
         <button class="class-card focusable" data-action="pick-class" data-class="warrior">
-          <div class="class-portrait class-portrait-warrior"></div>
+          <div class="class-portrait class-portrait-warrior"><img src="ui-art/warrior.svg" alt="" width="120" height="144"></div>
           <div class="class-name">Warrior</div>
-          <div class="class-tag">Melee &middot; Cleave</div>
+          <div class="class-tag">Close combat</div>
           <div class="class-desc">Heavy steel and brute force. Skill: Whirlwind.</div>
         </button>
         <button class="class-card focusable" data-action="pick-class" data-class="mage">
-          <div class="class-portrait class-portrait-mage"></div>
+          <div class="class-portrait class-portrait-mage"><img src="ui-art/mage.svg" alt="" width="120" height="144"></div>
           <div class="class-name">Mage</div>
-          <div class="class-tag">Ranged &middot; AOE</div>
+          <div class="class-tag">Ranged · Area damage</div>
           <div class="class-desc">Arcane bolts at range. Skill: Frost Nova.</div>
         </button>
         <button class="class-card focusable" data-action="pick-class" data-class="ranger">
-          <div class="class-portrait class-portrait-ranger"></div>
+          <div class="class-portrait class-portrait-ranger"><img src="ui-art/ranger.svg" alt="" width="120" height="144"></div>
           <div class="class-name">Ranger</div>
-          <div class="class-tag">Ranged &middot; Mobile</div>
+          <div class="class-tag">Ranged · Mobile</div>
           <div class="class-desc">Quick bowfire and dashes. Skill: Multishot.</div>
         </button>
         <button class="class-card focusable" data-action="pick-class" data-class="summoner">
-          <div class="class-portrait class-portrait-summoner"></div>
+          <div class="class-portrait class-portrait-summoner"><img src="ui-art/summoner.svg" alt="" width="120" height="144"></div>
           <div class="class-name">Summoner</div>
-          <div class="class-tag">Pets &middot; Hands-off</div>
-          <div class="class-desc">Minions fight for you. Skill: Raise Dead.</div>
+          <div class="class-tag">Minions fight for you</div>
+          <div class="class-desc">Command an undead host. Skill: Raise Dead.</div>
         </button>
         <button class="class-card focusable" data-action="pick-class" data-class="paladin">
-          <div class="class-portrait class-portrait-paladin"></div>
+          <div class="class-portrait class-portrait-paladin"><img src="ui-art/paladin.svg" alt="" width="120" height="144"></div>
           <div class="class-name">Paladin</div>
-          <div class="class-tag">Holy &middot; Aura Tank</div>
+          <div class="class-tag">Holy · Durable</div>
           <div class="class-desc">Durable holy warrior. Skill: Smite.</div>
         </button>
       </div>
-      <div class="content" style="padding-top:0; gap:6px;">
+      <div class="class-mode">
         <button class="nav-item focusable" data-action="toggle-hardcore" id="hardcore-toggle">&#9760; Hardcore: OFF</button>
-        <div style="font-size:11px; opacity:0.62; text-align:center; line-height:1.4;">Hardcore = one life. Death is <b>permanent</b> &mdash; your hero joins the Roll of Honor.</div>
+        <div style="font-size:11px; opacity:0.62; text-align:center; line-height:1.4;">Hardcore gives you one life. Death is <b>permanent</b>.</div>
+        </div>
       </div>
     </div>
 
@@ -137,10 +142,12 @@
 
         <h2 class="about-section-title focusable" tabindex="0">Controls</h2>
         <div class="about-row"><span class="kbd">↑ ↓ ← →</span><span>Move your hero. Hold to walk.</span></div>
-        <div class="about-row"><span class="kbd">pinch</span><span>Use active skill / talk to NPC / pick up item / confirm.</span></div>
-        <div class="about-row"><span class="kbd">↑↓↑↓</span><span>Open the menu (inventory, skills, quests).</span></div>
-        <div class="about-row"><span class="kbd">←→←→</span><span>Drink a health potion.</span></div>
-        <div class="about-row"><span class="kbd">↑↑↑</span><span>Dash in that direction (works for any direction, 2s cooldown).</span></div>
+        <div class="about-row"><span class="kbd">Pinch</span><span>Interact nearby, pick up an item, or use your skill. Enter also works.</span></div>
+        <div class="about-row"><span class="kbd">Menu</span><span>Open your journal. Glasses shortcut: ↑↓↑↓.</span></div>
+        <div class="about-row"><span class="kbd">Potion</span><span>Drink a health potion. Glasses shortcut: ←→←→.</span></div>
+        <div class="about-row"><span class="kbd">Dash</span><span>Dodge in your last movement direction. Or tap a direction three times.</span></div>
+        <div class="about-row"><span class="kbd">Controller</span><span>Left stick or D-pad moves. A selects, B goes back or opens Menu. X uses Skill, Y drinks a Potion, and RB dashes.</span></div>
+        <p class="about-note">Controller labels use the standard layout. Connect the controller to the device running this browser.</p>
         <p class="about-note">Combat is automatic — walk near enemies and your hero attacks on their own.</p>
 
         <h2 class="about-section-title focusable" tabindex="0">Getting Started</h2>
@@ -163,9 +170,10 @@
             <li><strong>Overgrown Ruins</strong> — Spiders, thornlings, wisps. Boss: Old Druid.</li>
             <li><strong>Frozen Peaks</strong> — Frostwolves, frost giants, ice bats. Boss: Ice Wyrm.</li>
             <li><strong>Infernal Depths</strong> — Imps, hellhounds, demons. Boss: Archdemon.</li>
+            <li><strong>The Tempest Reach</strong> — Storm husks, thunderhounds, arc sentinels. Boss: The Storm Sovereign.</li>
             <li><strong>The Void Spire</strong> — Voidlings, nullweavers, crystal sentinels. Boss: Void Lord.</li>
           </ol>
-          <p>Each floor has a portal to advance deeper, and a portal to return to Sanctuary at any time.</p>
+          <p>Each floor has a portal back to Sanctuary. Follow the deeper portal through Floors 1–4, then defeat the boss to unlock the next biome. Defeat all six biome bosses to open The Hollow Throne.</p>
         </div>
 
         <h2 class="about-section-title focusable" tabindex="0">Combat</h2>
@@ -227,7 +235,7 @@
     <!-- ============================================================ -->
     <!-- GAME (canvas) — town and dungeons render here                 -->
     <!-- ============================================================ -->
-    <div id="game" class="screen hidden">
+    <div id="game" class="screen hidden" tabindex="-1" aria-label="Adventure">
       <!-- 3D layer (bottom) — only mounted when ?gl=1. Transparent; black = see-through. -->
       <canvas id="game-canvas-gl" width="600" height="600"></canvas>
       <canvas id="game-canvas" width="600" height="600"></canvas>
@@ -241,13 +249,14 @@
           <div class="hud-auto hidden" id="hud-auto">⊳ AUTO-PLAY</div>
           <div class="hud-rift hidden" id="hud-rift"></div>
           <div class="hud-hollow hidden" id="hud-hollow"></div>
+          <div class="hud-buffs" id="hud-buffs"></div>
           <div class="hud-minimap"><canvas id="minimap" width="96" height="96"></canvas></div>
         </div>
-        <div class="hud-buffs" id="hud-buffs"></div>
         <div class="hud-bottom">
           <div class="hud-orb hud-orb-hp" id="hud-orb-hp">
             <div class="hud-orb-fill" id="hud-hp-fill"></div>
             <div class="hud-orb-label" id="hud-hp-label">100</div>
+            <span class="orb-caption">Health</span>
           </div>
           <div class="hud-center">
             <div class="hud-name"><span id="hud-name">Hero</span> &middot; Lv <span id="hud-level">1</span></div>
@@ -261,11 +270,20 @@
           <div class="hud-orb hud-orb-mp" id="hud-orb-mp">
             <div class="hud-orb-fill" id="hud-mp-fill"></div>
             <div class="hud-orb-label" id="hud-mp-label">50</div>
+            <span class="orb-caption">Mana</span>
           </div>
         </div>
         <div id="floating-text" class="floating-layer"></div>
         <div id="hud-toast" class="hud-toast"></div>
       </div>
+      <nav class="game-actions" aria-label="Adventure actions">
+        <button class="game-action focusable primary-action" data-action="game-interact" id="game-interact"><span class="action-glyph" aria-hidden="true">◇</span><span>Interact</span></button>
+        <button class="game-action focusable" data-action="game-skill"><span class="action-glyph" aria-hidden="true">✦</span><span>Skill</span></button>
+        <button class="game-action focusable has-shortcut" data-action="game-potion"><span class="action-glyph potion-glyph" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M9 3h6v3l-1 1v3l5 5v5H5v-5l5-5V7L9 6Z" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M7 15h10v4H7Z" fill="currentColor"/></svg></span><span>Potion</span><span class="action-shortcut" aria-label="Shortcut: left right left right">←→←→</span></button>
+        <button class="game-action focusable has-shortcut" data-action="game-dash"><span class="action-glyph" aria-hidden="true">»</span><span>Dash</span><span class="action-shortcut" aria-label="Shortcut: tap any direction three times">↑↑↑</span></button>
+        <button class="game-action focusable has-shortcut" data-action="game-menu"><span class="action-glyph" aria-hidden="true">☰</span><span>Menu</span><span class="action-shortcut" aria-label="Shortcut: up down up down">↑↓↑↓</span></button>
+      </nav>
+      <p id="phone-game-hint" class="phone-game-hint">Walk near a character, then tap Interact.</p>
       <!-- Touch controls live at body level (after #app) so on phones they sit in the
            reserved band BELOW the scaled game, not over the play area. -->
     </div>
@@ -275,34 +293,45 @@
     <!-- ============================================================ -->
     <div id="menu" class="screen hidden">
       <header class="header">
-        <button class="back-btn focusable" data-action="menu-resume">&#8592;</button>
-        <h1>Menu</h1>
+        <button class="back-btn focusable resume-button" data-action="menu-resume">Resume</button>
+        <h1>Field Journal</h1>
+        <span class="header-meta">PAUSED</span>
       </header>
-      <div class="content">
-        <button class="nav-item focusable" data-action="menu-inventory">Inventory &amp; Equipment</button>
-        <button class="nav-item focusable" data-action="menu-character">Character</button>
-        <button class="nav-item focusable" data-action="menu-wardrobe">Wardrobe (Transmog)</button>
-        <button class="nav-item focusable" data-action="menu-skills">Skill</button>
-        <button class="nav-item focusable" data-action="menu-talents" id="menu-talents-btn">Talents</button>
-        <button class="nav-item focusable" data-action="menu-passives" id="menu-passives-btn">Passives</button>
-        <button class="nav-item focusable" data-action="menu-journey" id="menu-journey-btn">The Journey</button>
-        <button class="nav-item focusable" data-action="menu-paragon" id="menu-paragon-btn">Paragon Board</button>
-        <button class="nav-item focusable" data-action="menu-quests">Quest Log</button>
-        <button class="nav-item focusable" data-action="menu-bestiary">Bestiary</button>
-        <button class="nav-item focusable" data-action="menu-factions">Factions</button>
-        <button class="nav-item focusable" data-action="menu-chronicle">The Chronicle</button>
-        <button class="nav-item focusable" data-action="menu-upgrades">Permanent Upgrades</button>
-        <button class="nav-item focusable" data-action="menu-use-scroll" id="menu-scroll-btn">Use Sanctuary Scroll</button>
-        <button class="nav-item focusable" data-action="menu-return-dungeon" id="menu-return-dungeon-btn">Return to Dungeon</button>
-        <button class="nav-item focusable" data-action="menu-town" id="menu-town-btn">Return to Town</button>
-        <button class="nav-item focusable" data-action="menu-touch-toggle" id="menu-touch-toggle-btn">Touch Controls: OFF</button>
-        <button class="nav-item focusable" data-action="menu-autopotion-toggle" id="menu-autopotion-btn">Auto-Potion: ON</button>
-        <button class="nav-item focusable" data-action="menu-autoplay-toggle" id="menu-autoplay-btn">Auto-Play: OFF</button>
-        <button class="nav-item focusable" data-action="menu-lootfilter-toggle" id="menu-lootfilter-btn">Loot Filter: OFF</button>
-        <button class="nav-item focusable" data-action="menu-render-toggle" id="menu-render-btn">Graphics: 2D</button>
-        <button class="nav-item focusable" data-action="menu-sound-toggle" id="menu-sound-btn">Sound: ON</button>
-        <button class="nav-item focusable" data-action="menu-sync">Sync Save (export / import)</button>
-        <button class="nav-item focusable danger" data-action="menu-title">Save &amp; Quit</button>
+      <div class="content journal-content">
+        <section class="journal-section"><h2>Your hero</h2><div class="journal-grid">
+          <button class="nav-item focusable" data-action="menu-inventory">Inventory &amp; Equipment</button>
+          <button class="nav-item focusable" data-action="menu-character">Character</button>
+          <button class="nav-item focusable" data-action="menu-skills">Active Skill</button>
+          <button class="nav-item focusable" data-action="menu-talents" id="menu-talents-btn">Talents</button>
+          <button class="nav-item focusable" data-action="menu-passives" id="menu-passives-btn">Passives</button>
+          <button class="nav-item focusable" data-action="menu-paragon" id="menu-paragon-btn">Paragon Board</button>
+          <button class="nav-item focusable" data-action="menu-wardrobe">Wardrobe</button>
+          <button class="nav-item focusable" data-action="menu-upgrades">Permanent Upgrades</button>
+        </div></section>
+        <section class="journal-section"><h2>Your journey</h2><div class="journal-grid">
+          <button class="nav-item focusable" data-action="menu-quests">Quest Log</button>
+          <button class="nav-item focusable" data-action="menu-journey" id="menu-journey-btn">The Journey</button>
+          <button class="nav-item focusable" data-action="menu-chronicle">The Chronicle</button>
+          <button class="nav-item focusable" data-action="menu-bestiary">Bestiary</button>
+          <button class="nav-item focusable" data-action="menu-factions">Factions</button>
+        </div></section>
+        <section class="journal-section"><h2>Travel</h2><div class="journal-grid">
+          <button class="nav-item focusable" data-action="menu-use-scroll" id="menu-scroll-btn">Use Sanctuary Scroll</button>
+          <button class="nav-item focusable" data-action="menu-return-dungeon" id="menu-return-dungeon-btn">Return to Dungeon</button>
+          <button class="nav-item focusable" data-action="menu-town" id="menu-town-btn">Return to Town</button>
+        </div></section>
+        <section class="journal-section"><h2>Play preferences</h2><div class="journal-grid">
+          <button class="nav-item focusable" data-action="menu-autopotion-toggle" id="menu-autopotion-btn">Auto-Potion: ON</button>
+          <button class="nav-item focusable" data-action="menu-autoplay-toggle" id="menu-autoplay-btn">Auto-Play: OFF</button>
+          <button class="nav-item focusable" data-action="menu-lootfilter-toggle" id="menu-lootfilter-btn">Loot Filter: OFF</button>
+          <button class="nav-item focusable" data-action="menu-touch-toggle" id="menu-touch-toggle-btn">Touch Controls: OFF</button>
+          <button class="nav-item focusable" data-action="menu-render-toggle" id="menu-render-btn">Graphics: 2D</button>
+          <button class="nav-item focusable" data-action="menu-sound-toggle" id="menu-sound-btn">Sound: ON</button>
+        </div></section>
+        <section class="journal-section"><h2>Your save</h2><div class="journal-grid">
+          <button class="nav-item focusable" data-action="menu-sync">Sync Save</button>
+          <button class="nav-item focusable danger" data-action="menu-title">Save &amp; Quit</button>
+        </div></section>
       </div>
     </div>
 
@@ -408,7 +437,7 @@
         <h1>Enter Code</h1>
       </header>
       <div class="content">
-        <p class="picker-help">↑↓ cycle character &middot; ←→ move slot &middot; <b>pinch</b> to submit</p>
+        <p class="picker-help">↑↓ changes a character. ←→ moves between characters, Submit, and Cancel. Pinch selects.</p>
         <div id="code-picker-slots" class="picker-slots"></div>
         <p id="code-picker-status" class="picker-status"></p>
         <button class="nav-item focusable" data-action="picker-submit">Submit Code</button>
@@ -724,8 +753,8 @@
       <button class="touch-btn touch-right" data-touch-key="ArrowRight" aria-label="Right">▶</button>
       <button class="touch-btn touch-down" data-touch-key="ArrowDown" aria-label="Down">▼</button>
     </div>
-    <button class="touch-btn touch-pinch" data-touch-key="Enter" aria-label="Action">●</button>
-    <button class="touch-btn touch-menu" data-action="open-game-menu" aria-label="Menu">☰</button>
+    <button class="touch-btn touch-pinch" data-touch-key="Enter" aria-label="Interact">◇<span>Interact</span></button>
+    <button class="touch-btn touch-menu" data-action="game-menu" aria-label="Menu">Menu</button>
   </div>
   <script src="config.js"></script>
   <script src="cloud.js"></script>

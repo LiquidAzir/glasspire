@@ -1,0 +1,278 @@
+/* HollowLight field journal. Static artwork; native text sizes; no blur or
+   continuously animated decoration. The world keeps its 600px render budget. */
+:root {
+  --bg-card: #171e21;
+  --bg-card-hi: #28302f;
+  --bg-strip: #0a1013;
+  --text: #f4efdf;
+  --text-dim: #c8c9bb;
+  --text-muted: #aaafa7;
+  --gold: #e2c58e;
+  --crystal: #d2c3a0;
+  --emerald: #9fd4b2;
+  --focus-ring: #f3d59b;
+  --focus-glow: transparent;
+  --radius-sm: 5px;
+  --radius-md: 7px;
+  --radius-lg: 9px;
+}
+
+html, body { background: #000; }
+body { padding: 0; }
+button, input, textarea, summary { font: inherit; }
+button, .focusable { -webkit-tap-highlight-color: transparent; }
+#app { width: min(100%, 600px); height: min(100dvh, 600px); }
+.screen { width: 100%; height: 100%; animation: none; overflow: hidden; }
+.screen:not(#game):not(#title) { background: #070c0f; }
+.header { min-height: 68px; gap: 12px; padding: 10px 16px; background: #0a1013; border-color: #69644f; }
+.header::after { background: linear-gradient(90deg, transparent, #aa9161, transparent); }
+.header h1 { font: 600 26px/1.15 Georgia, 'Times New Roman', serif; min-width: 0; color: #e9d8b2; letter-spacing: 0; }
+.header-meta { flex-shrink: 0; font-size: 14px; letter-spacing: .3px; text-shadow: none; }
+.back-btn { width: 44px; height: 44px; flex-shrink: 0; background: #192121; border: 1px solid #5f685a; border-radius: 5px; }
+.resume-button { width: auto; padding: 0 12px; font-size: 15px; }
+.content { min-height: 0; padding: 16px; gap: 12px; scrollbar-color: #89754e #0a1013; }
+.content > * { flex-shrink: 0; }
+.content::-webkit-scrollbar { width: 5px; }
+.content::-webkit-scrollbar-thumb { background: #89754e; }
+.focusable, button { transition: none; }
+.focusable:focus, .nav-item:focus, .class-card:focus, .title-btn:focus,
+.craft-btn:focus, .vendor-tab:focus, .waypoint-card:focus {
+  outline: 2px solid #f3d59b;
+  outline-offset: 2px;
+  border-color: #d0b886;
+  box-shadow: none;
+  transform: none;
+}
+.nav-item, .vendor-tab, .craft-btn, .story-continue {
+  min-height: 46px;
+  font-size: 15px;
+  line-height: 1.35;
+  color: var(--text);
+  border: 1px solid #485149;
+  background: linear-gradient(135deg, #232c2c, #131b1f);
+  border-radius: 5px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.nav-item { padding: 12px 14px; scroll-margin: 8px; }
+.nav-item:focus { background: #32382e; }
+.nav-item.danger { color: #efb4aa; }
+button:disabled { cursor: default; opacity: .48; }
+
+/* The title is an illustrated folio, with the same original HollowLight name. */
+.title-frame { width: 100%; height: 100%; padding: 28px; display: block; overflow: hidden; background: radial-gradient(ellipse at 25% 48%, #1f2b2d 0%, #070e12 42%, #000 76%); }
+.title-frame::before { content: ''; position: absolute; inset: 12px; border: 1px solid #625941; pointer-events: none; }
+.title-frame::after { content: '✦'; position: absolute; top: 7px; left: calc(50% - 8px); width: 16px; background: #05090b; color: #d5bc82; font-size: 13px; }
+.title-embers, .title-vignette, .title-divider { display: none; }
+.title-eyebrow { color: #ad9c79; font-size: 11px; letter-spacing: 3px; margin: 10px 0 12px; }
+.title-name { font: 600 49px/1.1 Georgia, 'Times New Roman', serif; color: #f0dfb8; background: none; -webkit-text-fill-color: currentColor; letter-spacing: 1px; text-shadow: 0 2px #413827; margin: 0; }
+.title-tagline { position: static; color: #c0c5b9; font-size: 15px; font-weight: 400; letter-spacing: .2px; text-transform: none; margin: 15px 0 0; }
+.title-emblem { position: absolute; left: 22px; top: 179px; width: 250px; height: 335px; margin: 0; }
+.title-gate { width: 100%; height: 100%; display: block; }
+.title-menu { position: absolute; left: 292px; right: 30px; top: 218px; width: auto; gap: 10px; }
+.title-btn { width: 100%; min-height: 48px; padding: 11px 15px; border: 1px solid #71705a; border-radius: 5px; background: linear-gradient(110deg, #26302e, #111a1d); color: #f4e8cc; font-size: 16px; font-weight: 600; letter-spacing: .2px; box-shadow: inset 0 1px #71807644; text-shadow: none; }
+.title-btn:focus { background: linear-gradient(110deg, #e4cb98, #af9664); color: #121b1c; }
+.title-hint { left: 24px; right: 24px; bottom: 30px; text-align: center; font-size: 14px; letter-spacing: 0; color: #bebfaa; }
+
+/* Class choices are a single scroll region; no card or caption can shrink away. */
+.class-select-content { gap: 10px; padding: 12px 16px 16px; }
+.class-intro { font-size: 14px; line-height: 1.4; color: #c7c9b9; }
+.class-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.class-card { display: grid; grid-template-columns: 67px minmax(0, 1fr); grid-template-rows: auto auto 1fr; column-gap: 10px; min-height: 117px; padding: 10px; overflow: visible; border: 1px solid #4c554e; background: linear-gradient(135deg, #202a2a, #10171c); }
+.class-card:last-child { grid-column: 1 / -1; grid-template-columns: 67px 1fr; min-height: 108px; }
+.class-card::after { display: none; }
+.class-portrait { grid-row: 1 / 4; width: 67px; height: 87px; margin: 0; background: none; border-radius: 0; overflow: visible; }
+.class-portrait::before, .class-portrait::after { display: none; }
+.class-portrait img { display: block; width: 100%; height: 100%; }
+.class-name { font: 600 21px/1.15 Georgia, 'Times New Roman', serif; color: #f1dfb7; margin: 0 0 3px; }
+.class-tag { font-size: 13px; line-height: 1.3; color: #a9c9c2; letter-spacing: 0; margin-bottom: 5px; }
+.class-desc { font-size: 14px; line-height: 1.35; color: #d1d1c2; }
+.class-mode { display: grid; grid-template-columns: 210px 1fr; align-items: center; gap: 12px; border-top: 1px solid #454d44; padding-top: 10px; }
+.class-mode > div { font-size: 13px !important; opacity: 1 !important; text-align: left !important; color: #c4c6b8; }
+
+/* Grouped journal actions: consistent rows and a visible place to resume. */
+.journal-content { gap: 18px; }
+.journal-section h2 { font-size: 12px; font-weight: 700; color: #b6ab8d; letter-spacing: 1.8px; text-transform: uppercase; margin: 0 0 8px 2px; }
+.journal-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.journal-grid .nav-item { min-height: 48px; padding: 11px 13px; }
+.journal-grid .nav-item::after { content: '›'; float: right; margin-left: 5px; color: #bba578; }
+.journal-grid .nav-item:disabled::after { content: ''; }
+
+/* Readable item, quest, character, and skill detail. Keep rarity colours intact. */
+.equipped-strip { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.equip-slot { min-width: 0; padding: 10px; background: #1c2424; border-color: #586152; }
+.equip-label { font-size: 12px; letter-spacing: .6px; color: #b7bcae; }
+.equip-value { font-size: 15px; white-space: normal; overflow-wrap: anywhere; }
+.inv-list { flex-shrink: 0; max-height: none; overflow: visible; }
+.inv-list > * { flex-shrink: 0; }
+.inv-row { min-height: 62px; border: 1px solid #44514b; }
+.inv-name { white-space: normal; overflow: visible; overflow-wrap: anywhere; font-size: 15px; line-height: 1.35; }
+.inv-sub, .inv-equipped, .consum-chip { font-size: 13px; line-height: 1.4; }
+.item-row, .inv-item, .quest-card, .skill-card, .craft-card, .char-stats,
+.faction-card, .journey-chapter, .chronicle-act, .bestiary-entry, .about-card {
+  background: linear-gradient(135deg, #1c2426, #10171b);
+  border-color: #444e48;
+  box-shadow: none;
+}
+.item-card { background: #121b20; border-color: #66715d; }
+.item-name, .item-card-name, .skill-name, .quest-name { line-height: 1.3; overflow-wrap: anywhere; }
+.item-actions, .craft-actions { gap: 8px; }
+.skill-card { text-align: left; padding: 15px; }
+.skill-card .skill-name { font: 600 21px/1.2 Georgia, 'Times New Roman', serif; }
+.skill-card .skill-desc, .skill-card .skill-meta, .rune-chip-desc, .stat-sub { font-size: 14px; line-height: 1.5; opacity: 1; }
+.skill-card .skill-meta { color: #b2beb7; }
+.skill-card.skill-active { box-shadow: inset 3px 0 #d9bf87; }
+.rune-chip { min-height: 46px; border-color: #647166; }
+.rune-chip.rune-on { box-shadow: inset 3px 0 #b2a1d1; }
+.rune-chip-name { font-size: 16px; }
+.journal-section:has([data-action="menu-town"]):not(:has(.nav-item:not([style*="display: none"]):not(.hidden))) { display: none; }
+.item-actions .nav-item { min-width: 0; }
+.waypoint-name { font-size: 20px; line-height: 1.25; white-space: normal; overflow: visible; }
+.waypoint-card.locked { opacity: 1; background: #10171b; border-color: #343d38; }
+.waypoint-card.locked .waypoint-name { color: #aeb5ae !important; text-shadow: none !important; }
+.waypoint-card.locked .waypoint-sub { color: #b8beb4; }
+.waypoint-sub, .bestiary-lore, .journey-obj, .journey-reward, .chronicle-act p,
+.boon-desc, .faction-blurb, .faction-next, .faction-perk, .sync-help, .picker-help,
+.picker-status, .about-card, .about-note { font-size: 14px; line-height: 1.5; }
+.journey-obj { align-items: flex-start; }
+.jo-prog { flex-shrink: 0; font-size: 14px; }
+.bestiary-name, .faction-card h3 { flex-wrap: wrap; }
+.bestiary-glyph, .waypoint-glyph, .skill-icon { border-color: #796e50; background: #24302f; }
+.about-section-title, .sync-section h3 { color: #d3bd8a; }
+.kbd { color: #e1cca0; border-color: #6e745f; font-size: 14px; letter-spacing: 0; }
+.content [style*="font-size:10px"], .content [style*="font-size:11px"],
+.content [style*="font-size:12px"], .content [style*="font-size: 10px"],
+.content [style*="font-size: 11px"], .content [style*="font-size: 12px"] { font-size: 14px !important; }
+.content [style*="opacity:0.6"], .content [style*="opacity:0.7"], .content [style*="opacity:0.8"] { opacity: 1 !important; }
+.sync-section { padding: 14px; }
+.sync-fallback summary { min-height: 44px; padding: 12px 6px; font-size: 14px; }
+.sync-box { font-size: 13px; white-space: pre-wrap; }
+.stash-filter, .reforge-mode { min-height: 40px; font-size: 14px; color: #dad9c9; }
+.story-inner { max-height: 100%; overflow-y: auto; animation: none; }
+.story-title, .death-title, .levelup-title { font-family: Georgia, 'Times New Roman', serif; text-transform: none; letter-spacing: .3px; }
+.story-title { color: #e8d5b1; text-shadow: none; }
+.story-text { color: #d0d0c2; font-size: 16px; line-height: 1.65; }
+.story-continue { border-radius: 5px; }
+.death-frame, .levelup-frame { width: 100%; height: 100%; padding: 28px; overflow-y: auto; }
+.death-sub, .levelup-sub { font-size: 16px; color: #caccbd; }
+.levelup-frame::before, .levelup-glyph, .death-glyph { animation: none; text-shadow: none; }
+
+/* Gameplay HUD. The hero's centre stays clear; information lives at the edges. */
+#game { position: absolute; outline: none; }
+#game-canvas, #game-canvas-gl, #game-overlay-2d { width: 100%; height: auto; aspect-ratio: 1; }
+.hud-top { top: 10px; left: 10px; right: 10px; display: grid; grid-template-columns: minmax(0, 1fr) 90px; gap: 6px 12px; justify-content: normal; }
+.hud-zone, .hud-auto, .hud-rift, .hud-hollow { grid-column: 1; justify-self: start; max-width: 100%; margin: 0; padding: 6px 10px; border: 1px solid #9d926d; border-radius: 4px; background: #0e181be8; color: #ecdfbb; font-size: 14px; line-height: 1.3; letter-spacing: .3px; text-shadow: none; backdrop-filter: none; animation: none; }
+.hud-minimap { grid-column: 2; grid-row: 1 / 6; align-self: start; padding: 4px; border: 1px solid #8b8263; border-radius: 4px; background: #0a1415e8; box-shadow: none; backdrop-filter: none; }
+#minimap { width: 80px; height: 80px; border-radius: 0; }
+.hud-buffs { position: static; grid-column: 1; max-width: 100%; flex-direction: row; flex-wrap: wrap; gap: 5px; }
+.hud-buffs:empty { display: none; }
+.hud-buff { font-size: 13px; text-shadow: none; box-shadow: none; border-radius: 4px; background: #0e181be8; }
+.hud-bottom { left: 10px; right: 10px; bottom: 68px; align-items: center; gap: 10px; }
+.hud-orb { width: 62px; height: 62px; flex-shrink: 0; border: 2px solid #b39c70; box-shadow: inset 0 0 0 3px #142124, 0 0 0 1px #0b1012; }
+.hud-orb-fill { animation: none; border-radius: 0; }
+.hud-orb-hp .hud-orb-fill { background: radial-gradient(circle at 38% 24%, #d98281, transparent 57%), linear-gradient(#a53142, #570e27); }
+.hud-orb-mp .hud-orb-fill { background: radial-gradient(circle at 38% 24%, #8ac2c3, transparent 57%), linear-gradient(#437b9b, #193852); }
+.hud-orb-label { padding-bottom: 8px; font-size: 18px; text-shadow: 0 1px 3px #000; }
+.orb-caption { position: absolute; bottom: 10px; left: 0; right: 0; font-size: 11px; line-height: 1; color: white; text-align: center; text-shadow: 0 1px 2px black; }
+.hud-center { min-width: 0; gap: 4px; padding: 0; }
+.hud-name { font-size: 14px; }
+.hud-xp { border-color: #6d7959; height: 6px; background: #111b1d; }
+.hud-xp-fill { background: linear-gradient(90deg, #568f84, #b8cfa3); box-shadow: none; animation: none; }
+.hud-skill { padding: 4px 8px; gap: 7px; border: 1px solid #6d735a; border-radius: 4px; background: #0a151be8; backdrop-filter: none; }
+.hud-skill-icon { width: 22px; height: 22px; font-size: 17px; background: none; border: 0; text-shadow: none; }
+.hud-skill-name { font-size: 14px; line-height: 1.2; letter-spacing: 0; color: #e4d9bb; overflow-wrap: anywhere; }
+.hud-skill-cd { font-size: 13px; min-width: 34px; order: 3; }
+.hud-skill-cd.ready { color: #add9af; text-shadow: none; }
+.hud-toast { top: auto; bottom: 142px; max-width: calc(100% - 32px); font-size: 14px; line-height: 1.35; padding: 8px 12px; color: #eee1bd; background: #142126f5; border: 1px solid #a2936b; border-radius: 4px; letter-spacing: 0; text-shadow: none; white-space: normal; text-align: center; box-shadow: none; }
+.game-actions { position: absolute; left: 10px; right: 10px; bottom: 10px; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 7px; }
+.game-action { min-width: 0; min-height: 47px; display: flex; align-items: center; justify-content: center; gap: 7px; padding: 8px 5px; color: #e3dbbf; border: 1px solid #68735c; border-radius: 5px; background: linear-gradient(135deg, #293330, #101b20); font-size: 14px; font-weight: 600; }
+.game-action:focus { background: #3c4232; outline-offset: 2px; }
+.action-glyph { color: #c8b785; font-size: 21px; line-height: 1; }
+.action-glyph svg { width: 22px; height: 22px; display: block; }
+.phone-game-hint { display: none; }
+.game-action[data-action="game-potion"] .action-glyph { color: #dfa5a4; }
+.game-action.primary-action { border-color: #ad9c73; }
+.action-shortcut { grid-column: 1 / -1; font: 600 16px/20px Arial, sans-serif; color: #e2cca0; letter-spacing: 2px; white-space: nowrap; }
+body:not(.touch-layout) .game-action { min-height: 54px; }
+body:not(.touch-layout) .game-action.has-shortcut { display: grid; grid-template-columns: min-content min-content; gap: 2px 6px; padding: 4px; }
+body.touch-layout .action-shortcut { display: none; }
+
+/* Native phone text and controls. World art remains square; UI is never scaled. */
+body.touch-layout #app { position: relative; left: auto; top: auto; width: min(100%, 600px); height: 100dvh; margin: auto; transform: none; }
+body.touch-layout { background: #000; }
+body.touch-layout #game-canvas, body.touch-layout #game-canvas-gl,
+body.touch-layout #game-overlay-2d { top: max(0px, calc((100dvh - 198px - min(100vw, 600px)) / 2)); }
+body.touch-layout .hud-bottom { bottom: 240px; }
+body.touch-layout .game-actions { bottom: 180px; }
+body.touch-layout .hud-toast { bottom: 318px; }
+.touch-controls { max-width: 600px; left: 50%; right: auto; width: 100%; transform: translateX(-50%); }
+.touch-dpad { width: 156px; height: 156px; bottom: 12px; left: 18px; }
+.touch-dpad .touch-btn { width: 52px; height: 52px; font-size: 22px; border-radius: 9px; }
+.touch-up { left: 52px; top: 0; }
+.touch-left { left: 0; top: 52px; }
+.touch-right { left: 104px; top: 52px; }
+.touch-down { left: 52px; top: 104px; }
+.touch-btn { background: #1a2828; color: #d5d4b8; border: 1px solid #8b906a; box-shadow: inset 0 1px #b6bd8b33; transition: none; }
+.touch-btn:active { background: #4a5039; transform: none; }
+.touch-pinch { right: 23px; bottom: 31px; width: 112px; height: 112px; font-size: 34px; color: #efd19a; border-color: #bcad76; }
+.touch-pinch span { display: block; font-size: 16px; margin-top: 2px; }
+.touch-menu { display: none; }
+
+@media (max-width: 480px) {
+  .header { padding: 10px 14px; gap: 10px; }
+  .header h1 { font-size: 24px; }
+  .header-meta { font-size: 12px; }
+  .content { padding: 14px; }
+  .title-frame { padding: 26px 20px; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+  .title-eyebrow { margin: 0 0 9px; font-size: 10px; letter-spacing: 2.5px; }
+  .title-name { font-size: 43px; }
+  .title-tagline { margin-top: 10px; font-size: 14px; }
+  .title-emblem { order: 3; position: static; width: 164px; height: 208px; margin: 16px 0 10px; }
+  .title-menu { order: 4; position: static; width: min(100%, 304px); gap: 9px; }
+  .title-btn { min-height: 46px; font-size: 16px; }
+  .title-hint { position: static; order: 5; margin-top: 17px; font-size: 13px; }
+  .class-grid { grid-template-columns: minmax(0, 1fr); }
+  .class-card, .class-card:last-child { grid-column: auto; grid-template-columns: 78px minmax(0, 1fr); min-height: 118px; gap: 2px 13px; }
+  .class-portrait { width: 78px; height: 96px; }
+  .class-name { font-size: 23px; }
+  .class-tag { font-size: 14px; }
+  .class-mode { grid-template-columns: 1fr; gap: 8px; }
+  .journal-grid { gap: 8px; }
+  .journal-grid .nav-item { padding: 11px; font-size: 14px; min-height: 53px; }
+  .journal-grid .nav-item::after { display: none; }
+  .hud-top { grid-template-columns: minmax(0, 1fr) 74px; gap: 6px; }
+  #minimap { width: 64px; height: 64px; }
+  .hud-zone { font-size: 14px; }
+  .hud-orb { width: 58px; height: 58px; }
+  .hud-bottom { gap: 6px; }
+  .hud-skill { padding: 4px 5px; gap: 4px; }
+  .hud-skill-icon { display: none; }
+  .hud-skill-name { font-size: 14px; }
+  .hud-skill-cd { font-size: 12px; }
+  .game-actions { gap: 5px; }
+  .game-action { flex-direction: column; gap: 3px; min-height: 52px; font-size: 14px; padding: 5px 2px; }
+  .action-glyph { font-size: 18px; }
+  .hud-toast { max-width: calc(100% - 28px); }
+  .death-title, .levelup-title { font-size: 29px; }
+  .item-actions { flex-wrap: wrap; }
+  .picker-slots { gap: 4px; }
+  .picker-slot { width: 36px; height: 52px; font-size: 25px; }
+}
+
+@media (max-height: 690px) and (max-width: 480px) {
+  .title-frame { padding-top: 24px; justify-content: flex-start; overflow-y: auto; }
+  .title-emblem { width: 116px; height: 140px; margin: 10px 0; }
+  .title-name { font-size: 36px; }
+  .title-menu { gap: 6px; }
+  .title-btn { min-height: 43px; padding: 8px 12px; }
+  .title-hint { margin-top: 10px; }
+}
+
+@media (min-height: 700px) {
+  body.touch-layout .phone-game-hint { display: block; position: absolute; bottom: 338px; left: 24px; right: 24px; text-align: center; font-size: 14px; line-height: 1.5; white-space: normal; color: #b8c7b6; pointer-events: none; }
+  body.touch-layout #game:has(.hud-toast.visible) .phone-game-hint { visibility: hidden; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+}

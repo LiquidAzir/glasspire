@@ -48,22 +48,27 @@
      the save content genuinely every write (position/XP/gold/loot) so dedup can't
      suppress them — only the throttle caps the rate. 5min = ~288 writes/day even running
      24h, safely under the 1000/day KV cap; 60s would be ~1440/day → over cap. */
+  var inFlight = false, queueGeneration = 0;
   var pushTimer = 0, lastSig = '', lastPushAt = 0, backoffUntil = 0, pendingObj = null, pendingFlush = false, pendingExplicit = false;
   var THROTTLE_MS = 300000, BACKOFF_MS = 60000, DEBOUNCE_MS = 2500;
 
   function sigOf(obj) {
     var body;
-    try { body = JSON.stringify(obj); } catch (e) { return null; }
+    try { body = JSON.stringify(Object.assign({}, obj, { t: 0 })); } catch (e) { return null; }
     // Zero the timestamp so unchanged state (e.g. mobile screen-lock storms that only
     // bump `t`) produces the same signature and is deduped → no KV write.
-    return body.replace(/"t"\s*:\s*\d+/g, '"t":0');
+    return body;
   }
 
-  function fetchTimeout(u, opts, ms) {
+  function fetchTimeout(u, opts, ms, json) {
     var c = new AbortController();
-    var id = setTimeout(function () { c.abort(); }, ms);
+    var id;
     opts = opts || {}; opts.signal = c.signal;
-    return fetch(u, opts).finally(function () { clearTimeout(id); });
+    var timeout = new Promise(function (_, reject) {
+      id = setTimeout(function () { c.abort(); reject(new Error('Cloud request timed out')); }, ms);
+    });
+    var request = fetch(u, opts).then(function (r) { return json ? (r.ok ? r.json() : null) : r; });
+    return Promise.race([request, timeout]).finally(function () { clearTimeout(id); });
   }
 
   // Actually perform the PUT. Resolves true on a 200 success, false otherwise.
@@ -72,7 +77,7 @@
   // when the body fits — a larger save falls back to a normal fetch (best-effort).
   function doPut(sig, body, flush) {
     var opts = { method: 'PUT', headers: { 'content-type': 'application/json' }, body: body };
-    if (flush && body.length < 60000) opts.keepalive = true;
+    if (flush && new TextEncoder().encode(body).byteLength < 60000) opts.keepalive = true;
     return fetchTimeout(url(), opts, 6000)
       .then(function (r) {
         if (r && r.ok) {
@@ -90,36 +95,38 @@
       });
   }
 
-  // Schedule (or reschedule) the debounced push. Keeps the latest obj/flags so rapid
-  // bursts coalesce into one write after DEBOUNCE_MS.
-  function scheduleDebounced(obj, flush, explicit, delay) {
-    pendingObj = obj; pendingFlush = flush; pendingExplicit = explicit;
+  // Serialize writes: a slower older save must never finish after a newer save.
+  // The single pending slot holds an immutable snapshot of the latest state.
+  function scheduleDrain(delay) {
     clearTimeout(pushTimer);
-    pushTimer = setTimeout(function () { runPush(pendingObj, pendingFlush, pendingExplicit); }, delay == null ? DEBOUNCE_MS : delay);
+    pushTimer = setTimeout(drain, delay);
   }
-
-  // The debounced push body: re-evaluates dedup/throttle/backoff at fire time.
-  function runPush(obj, flush, explicit) {
-    if (!enabled || !obj) { pendingObj = null; return; }
-    var sig = sigOf(obj);
-    if (sig == null) { pendingObj = null; return; }
-    if (sig === lastSig) { pendingObj = null; return; }       // unchanged → no write (even on flush)
-    var now = Date.now();
-    if (!explicit && backoffUntil && now < backoffUntil) {    // backoff: reschedule for when the cooldown ends
-      scheduleDebounced(obj, flush, explicit, backoffUntil - now); return;
-    }
-    if (!flush && lastPushAt && now - lastPushAt < THROTTLE_MS) {  // throttle non-flush to 1/min
-      scheduleDebounced(obj, flush, explicit, THROTTLE_MS - (now - lastPushAt)); return;
-    }
-    pendingObj = null;
-    var body;
-    try { body = JSON.stringify(obj); } catch (e) { return; }
-    doPut(sig, body, flush);
+  function drain() {
+    clearTimeout(pushTimer);
+    if (inFlight || !pendingObj) return;
+    var obj = pendingObj, flush = pendingFlush, explicit = pendingExplicit;
+    var sig = sigOf(obj), now = Date.now();
+    if (sig == null || sig === lastSig) { pendingObj = null; pendingFlush = pendingExplicit = false; return; }
+    if (!explicit && now < backoffUntil) { scheduleDrain(backoffUntil - now); return; }
+    if (!flush && lastPushAt && now - lastPushAt < THROTTLE_MS) { scheduleDrain(THROTTLE_MS - (now - lastPushAt)); return; }
+    pendingObj = null; pendingFlush = pendingExplicit = false;
+    inFlight = true;
+    var generation = queueGeneration;
+    doPut(sig, JSON.stringify(obj), flush).then(function (ok) {
+      inFlight = false;
+      // Keep a failed snapshot queued until a later successful retry. Newer state
+      // always wins, including state submitted while this request was in flight.
+      if (!ok && !pendingObj && generation === queueGeneration) { pendingObj = obj; pendingFlush = flush; pendingExplicit = false; }
+      if (pendingObj) drain();
+    });
   }
 
   window.__CLOUD = {
     enabled: enabled,
     uid: uid,
+    cancelPending: function () {
+      clearTimeout(pushTimer); pendingObj = null; pendingFlush = pendingExplicit = false; queueGeneration++;
+    },
     // The link to open/bookmark on another device to share this save.
     link: function () {
       try { return location.origin + location.pathname + '?u=' + uid; }
@@ -128,8 +135,7 @@
     // Pull the cloud save snapshot (or null on miss / error / timeout).
     pull: function () {
       if (!enabled) return Promise.resolve(null);
-      return fetchTimeout(url(), { cache: 'no-store' }, 4500)
-        .then(function (r) { return r.ok ? r.json() : null; })
+      return fetchTimeout(url(), { cache: 'no-store' }, 4500, true)
         .then(function (j) { return j && j.data ? j.data : null; })
         .catch(function () { return null; });
     },
@@ -149,22 +155,15 @@
     //   explicit=true → bypass backoff (used by a manual "save to cloud" action).
     push: function (obj, flush, explicit) {
       if (!enabled || !obj) return;
-      flush = !!flush; explicit = !!explicit;
-      var sig = sigOf(obj);
-      if (sig == null) return;
-      if (sig === lastSig) return;                            // unchanged → no write, even on flush
-      var now = Date.now();
-      if (!explicit && backoffUntil && now < backoffUntil) {  // backoff: reschedule for the cooldown tail
-        scheduleDebounced(obj, flush, explicit, backoffUntil - now); return;
-      }
-      if (!flush && lastPushAt && now - lastPushAt < THROTTLE_MS) {  // throttle non-flush to >=60s apart
-        scheduleDebounced(obj, flush, explicit, THROTTLE_MS - (now - lastPushAt)); return;
-      }
-      if (flush) {                                           // flush bypasses debounce too — send now so a
-        runPush(obj, flush, explicit);                       // closing tab (pagehide/visibilitychange) doesn't lose it
-        return;
-      }
-      scheduleDebounced(obj, flush, explicit);               // debounced 2.5s (rapid bursts coalesce)
+      var snapshot;
+      try { snapshot = JSON.parse(JSON.stringify(obj)); } catch (e) { return; }
+      pendingObj = snapshot;
+      pendingFlush = pendingFlush || !!flush;
+      pendingExplicit = pendingExplicit || !!explicit;
+      clearTimeout(pushTimer);
+      if (inFlight) return;
+      if (pendingFlush) drain();
+      else scheduleDrain(DEBOUNCE_MS);
     },
     // Mark an object as already synced (e.g. after adopting a cloud pull) so we don't
     // immediately echo it back as a fresh write. Sets lastSig from the obj's sig.

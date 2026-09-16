@@ -1,0 +1,149 @@
+{
+  "v": 2,
+  "classId": "warrior",
+  "char": {
+    "classId": "warrior",
+    "name": "Warrior",
+    "level": 1,
+    "xp": 0,
+    "statPoints": 0,
+    "stats": {
+      "str": 8,
+      "int": 2,
+      "dex": 4,
+      "vit": 8
+    },
+    "hp": 228,
+    "hpMax": 228,
+    "mp": 30,
+    "mpMax": 30,
+    "gold": 10,
+    "equip": {
+      "weapon": {
+        "id": "i_zj7hdlm",
+        "baseId": "rusted-sword",
+        "rarity": "common",
+        "affixes": [],
+        "ilvl": 1,
+        "sockets": 0,
+        "gems": [],
+        "name": "Rusted Sword"
+      },
+      "armor": {
+        "id": "i_iw38rqq",
+        "baseId": "leather",
+        "rarity": "common",
+        "affixes": [],
+        "ilvl": 1,
+        "sockets": 0,
+        "gems": [],
+        "name": "Leather Vest"
+      },
+      "ring": null,
+      "amulet": null
+    },
+    "inventory": [
+      {
+        "id": "i_zj7hdlm",
+        "baseId": "rusted-sword",
+        "rarity": "common",
+        "affixes": [],
+        "ilvl": 1,
+        "sockets": 0,
+        "gems": [],
+        "name": "Rusted Sword"
+      },
+      {
+        "id": "i_iw38rqq",
+        "baseId": "leather",
+        "rarity": "common",
+        "affixes": [],
+        "ilvl": 1,
+        "sockets": 0,
+        "gems": [],
+        "name": "Leather Vest"
+      }
+    ],
+    "potions": 3,
+    "sanctuaryScrolls": 0,
+    "tomes": 0,
+    "passives": {},
+    "talents": {},
+    "talentPoints": 0,
+    "glassTears": 0,
+    "craftDust": 0,
+    "paragonLevel": 0,
+    "paragonXp": 0,
+    "paragonPoints": 0,
+    "paragonStats": {
+      "str": 0,
+      "int": 0,
+      "dex": 0,
+      "vit": 0
+    },
+    "paragonBoard": {
+      "dmgPct": 0,
+      "crit": 0,
+      "aspd": 0,
+      "hpPct": 0,
+      "armor": 0,
+      "res": 0,
+      "ms": 0,
+      "mf": 0
+    },
+    "selectedSkill": "whirlwind",
+    "skillRunes": {},
+    "aspects": [],
+    "journeyClaimed": [],
+    "title": null,
+    "autoPotion": true,
+    "autoPotionPct": 0.35,
+    "autoPlay": false,
+    "lootFilter": "off",
+    "hardcore": false,
+    "transmog": {
+      "weapon": null,
+      "armor": null
+    },
+    "hireling": null,
+    "sigils": 0
+  },
+  "stash": [],
+  "unlockedBiomes": {
+    "crypts": true,
+    "overgrowth": false,
+    "frostpeak": false,
+    "infernal": false,
+    "tempest": false,
+    "voidspire": false
+  },
+  "bossesKilled": {},
+  "bestiary": {},
+  "bestRift": 0,
+  "bestGauntlet": 0,
+  "bestAbyss": 0,
+  "dailyDone": "",
+  "difficulty": "normal",
+  "maxDifficulty": "normal",
+  "upgrades": {
+    "pickup": 0,
+    "xpgain": 0,
+    "goldfind": 0,
+    "potions": 0
+  },
+  "quest": null,
+  "questsCompleted": 0,
+  "wardrobe": {},
+  "gameWon": false,
+  "worldState": {
+    "kind": "town"
+  },
+  "savedDungeon": null,
+  "mysteryVendor": null,
+  "hollowing": 0,
+  "factionRep": {},
+  "actsSeen": {
+    "prologue": true
+  },
+  "t": 1789512818897
+}

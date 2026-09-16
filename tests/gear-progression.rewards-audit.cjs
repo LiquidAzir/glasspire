@@ -1,0 +1,8 @@
+const {openHarness}=require('./gear-progression.helpers.cjs');const fs=require('node:fs'),path=require('node:path');
+(async()=>{const h=await openHarness('rewards-audit'),p=h.page;
+const data=await p.evaluate(()=>{
+ const h=__hollowlight,g=h.game,t=__gearTest;h.test.start('warrior');h.test.hold(true);g.char.level=10;g.save.bestiary={skeleton:100};g.save.bossesKilled={crypts:1};while(g.char.inventory.length<24)g.char.inventory.push(h.test.item('rusted-sword'));
+ const before={bag:g.char.inventory.length,stash:g.save.stash.length,gold:g.char.gold};t.claimChapter('ch1');const after={bag:g.char.inventory.length,stash:g.save.stash.length,gold:g.char.gold,ground:g.items.map(x=>x.item.id),claimed:g.char.journeyClaimed.slice()};const saved=JSON.parse(localStorage.getItem('hollowlight_save_v2'));const itemIDs=JSON.stringify(saved);const persisted=after.ground.map(id=>itemIDs.includes(id));
+ const sets=Object.entries(t.SETS).map(([id,s])=>({id,valid:s.pieces.every(p=>!!t.ITEM_BASES[p]),slots:s.pieces.map(p=>t.ITEM_BASES[p]?.type)}));return {before,after,persisted,sets,journey:t.JOURNEY.map(x=>({id:x.id,objectives:x.objectives.map(o=>({label:o.label,target:o.tgt}))})),biomes:t.BIOMES.map(x=>x.id)};
+});
+h.report.data=data;await p.screenshot({path:path.join(h.out,'journey-full-bag.png')});await p.reload();await p.waitForFunction(()=>window.__gearTest&&window.__hollowlight?.test);h.report.reloaded=await p.evaluate(()=>{const save=JSON.parse(localStorage.getItem('hollowlight_save_v2'));return {ground:__hollowlight.game.items.length,save};});await h.finish();})().catch(e=>{console.error(e);process.exit(1)});

@@ -17,7 +17,7 @@
     tile: 28,                 // pixels per tile
     viewTiles: 21,            // 21 * 28 ≈ 588, with 6px margin per side
     playerSpeed: 10,          // tiles/sec — fast but controllable in corridors
-    stepImpulse: 0.18,        // sec — minimum movement time per tap (~1.8 tiles per tap)
+    stepImpulse: 0.08,        // sec — a short pinch-pad tap moves about one tile; holds stay fast
     comboWindow: 500,         // ms — tight window for the 3-tap dash (quick taps only)
     comboHold: 1500,          // ms — generous gap allowed between 4-tap combo swipes (slow EMG)
     minComboGap: 30,          // ms — to reject key repeat ghosts
@@ -30,7 +30,15 @@
   // ============================================================
   // UTILS
   // ============================================================
-  const rand = Math.random;
+  let rand = Math.random;
+  // A daily map owns its random stream without changing combat, loot outside
+  // generation, or another caller's stream. Always restore it on failure too.
+  function withSeededRandom(seed, build) {
+    const previous = rand;
+    let state = seed >>> 0;
+    rand = () => { state = (Math.imul(state, 1664525) + 1013904223) >>> 0; return state / 4294967296; };
+    try { return build(); } finally { rand = previous; }
+  }
   const PI2 = Math.PI * 2;
   const clamp = (v, a, b) => v < a ? a : (v > b ? b : v);
   const lerp  = (a, b, t) => a + (b - a) * t;
@@ -47,6 +55,31 @@
     let r = rand() * total;
     for (const [item, w] of table) { r -= w; if (r <= 0) return item; }
     return table[0][0];
+  }
+
+  // A grid ray visits crossed tiles, not hundreds of tiny samples. Physical
+  // attacks and nearby interactions obey the same walls as movement.
+  function hasLineOfSight(a, b) {
+    const w = game.world;
+    if (!w || ![a.x, a.y, b.x, b.y].every(Number.isFinite)) return false;
+    let x = Math.floor(a.x), y = Math.floor(a.y);
+    const tx = Math.floor(b.x), ty = Math.floor(b.y);
+    const clear = (gx, gy) => gx >= 0 && gy >= 0 && gx < w.w && gy < w.h && w.grid[gy][gx] === 0;
+    if (!clear(x, y) || !clear(tx, ty)) return false;
+    const dx = b.x - a.x, dy = b.y - a.y, sx = Math.sign(dx), sy = Math.sign(dy);
+    const stepX = dx ? Math.abs(1 / dx) : Infinity, stepY = dy ? Math.abs(1 / dy) : Infinity;
+    let nextX = dx ? ((sx > 0 ? x + 1 : x) - a.x) / dx : Infinity;
+    let nextY = dy ? ((sy > 0 ? y + 1 : y) - a.y) / dy : Infinity;
+    for (let left = Math.abs(tx - x) + Math.abs(ty - y) + 1; left > 0; left--) {
+      if (x === tx && y === ty) return true;
+      if (Math.abs(nextX - nextY) < 1e-10) {
+        if (!clear(x + sx, y) || !clear(x, y + sy)) return false;
+        x += sx; y += sy; nextX += stepX; nextY += stepY;
+      } else if (nextX < nextY) { x += sx; nextX += stepX; }
+      else { y += sy; nextY += stepY; }
+      if (!clear(x, y)) return false;
+    }
+    return false;
   }
 
   // ============================================================
@@ -1053,6 +1086,7 @@
     bossAlive: false,
     bossKilled: false,
     timeInZone: 0,
+    simTime: 0,                  // active simulation milliseconds; freezes in menus/background
     activeBiomeId: null,
     activeFloor: 0,
     nearbyNpc: null,
@@ -1080,7 +1114,9 @@
   // ============================================================
   function navigateTo(id, opts) {
     opts = opts || {};
-    if (opts.addToHistory !== false && game.screen && game.screen !== id) {
+    if (!screens[id]) return;
+    if (id === 'game' && opts.addToHistory !== false) game.history = [];
+    if (id !== 'game' && opts.addToHistory !== false && game.screen && game.screen !== id) {
       game.history.push(game.screen);
     }
     // clear held keys and impulse when leaving the game screen to prevent stuck movement
@@ -1099,18 +1135,32 @@
     if (screens[id]) {
       screens[id].classList.remove('hidden');
       game.screen = id;
+      document.body.dataset.screen = id;
+      game.comboBuffer = [];
+      game._actionsFocus = false;
       onScreenEnter(id);
       focusFirst(screens[id]);
     }
   }
   function navigateBack() {
+    if (game.screen === 'death') return; // a dead hero must use the explicit recovery action
     if (game.history.length === 0) return;
     const prev = game.history.pop();
     navigateTo(prev, { addToHistory: false });
   }
+  function focusableItems(container) {
+    return Array.from(container.querySelectorAll('.focusable:not([disabled]):not(.disabled):not(.locked):not([tabindex="-1"])')).filter(el => !el.closest('.hidden') && el.getClientRects().length);
+  }
   function focusFirst(container) {
-    const el = container.querySelector('.focusable:not([disabled]):not(.hidden)');
-    if (el) setTimeout(() => el.focus(), 0);
+    const list = focusableItems(container);
+    const el = container.id === 'game' ? (container.querySelector('[data-action="game-interact"]') || container)
+      : container.id === 'code-picker' ? (container.querySelector('.picker-slot') || list[0])
+      : list.find(item => !['back', 'menu-resume'].includes(item.dataset.action)) || list[0];
+    if (el) {
+      if (el === container) el.tabIndex = -1;
+      el.focus({ preventScroll: true });
+      if (el.closest('.content, .inv-list')) el.scrollIntoView({ block: 'nearest' });
+    }
   }
   // When a list re-renders after an action (buy/sell/etc.), keep the cursor where it was
   // instead of snapping back to the top. Capture the focused row's position, then restore it.
@@ -1128,7 +1178,7 @@
   function moveFocus(dir) {
     const container = screens[game.screen];
     if (!container) return;
-    const list = Array.from(container.querySelectorAll('.focusable:not([disabled]):not(.hidden)'));
+    const list = focusableItems(container);
     if (list.length === 0) return;
     const cur = document.activeElement;
     let i = list.indexOf(cur);
@@ -1138,7 +1188,7 @@
       : (i < list.length - 1 ? i + 1 : 0);
     list[next].focus();
     const sp = list[next].closest('.content, .inv-list');
-    if (sp) list[next].scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    if (sp) list[next].scrollIntoView({ block: 'nearest' });
   }
 
   // ============================================================
@@ -1284,6 +1334,17 @@
   }
   function refreshHardcoreLabel() { const b = $('hardcore-toggle'); if (b) b.innerHTML = (_hardcorePick ? '&#9760; Hardcore: ON' : '&#9760; Hardcore: OFF'); }
 
+  function validSavePayload(obj) {
+    const c = obj && obj.char;
+    if (!obj || obj.v !== 2 || !c || !CLASSES[c.classId] || !c.stats) return false;
+    if (!['hp', 'mp', 'gold', 'level', 'xp'].every(k => Number.isFinite(c[k]))) return false;
+    if (c.level < 1 || c.level > CFG.maxLevel || c.gold < 0 || c.xp < 0) return false;
+    if (!['str', 'int', 'dex', 'vit'].every(k => Number.isFinite(c.stats[k]) && c.stats[k] >= 0)) return false;
+    if (c.inventory !== undefined && (!Array.isArray(c.inventory) || c.inventory.length > 2000)) return false;
+    if (obj.stash !== undefined && (!Array.isArray(obj.stash) || obj.stash.length > 10000)) return false;
+    const items = [...(c.inventory || []), ...(obj.stash || []), ...Object.values(c.equip || {}).filter(Boolean)];
+    return items.every(it => it && ITEM_BASES[it.baseId] && typeof it.id === 'string' && typeof it.name === 'string' && it.name.length < 300);
+  }
   function loadSave() {
     try {
       // Read the current key; fall back to the pre-rename key so old saves carry over.
@@ -1291,12 +1352,12 @@
       const raw = localStorage.getItem(CFG.storageKey) || localStorage.getItem(CFG.legacyStorageKey);
       if (!raw) return null;
       const obj = JSON.parse(raw);
-      if (!obj || obj.v !== 2) return null;
-      // migrate: give starter gear if player has nothing equipped (old saves)
-      if (obj.char && !obj.char.equip.weapon) {
+      if (!validSavePayload(obj)) return null;
+      // Only saves from before equipment existed receive a starter loadout.
+      // A deliberately empty weapon slot is an ordinary, persistent choice.
+      if (!obj.char.equip) {
         const gear = starterGear(obj.char.classId);
-        obj.char.equip.weapon = gear.weapon;
-        obj.char.equip.armor = gear.armor;
+        obj.char.equip = { weapon: gear.weapon, armor: gear.armor, ring: null, amulet: null };
         if (!obj.char.inventory) obj.char.inventory = [];
         obj.char.inventory.push(gear.weapon, gear.armor);
       }
@@ -1311,8 +1372,10 @@
       // migrate: insert the Tempest Reach biome (between Infernal and Voidspire) for old saves.
       // Unlock it if Infernal is already cleared; and if the player was already PAST this point
       // (Voidspire boss down), credit its boss so the Hollow Throne gate doesn't re-lock on them.
-      if (obj.unlockedBiomes && !('tempest' in obj.unlockedBiomes)) {
-        obj.unlockedBiomes.tempest = !!(obj.bossesKilled && obj.bossesKilled.infernal > 0);
+      if (obj.unlockedBiomes) {
+        const pastInfernal = !!(obj.unlockedBiomes.voidspire || obj.gameWon || (obj.bossesKilled && (obj.bossesKilled.infernal > 0 || obj.bossesKilled.voidspire > 0)));
+        // Also repair saves already migrated with tempest:false before unlock-chain repair.
+        obj.unlockedBiomes.tempest = !!obj.unlockedBiomes.tempest || pastInfernal;
       }
       if (obj.bossesKilled && obj.bossesKilled.voidspire > 0 && !obj.bossesKilled.tempest) {
         obj.bossesKilled.tempest = 1;
@@ -1394,7 +1457,7 @@
   }
 
   function saveGame() {
-    if (!game.save) return;
+    if (!game.save || game._saveReplacementPending) return;
     // Snapshot current world position so player can resume on next load
     if (game.world && game.world.player) {
       const w = game.world;
@@ -1428,7 +1491,7 @@
   // Adopt a cloud save iff it is newer-or-equal to the local one (last-write-wins).
   // Returns true if the remote was written to localStorage.
   function mergeRemoteSave(remote) {
-    if (!remote || remote.v !== 2 || !remote.char) return false;
+    if (!validSavePayload(remote)) return false;
     try {
       const raw = localStorage.getItem(CFG.storageKey) || localStorage.getItem(CFG.legacyStorageKey);
       const local = raw ? JSON.parse(raw) : null;
@@ -1449,8 +1512,8 @@
     const baseDmg = cls.damage;
     let dmg = baseDmg;
     let def = 0;
-    let hpMax = cls.hp + Math.max(0, char.stats.vit - 2) * 10 + (char.level - 1) * 6;
-    let mpMax = cls.mp + Math.max(0, char.stats.int - 2) * 6 + (char.level - 1) * 4;
+    let hpMax = cls.hp + (char.level - 1) * 6;
+    let mpMax = cls.mp + (char.level - 1) * 4;
     let crit = 5;
     let aspd = cls.attackSpeed;
     let res = 0;                 // elemental resistance % (from 'res' affixes)
@@ -1460,22 +1523,23 @@
     let affixDmg = 0;
     let gemDmg = 0, gemDef = 0, gemHp = 0, gemMp = 0;
 
+    function applyAttribute(key, value, source) {
+      if (key === 'dmg') { dmg += value; if (source === 'base') gearDmg += value; else affixDmg += value; }
+      else if (key === 'def') { def += value; if (source === 'base') gearDef += value; }
+      else if (key === 'hp') hpMax += value;
+      else if (key === 'mp') mpMax += value;
+      else if (key === 'crit') crit += value;
+      else if (key === 'aspd') aspd *= 1 + value / 100;
+      else if (key === 'res') res += value;
+      else if (key in bonusStats) bonusStats[key] += value;
+    }
     function applyItem(it) {
       if (!it) return;
       const base = ITEM_BASES[it.baseId];
       if (!base) return;
-      if (base.base.dmg) { dmg += base.base.dmg; gearDmg += base.base.dmg; }
-      if (base.base.def) { def += base.base.def; gearDef += base.base.def; }
-      if (base.base.mp)  mpMax += base.base.mp;
+      for (const [key, value] of Object.entries(base.base || {})) applyAttribute(key, value, 'base');
       for (const af of (it.affixes || [])) {
-        if (af.key === 'dmg')  { dmg += af.val; affixDmg += af.val; }
-        else if (af.key === 'def')  def += af.val;
-        else if (af.key === 'hp')   hpMax += af.val;
-        else if (af.key === 'mp')   mpMax += af.val;
-        else if (af.key === 'crit') crit += af.val;
-        else if (af.key === 'aspd') aspd *= 1 + af.val / 100;
-        else if (af.key === 'res')  res += af.val;
-        else if (af.key in bonusStats) bonusStats[af.key] += af.val;
+        applyAttribute(af.key, af.val, 'affix');
       }
       // Socketed gem bonuses
       for (const gemId of (it.gems || [])) {
@@ -1520,7 +1584,9 @@
       ? Math.floor(totalInt / 2) : 0;
     dmg += statStrDmg + statDexDmg + statIntDmg;
     crit += Math.floor(totalDex / 2);
-    hpMax += totalVit * 6;
+    // A point has the same effect whether allocated, equipped, or earned through Paragon.
+    hpMax += Math.max(0, totalVit - 2) * 10 + totalVit * 6;
+    mpMax += Math.max(0, totalInt - 2) * 6;
     const statsDmg = statStrDmg + statDexDmg + statIntDmg;
 
     // ===== Passive skill tree bonuses =====
@@ -1598,6 +1664,9 @@
     const weakened = (game.world && game.world.player && game.world.player.curses && game.world.player.curses.weaken > 0);
     if (weakened) dmg = Math.floor(dmg * 0.7);
 
+    // Include the final power tradeoff in both real damage and item comparisons.
+    if (charPowers(char).has('glasscannon')) { dmg = Math.floor(dmg * 1.3); hpMax = Math.floor(hpMax * 0.75); }
+
     // ===== DPS calculation =====
     // Expected damage per swing factors in crit chance × crit multiplier (1.8x)
     const critDmgMul = 1.8;
@@ -1613,8 +1682,6 @@
       avgPerHit: Math.round(avgPerHit), dps,
     };
 
-    // Glass Cannon power: trade max life for raw damage.
-    if (charPowers(char).has('glasscannon')) { dmg = Math.floor(dmg * 1.3); hpMax = Math.floor(hpMax * 0.75); }
     return { dmg, def, hpMax, mpMax, crit, aspd, res: Math.min(75, res + upgradeLevel('warden') * 5 + (divineAura ? 20 : 0)), dr: Math.min(60, te.dr || 0), ms: (te.ms || 0) + frenzyMs + ((abMods && abMods.ms) || 0) + pbMs, bonusStats, breakdown };
   }
 
@@ -1724,10 +1791,11 @@
   // ============================================================
   // ITEM GENERATION
   // ============================================================
-  function rollAffix(rarity, ilvl, maxRoll) {
+  function rollAffix(rarity, ilvl, maxRoll, excludedKeys) {
     // Mythic draws from the full (unique-tier) affix pool, rolled at a premium.
     const poolRarity = rarity === 'mythic' ? 'unique' : rarity;
-    const pool = AFFIXES.filter(a => a.rarities.includes(poolRarity));
+    const pool = AFFIXES.filter(a => a.rarities.includes(poolRarity) && !(excludedKeys && excludedKeys.has(a.key)));
+    if (excludedKeys && pool.length === 0) return null;
     const a = pick(pool) || AFFIXES[0]; // guard against an empty pool
     const cap = Math.min(a.max, 1 + ilvl);
     let val = maxRoll ? cap : (1 + Math.floor(rand() * cap));   // Primal items roll every affix at its max
@@ -1769,10 +1837,8 @@
     const affixes = [];
     const usedKeys = new Set();
     for (let i = 0; i < affixCount; i++) {
-      let af = rollAffix(rarity, ilvl, isPrimal);
-      let tries = 0;
-      while (usedKeys.has(af.key) && tries++ < 6) af = rollAffix(rarity, ilvl, isPrimal);
-      if (usedKeys.has(af.key)) continue;
+      const af = rollAffix(rarity, ilvl, isPrimal, usedKeys);
+      if (!af) break;
       usedKeys.add(af.key);
       affixes.push(af);
     }
@@ -1928,12 +1994,19 @@
       }
       if (!overlap) rooms.push(r);   // carved below, after shapes are assigned
     }
+    // Each biome has a recognizable plan as well as its own materials/enemies.
+    // Values are cumulative rect/ellipse/cross weights; the remainder is a hall.
+    const roomStyle = {
+      crypts: [0.40, 0.55, 0.68], overgrowth: [0.20, 0.78, 0.94],
+      frostpeak: [0.24, 0.70, 0.88], infernal: [0.30, 0.48, 0.90],
+      tempest: [0.18, 0.38, 0.76], voidspire: [0.24, 0.52, 0.78],
+    }[biome.id] || [0.50, 0.74, 0.90];
     // ----- Assign varied shapes (spawn & exit rooms stay rectangular) -----
     for (let i = 0; i < rooms.length; i++) {
       const r = rooms[i];
       if (i === 0 || i === rooms.length - 1 || r.w < 7 || r.h < 7) { r.shape = 'rect'; continue; }
       const sr = rand();
-      r.shape = sr < 0.50 ? 'rect' : sr < 0.74 ? 'ellipse' : sr < 0.90 ? 'cross' : 'hall';
+      r.shape = sr < roomStyle[0] ? 'rect' : sr < roomStyle[1] ? 'ellipse' : sr < roomStyle[2] ? 'cross' : 'hall';
     }
     // ----- Designate special rooms (arena + vault) among the middle rooms -----
     if (rooms.length >= 5) {
@@ -1972,9 +2045,15 @@
       }
     }
     for (const r of rooms) carveRoom(r);
+    // Keep the full corridor width clear after decoration, not just room centers.
+    const protectedFloor = new Set();
+    const tileKey = (x, y) => y * W + x;
     // Helper: carve a floor tile if within bounds (keep 1-tile border)
     function carve(cx, cy) {
-      if (cx > 0 && cx < W - 1 && cy > 0 && cy < H - 1) grid[cy][cx] = 0;
+      if (cx > 0 && cx < W - 1 && cy > 0 && cy < H - 1) {
+        grid[cy][cx] = 0;
+        protectedFloor.add(tileKey(cx, cy));
+      }
     }
     // Helper: carve a 3-wide L-shape corridor between two points
     function carveCorridor(ax, ay, bx, by) {
@@ -2004,15 +2083,48 @@
       if (a === b) continue;
       carveCorridor(a.cx, a.cy, b.cx, b.cy);
     }
-    // Interior features — only convert existing floor, never the center (corridors meet there)
+    // A room center is the guaranteed fallback for enemy/loot placement. Reserve
+    // the entrance and both portal landings; the boss gets a clear five-tile arena.
+    for (let i = 0; i < rooms.length; i++) {
+      const r = rooms[i], radius = i === rooms.length - 1 && !opts.noBoss && floor === CFG.biomeFloors ? 2 : 1;
+      for (let y = r.cy - radius; y <= r.cy + radius; y++)
+        for (let x = r.cx - radius; x <= r.cx + radius; x++) carve(x, y);
+    }
+    const entrance = rooms[0];
+    for (let y = entrance.cy - 1; y <= entrance.cy + 1; y++)
+      for (let x = entrance.cx - 3; x <= entrance.cx; x++) carve(x, y);
+    // Interior features can only occupy unused floor outside protected routes.
     function placeFeature(px, py, val) {
       if (px <= 0 || px >= W - 1 || py <= 0 || py >= H - 1) return;
-      if (grid[py][px] !== 0) return;
+      if (grid[py][px] !== 0 || protectedFloor.has(tileKey(px, py))) return;
       grid[py][px] = val;
     }
     for (const r of rooms) {
       if (r.special) continue;  // special rooms are decorated separately
       const area = r.w * r.h;
+      // Sparse, legible landmarks outside the travel lanes. No new collision
+      // types: pillars remain walls and crystals remain solid decoration.
+      if (area >= 64) {
+        const left = r.x + 2, right = r.x + r.w - 3, top = r.y + 2, bottom = r.y + r.h - 3;
+        if (biome.id === 'crypts') {
+          for (let y = top; y <= bottom; y += 3) { placeFeature(left, y, 1); placeFeature(right, y, 1); }
+        } else if (biome.id === 'overgrowth') {
+          for (const [x, y] of [[left, top], [right, bottom]]) {
+            placeFeature(x, y, 2); placeFeature(x + (x === left ? 1 : -1), y, 2); placeFeature(x, y + (y === top ? 1 : -1), 2);
+          }
+        } else if (biome.id === 'frostpeak') {
+          for (let i = 0; i < Math.min(4, Math.floor(r.w / 3)); i++) {
+            placeFeature(left + i * 2, top + (i % 2), 2);
+            placeFeature(right - i * 2, bottom - (i % 2), 2);
+          }
+        } else if (biome.id === 'infernal') {
+          for (const [x, y] of [[left, top], [right, top], [left, bottom], [right, bottom]]) { placeFeature(x, y, 1); placeFeature(x, y + (y === top ? 1 : -1), 2); }
+        } else if (biome.id === 'tempest') {
+          for (const [x, y] of [[r.cx - 3, r.cy - 3], [r.cx + 3, r.cy - 3], [r.cx - 3, r.cy + 3], [r.cx + 3, r.cy + 3]]) placeFeature(x, y, 1);
+        } else if (biome.id === 'voidspire') {
+          for (const [x, y] of [[left, top], [left + 1, top + 1], [right, r.cy], [right - 1, r.cy + 1], [r.cx, bottom]]) placeFeature(x, y, 2);
+        }
+      }
       if (r.shape === 'hall' && r.w >= 9 && r.h >= 7) {
         // Colonnade — two rows of evenly spaced pillars flanking a central aisle
         for (let px = r.x + 2; px < r.x + r.w - 2; px += 2) {
@@ -2037,6 +2149,19 @@
         }
       }
     }
+    // Decorations can seal a one-cell nook at a shaped room's edge. Close such
+    // empty pockets before spawning anything so floorSpotIn cannot choose them.
+    const connected = new Set(), queue = [[entrance.cx, entrance.cy]];
+    connected.add(tileKey(entrance.cx, entrance.cy));
+    for (let i = 0; i < queue.length; i++) {
+      const [x, y] = queue[i];
+      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const nx = x + dx, ny = y + dy, key = tileKey(nx, ny);
+        if (grid[ny] && grid[ny][nx] === 0 && !connected.has(key)) { connected.add(key); queue.push([nx, ny]); }
+      }
+    }
+    for (let y = 1; y < H - 1; y++) for (let x = 1; x < W - 1; x++)
+      if (grid[y][x] === 0 && !connected.has(tileKey(x, y))) grid[y][x] = 1;
     // Pick spawn (player) and exit
     const first = rooms[0];
     const last = rooms[rooms.length - 1];
@@ -2399,6 +2524,7 @@
   }
   // Enemy deals damage to the player, applying any curse the attacker carries.
   function enemyHitPlayer(e, dmg) {
+    if (!hasLineOfSight(e, game.world.player)) return;
     damagePlayer(dmg, e && e.element);
     if (game.char.hp <= 0) return;
     if (e && e.modCurse) applyCurse(e.modCurse);   // Cursed modifier
@@ -2418,6 +2544,7 @@
     game.cam.y = clamp(p.y - halfH, 0, Math.max(0, game.world.h - halfH * 2));
   }
   function clearSkillEffects() {
+    game.scheduledEffects = [];
     game.pendingMeteors = [];
     game.poisonZones = [];
     game.soulDrains = [];
@@ -2449,6 +2576,8 @@
     showZoneToast('SANCTUARY');
     applyDerivedToChar(); // recompute stats since buff might have been adding damage
     updateHud();
+    tickInteraction();
+    saveGame();
     // A queued story beat plays now that the player is safely back in town.
     if (game._pendingAct) { const pa = game._pendingAct; game._pendingAct = null; showAct(pa); }
   }
@@ -2538,7 +2667,7 @@
   // ============================================================
   // BOSS GAUNTLET — fight every boss in sequence in one arena.
   // ============================================================
-  const GAUNTLET_BOSSES = ['lich', 'druid', 'wyrm', 'archdemon', 'voidlord', 'hollowking'];
+  const GAUNTLET_BOSSES = BIOMES.map(b => b.boss).concat('hollowking');
   function arenaSpawnPos() {
     const w = game.world, p = w.player;
     for (const o of [[0, -6], [6, 0], [-6, 0], [0, 6], [4, -4], [-4, -4]]) {
@@ -2596,7 +2725,7 @@
     game.activeBiomeId = 'voidspire'; game.activeFloor = CFG.biomeFloors;
     game.gauntlet = { idx: 0, lvl: game.char.level, nextIn: null };
     spawnHireling(); snapCamera(); navigateTo('game');
-    showZoneToast('THE GAUNTLET — 6 bosses');
+    showZoneToast(`THE GAUNTLET — ${GAUNTLET_BOSSES.length} bosses`);
     applyDerivedToChar(); updateHud();
     spawnGauntletBoss(0);
   }
@@ -2628,7 +2757,7 @@
     const modKeys = Object.keys(NIGHTMARE_MODS).filter(k => k !== 'teeming');
     const mod = modKeys[h % modKeys.length];
     const floor = CFG.biomeFloors;   // a full descent — guarantees a boss to slay for completion
-    game.world = generateDungeon(biome, floor, {});
+    game.world = withSeededRandom(h, () => generateDungeon(biome, floor, {}));
     game.world.name = 'DAILY — ' + biome.shortName; game.world.daily = true; game.world.dailyMod = mod;
     if (window.__GL) window.__GL.onZoneChange(game.world);
     if (window.__AUDIO) window.__AUDIO.music(biome.id);
@@ -2843,7 +2972,9 @@
     floor = floor || 1;
     const a = (game.abyss && game.abyss.active) ? game.abyss : (game.abyss = freshAbyss());
     a.active = true;
-    addRep('covenant', floor * 4);   // the Ashen Covenant rewards descent into the Abyss
+    // First-floor favor is earned on the first kill. Later entry rewards follow
+    // a completed enemy quota, so repeatedly visiting the entrance earns nothing.
+    if (floor > 1) addRep('covenant', floor * 4);
     const pool = riftEnemyPool();
     const palette = { wall: '#c489ff', floor: '#0c0716', accent: '#ff3df0' };
     const synth = { id: 'voidspire', shortName: 'ABYSS', enemies: pool, boss: null, palette };
@@ -2892,9 +3023,12 @@
   function endAbyss(left) {
     const a = game.abyss; if (!a) { enterTown(); return; }
     const depth = a.floor;
+    // A fresh visit has earned nothing. Deeper floors prove a previous quota
+    // was cleared; otherwise require a real kill before banking the run reward.
+    const earned = depth > 1 || a.kills > 0;
     let newBest = false;
     if (depth > (game.save.bestAbyss || 0)) { game.save.bestAbyss = depth; newBest = true; }
-    const tears = Math.max(1, Math.floor(depth / 2));
+    const tears = earned ? Math.max(1, Math.floor(depth / 2)) : 0;
     game.char.glassTears = (game.char.glassTears || 0) + tears;
     game.abyss = freshAbyss();
     saveGame();
@@ -2932,11 +3066,27 @@
     document.addEventListener('keyup', onKeyUp);
     document.addEventListener('click', e => {
       const el = e.target.closest('[data-action]');
-      if (el) handleAction(el.dataset.action, el);
+      if (el && !el.disabled && !el.classList.contains('disabled') && !el.closest('.hidden')) handleAction(el.dataset.action, el);
     });
     setupTouchControls();
     // Controller (Bluetooth/USB) — polled each frame in pollGamepad(); just announce it.
     window.addEventListener('gamepadconnected', () => { try { showHudToast('Controller connected'); } catch (e) {} });
+    window.addEventListener('gamepaddisconnected', clearMovement);
+    window.addEventListener('blur', () => {
+      clearMovement();
+      if (game.screen === 'game') openInGameMenu();
+    });
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) { clearMovement(); if (game.screen === 'game') openInGameMenu(); saveGame(); }
+      game.lastTime = 0;
+    });
+    window.addEventListener('pagehide', saveGame);
+  }
+
+  function clearMovement() {
+    game.keys = {}; game.tapped = {}; game.comboBuffer = [];
+    const p = game.world && game.world.player;
+    if (p) { p._impulseT = 0; p._impulseX = 0; p._impulseY = 0; }
   }
 
   // ============================================================
@@ -2971,7 +3121,8 @@
     // Default ON for touchscreens — a phone player otherwise lands in-game with no
     // controls and can't open the menu to enable them. OFF for keyboard/mouse + glasses.
     // An explicit saved preference always wins. (old key kept for back-compat)
-    const saved = localStorage.getItem('hollowlight_touch_enabled') || localStorage.getItem('glasspire_touch_enabled');
+    let saved = null;
+    try { saved = localStorage.getItem('hollowlight_touch_enabled') || localStorage.getItem('glasspire_touch_enabled'); } catch (e) {}
     game._touchOn = (saved == null) ? isTouchDevice() : (saved === '1');
     updateTouchOverlay();
     // Wire every D-pad / action button: press = synthetic keydown, release = synthetic keyup.
@@ -2979,15 +3130,16 @@
     const buttons = root.querySelectorAll('[data-touch-key]');
     buttons.forEach(btn => {
       const key = btn.dataset.touchKey;
-      const press = (ev) => { ev.preventDefault(); onKeyDown({ key, repeat: false, _touch: true, preventDefault: () => {} }); };
-      const release = (ev) => { ev.preventDefault(); onKeyUp({ key }); };
-      btn.addEventListener('touchstart', press, { passive: false });
-      btn.addEventListener('touchend',   release, { passive: false });
-      btn.addEventListener('touchcancel', release, { passive: false });
-      // Also wire mouse events so it works on desktop browsers with mouse
-      btn.addEventListener('mousedown', press);
-      btn.addEventListener('mouseup',   release);
-      btn.addEventListener('mouseleave', release);
+      const press = (ev) => { ev.preventDefault(); game._actionsFocus = false; if (btn.setPointerCapture) btn.setPointerCapture(ev.pointerId); onKeyDown({ key, repeat: false, _touch: true, preventDefault: () => {} }); };
+      const release = () => onKeyUp({ key });
+      if (key === 'Enter') {
+        btn.addEventListener('click', () => onKeyDown({ key, repeat: false, _touch: true, preventDefault: () => {} }));
+      } else {
+        btn.addEventListener('pointerdown', press);
+        btn.addEventListener('pointerup', release);
+        btn.addEventListener('pointercancel', release);
+        btn.addEventListener('lostpointercapture', release);
+      }
     });
   }
 
@@ -3007,17 +3159,8 @@
     if (!document.body.classList.contains('touch-layout')) return;
     const app = document.getElementById('app');
     if (!app) return;
-    const w = window.innerWidth || 600, h = window.innerHeight || 600;
-    // fit the 600-wide game to the screen width, but never taller than (height - band)
-    const s = Math.min(w / 600, Math.max(0.4, (h - TOUCH_BAND) / 600));
-    // transform-origin is top-left, so place the scaled stage with explicit offsets:
-    // centered horizontally, and centered vertically in the area ABOVE the control band.
-    // The band is always cleared since 600*s <= h - TOUCH_BAND (so top + 600*s <= h - BAND).
-    const left = Math.max(0, (w - 600 * s) / 2);
-    const top = Math.max(0, (h - TOUCH_BAND - 600 * s) / 2);
-    app.style.left = left + 'px';
-    app.style.top = top + 'px';
-    app.style.transform = 'scale(' + s + ')';
+    // CSS owns native-size menus/HUD; only the square world canvas scales.
+    app.style.removeProperty('left'); app.style.removeProperty('top'); app.style.removeProperty('transform');
   }
   // Non-touch (PC + glasses): the CSS flexbox centers the 600x600 stage; this just scales
   // it uniformly to fit the window. On the glasses the window is exactly 600x600 so the
@@ -3026,10 +3169,7 @@
     if (document.body.classList.contains('touch-layout')) return;  // the phone path owns layout
     const app = document.getElementById('app');
     if (!app) return;
-    const w = window.innerWidth, h = window.innerHeight;
-    if (!w || !h) return;   // ignore transient 0-size resizes
-    const s = Math.min(w / 600, h / 600);
-    app.style.transform = (s === 1) ? '' : ('scale(' + s + ')');   // exactly 600 (glasses) -> untouched
+    app.style.removeProperty('transform');
   }
   function applyTouchLayout() {
     if (!isTouchDevice()) return;
@@ -3045,7 +3185,7 @@
   // Left stick / D-pad -> movement, A -> action/select (Enter), B -> back (Escape),
   // Start -> in-game menu. Everything funnels through onKeyDown/onKeyUp (edge-triggered)
   // so all existing movement / cooldown / menu logic applies unchanged. No-op with no pad.
-  const _gpPrev = { up: false, down: false, left: false, right: false, a: false, b: false, start: false };
+  const _gpPrev = { up: false, down: false, left: false, right: false, a: false, b: false, x: false, y: false, rb: false, start: false };
   function _gpEdge(name, key, pressed) {
     if (pressed === _gpPrev[name]) return;
     _gpPrev[name] = pressed;
@@ -3058,7 +3198,12 @@
     if (!pads) return;
     let gp = null;
     for (let i = 0; i < pads.length; i++) { if (pads[i]) { gp = pads[i]; break; } }
-    if (!gp) return;
+    if (!gp) {
+      for (const [name, key] of Object.entries({up:'ArrowUp',down:'ArrowDown',left:'ArrowLeft',right:'ArrowRight',a:'Enter',b:'Escape'})) _gpEdge(name, key, false);
+      _gpPrev.start = false;
+      _gpPrev.x = _gpPrev.y = _gpPrev.rb = false;
+      return;
+    }
     const ax = gp.axes || [], bt = gp.buttons || [];
     const b = (i) => !!(bt[i] && (bt[i].pressed || bt[i].value > 0.5));
     const dead = 0.4, lx = ax[0] || 0, ly = ax[1] || 0;
@@ -3068,6 +3213,11 @@
     _gpEdge('right', 'ArrowRight', lx >  dead || b(15));
     _gpEdge('a',     'Enter',      b(0));    // A / cross -> action / select
     _gpEdge('b',     'Escape',     b(1));    // B / circle -> back
+    for (const [name, index, action] of [['x', 2, 'game-skill'], ['y', 3, 'game-potion'], ['rb', 5, 'game-dash']]) {
+      const pressed = b(index);
+      if (pressed && !_gpPrev[name] && game.screen === 'game') handleAction(action);
+      _gpPrev[name] = pressed;
+    }
     const start = b(9) || b(8) || b(16);     // Start / Select / home -> menu
     if (start && !_gpPrev.start && game.screen === 'game') openInGameMenu();
     _gpPrev.start = start;
@@ -3088,16 +3238,29 @@
     // (stale held-key state from EMG wristband persists across screen transitions)
     // and janky navigation in menus. Held-movement uses game.keys + keyup instead.
     // Enter/Escape repeats are allowed through for menu selection reliability.
-    if (e.repeat && ['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(key)) return;
+    if (e.repeat && ['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Enter','Escape'].includes(key)) { e.preventDefault(); return; }
+    if (key === 'Tab') {
+      const list = focusableItems(screens[game.screen]);
+      if (list.length) {
+        let i = list.indexOf(document.activeElement);
+        i = (i + (e.shiftKey ? -1 : 1) + list.length) % list.length;
+        list[i].focus(); list[i].scrollIntoView({ block: 'nearest' });
+        if (inGame) { clearMovement(); game._actionsFocus = true; }
+      }
+      e.preventDefault(); return;
+    }
+    const editing = document.activeElement && /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName);
+    if (editing && key !== 'Escape') return;
 
     // D-pad code picker — intercept arrow keys so they edit the code instead of
     // moving menu focus. Pinch (Enter) submits.
     if (game.screen === 'code-picker') {
-      if (key === 'ArrowUp')    { cyclePickerChar(+1); e.preventDefault(); return; }
-      if (key === 'ArrowDown')  { cyclePickerChar(-1); e.preventDefault(); return; }
-      if (key === 'ArrowLeft')  { movePickerCursor(-1); e.preventDefault(); return; }
-      if (key === 'ArrowRight') { movePickerCursor(+1); e.preventDefault(); return; }
-      if (key === 'Enter')      { submitCodePicker(); e.preventDefault(); return; }
+      const slotFocused = document.activeElement && document.activeElement.classList.contains('picker-slot');
+      if (slotFocused && key === 'ArrowUp')    { cyclePickerChar(+1); e.preventDefault(); return; }
+      if (slotFocused && key === 'ArrowDown')  { cyclePickerChar(-1); e.preventDefault(); return; }
+      if (slotFocused && key === 'ArrowLeft')  { movePickerCursor(-1); e.preventDefault(); return; }
+      if (slotFocused && key === 'ArrowRight') { movePickerCursor(+1); e.preventDefault(); return; }
+      if (key === 'Enter')      { if (document.activeElement && document.activeElement.classList.contains('focusable')) document.activeElement.click(); e.preventDefault(); return; }
       if (key === 'Escape')     { navigateBack(); e.preventDefault(); return; }
       // Other keys (e.g. tab) — let them fall through to default
     }
@@ -3112,8 +3275,11 @@
     }
 
     if (inGame) {
-      // Block all input during the menu-return guard period (200ms after returning from menu)
-      if (game._menuReturnGuardUntil && performance.now() < game._menuReturnGuardUntil) { e.preventDefault(); return; }
+      if (game._actionsFocus && key.startsWith('Arrow')) { moveFocus(key.slice(5).toLowerCase()); e.preventDefault(); return; }
+      if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(key)) {
+        const action = screens.game.querySelector('[data-action="game-interact"]');
+        if (action) action.focus({ preventScroll: true });
+      }
       // record arrow taps into combo buffer (4-tap patterns won't fire accidentally).
       // Touch D-pad presses are excluded — phone players use the ☰ button for the menu,
       // so normal directional taps must never trigger the ↑↓↑↓ wiggle gesture.
@@ -3138,7 +3304,14 @@
       if (key === 'ArrowDown')  { game.keys.down = true;  game.tapped.down = true;  e.preventDefault(); }
       if (key === 'ArrowLeft')  { game.keys.left = true;  game.tapped.left = true;  e.preventDefault(); }
       if (key === 'ArrowRight') { game.keys.right = true; game.tapped.right = true; e.preventDefault(); }
-      if (key === 'Enter')      { onPinch(); e.preventDefault(); }
+      if (key === 'Enter') {
+        const active = document.activeElement;
+        if (!e._touch && active && active.matches('.focusable[data-action]') && active.closest('#game')) active.click();
+        else onPinch();
+        e.preventDefault();
+      }
+      if (key.toLowerCase() === 'q') { drinkPotion(); e.preventDefault(); }
+      if (key === 'Shift') { tryDash(); e.preventDefault(); }
       return;
     }
 
@@ -3226,6 +3399,7 @@
     }
   }
   function tryDash(dirX, dirY) {
+    if (game.screen !== 'game' || !game.world || !game.char || game.char.hp <= 0) return;
     const p = game.world.player;
     if (p.dashCd && p.dashCd > 0) return;
     // use provided direction (from triple-tap), fallback to last facing
@@ -3233,14 +3407,12 @@
     const dy = dirY !== undefined ? dirY : p.lastDir.y;
     if (dx === 0 && dy === 0) return; // no direction
     // teleport forward 3.5 tiles — but stop at first wall
-    const steps = 10;
+    const steps = 36;
     let nx = p.x, ny = p.y;
     for (let i = 1; i <= steps; i++) {
       const tx = p.x + dx * 3.5 * (i / steps);
       const ty = p.y + dy * 3.5 * (i / steps);
-      const gx = Math.floor(clamp(tx, 0, game.world.w - 1));
-      const gy = Math.floor(clamp(ty, 0, game.world.h - 1));
-      if (game.world.grid[gy][gx] !== 0) break;
+      if (!canStandAt(tx, ty)) break;
       nx = tx; ny = ty;
     }
     if (nx === p.x && ny === p.y) return; // no movement possible
@@ -3260,7 +3432,7 @@
   // PERFECT DODGE — negating a real hit with dash i-frames is a skill, so reward it:
   // a short damage window, a mana kick, and a shaved dash cooldown to enable a chain.
   function perfectDodge() {
-    const p = game.world.player, now = performance.now();
+    const p = game.world.player, now = game.simTime;
     if (!p._pdArmed || (p._pdCd && now < p._pdCd)) return;   // once per roll, min ~0.6s apart
     p._pdArmed = false;            // consumed — re-armed by the next dash
     p._pdCd = now + 600;
@@ -3278,6 +3450,8 @@
   // PINCH: context-sensitive
   // ============================================================
   function onPinch() {
+    if (game.screen !== 'game' || !game.char || game.char.hp <= 0) return;
+    tickInteraction(); // never act on an old zone's cached NPC/portal
     if (game.nearbyNpc) { openNpc(game.nearbyNpc); return; }
     if (game.nearbyPortal) { activatePortal(game.nearbyPortal); return; }
     if (game.nearbyShrine) { activateShrine(game.nearbyShrine); return; }
@@ -3434,12 +3608,10 @@
       const dir = p.lastDir.x || p.lastDir.y ? p.lastDir : { x: 0, y: 1 };
       // Leap forward 3 tiles (stop at walls)
       let tx = p.x, ty = p.y;
-      for (let i = 1; i <= 12; i++) {
-        const cx = p.x + dir.x * 3 * (i / 12);
-        const cy = p.y + dir.y * 3 * (i / 12);
-        const gx = Math.floor(clamp(cx, 0, game.world.w - 1));
-        const gy = Math.floor(clamp(cy, 0, game.world.h - 1));
-        if (game.world.grid[gy][gx] !== 0) break;
+      for (let i = 1; i <= 30; i++) {
+        const cx = p.x + dir.x * 3 * (i / 30);
+        const cy = p.y + dir.y * 3 * (i / 30);
+        if (!canStandAt(cx, cy)) break;
         tx = cx; ty = cy;
       }
       // trail particles from old pos to new pos
@@ -3862,7 +4034,7 @@
     }
     else if (skillId === 'starfall') {
       const d = derived(c);
-      // Bake the rune multiplier in now — meteors land later via setTimeout
+      // Capture damage now; queued impacts follow simulation time and belong to this zone.
       const baseDmg = Math.floor(d.dmg * 2.5 * (game._skillDmgMul || 1));
       // Find nearest enemy as the strike center (else 3 tiles ahead)
       let cx = p.x, cy = p.y;
@@ -3874,7 +4046,7 @@
       const offsets = [[0,0],[-1.2,0.6],[1.0,-0.4]];
       for (let m = 0; m < offsets.length; m++) {
         const mx = cx + offsets[m][0], my = cy + offsets[m][1];
-        setTimeout(() => {
+        queueWorldEffect(() => {
           const targets = game.enemies.filter(e => dist(e, { x: mx, y: my }) <= 1.5);
           for (const e of targets) hitEnemy(e, baseDmg, d.crit);
           burst(mx, my, '#ffaa00', 18);
@@ -4152,7 +4324,7 @@
       e.frozen = Math.max(e.frozen || 0, params.dt || 0);
     } else if (type === 'shock') {
       // Lightning "shock": no DoT — a timed vulnerability (amps all damage) + reaction fuel.
-      e.shockUntil = performance.now() + (params.ms || 2500);
+      e.shockUntil = game.simTime + (params.ms || 2500);
     }
   }
 
@@ -4176,7 +4348,7 @@
   }
   function elementReact(e, elem, baseDmg) {
     if (!e || e.hp <= 0 || elem === 'physical') return;
-    const now = performance.now();
+    const now = game.simTime;
     if (e._reactCd && now < e._reactCd) return;   // at most one reaction per ~0.35s per enemy
     const s = e.statusEffects || (e.statusEffects = {});
     const shocked = e.shockUntil && now < e.shockUntil;
@@ -4255,7 +4427,16 @@
     let shrine = null, sd = Infinity;
     if (w.shrines) for (const sh of w.shrines) { if (sh.used) continue; const dd = dist(sh, p); if (dd < sd) { sd = dd; shrine = sh; } }
     let item = null, idd = Infinity;
-    for (const gi of game.items) { const dd = dist(gi, p); if (dd < idd) { idd = dd; item = gi; } }
+    const hasBagSpace = c.inventory.length < inventoryCap();
+    const filterRank = LOOT_FILTER_RANK[c.lootFilter || 'off'];
+    for (const gi of game.items) {
+      // Full bags can still collect auto-salvaged gear, but cannot collect kept loot.
+      const it = gi.item;
+      const canSalvage = it && filterRank >= 0 && !(it.gems && it.gems.length)
+        && isGearItem(it) && (RARITY_RANK[it.rarity] || 0) <= filterRank;
+      if (!hasBagSpace && !canSalvage) continue;
+      const dd = dist(gi, p); if (dd < idd) { idd = dd; item = gi; }
+    }
 
     let target = null, mode = null, stop = 0.3;
     if (enemy && ed < 12) { target = enemy; mode = 'enemy'; stop = Math.max(1.0, cls.attackRange * 0.7); autoPlayCast(enemy, ed); }
@@ -4268,7 +4449,7 @@
     if (!target) return false;   // nothing to do — idle in place
 
     const td = dist(target, p);
-    if (td <= stop) {
+    if (td <= stop && hasLineOfSight(p, target)) {
       const dx = target.x - p.x, dy = target.y - p.y, l = Math.hypot(dx, dy) || 1;
       p.lastDir.x = dx / l; p.lastDir.y = dy / l;   // face it (auto-attack + directional skills aim here)
       if (mode === 'shrine') { activateShrine(target); }
@@ -4294,7 +4475,7 @@
   // BFS flow-field steering — robust through corridors/mazes (vs. naive line-of-sight steering).
   function autoPlaySteer(target, td) {
     const p = game.world.player;
-    if (td < 2.4) { const dx = target.x - p.x, dy = target.y - p.y, l = Math.hypot(dx, dy) || 1; return { x: dx / l, y: dy / l }; }
+    if (td < 2.4 && hasLineOfSight(p, target)) { const dx = target.x - p.x, dy = target.y - p.y, l = Math.hypot(dx, dy) || 1; return { x: dx / l, y: dy / l }; }
     const tgx = Math.floor(target.x), tgy = Math.floor(target.y), key = tgx + ',' + tgy;
     if (!game._apField || game._apFieldKey !== key || (game._apFieldExp || 0) < performance.now()) {
       game._apField = autoPlayBFS(tgx, tgy);
@@ -4354,7 +4535,7 @@
     let near = null, nd = Infinity;
     for (const e of game.enemies) {
       const dd = dist(e, p);
-      if (dd <= range && dd < nd) { near = e; nd = dd; }
+      if (e.hp > 0 && dd <= range && dd < nd && hasLineOfSight(p, e)) { near = e; nd = dd; }
     }
     if (!near) return;
     // attack swing / cast sound (per attack)
@@ -4372,7 +4553,7 @@
     if (cls.attackKind === 'cleave') {
       // hit all enemies within shorter arc range
       const arc = 1.6;
-      const cleaveTargets = game.enemies.filter(e => dist(e, p) <= arc);
+      const cleaveTargets = game.enemies.filter(e => e.hp > 0 && dist(e, p) <= arc && hasLineOfSight(p, e));
       for (const e of cleaveTargets) hitEnemy(e, d.dmg, d.crit);
       // sweeping arc particles
       const atkAngle = Math.atan2(dy, dx);
@@ -4424,9 +4605,9 @@
     // Berserker — the lower your life, the harder you hit (up to +40% at 0 HP).
     if (hasPower('berserker') && game.char) dmg = Math.floor(dmg * (1 + (1 - game.char.hp / Math.max(1, game.char.hpMax)) * 0.4));
     // Shocked (lightning reaction fuel): the enemy takes +18% from ALL damage while it lasts.
-    if (e.shockUntil && performance.now() < e.shockUntil) dmg = Math.floor(dmg * 1.18);
+    if (e.shockUntil && game.simTime < e.shockUntil) dmg = Math.floor(dmg * 1.18);
     // Perfect-dodge reward window: +25% damage for a few seconds after a well-timed roll.
-    if (game._dodgeDmgUntil && performance.now() < game._dodgeDmgUntil) dmg = Math.floor(dmg * 1.25);
+    if (game._dodgeDmgUntil && game.simTime < game._dodgeDmgUntil) dmg = Math.floor(dmg * 1.25);
     e.hp -= dmg;
     // Vampiric — siphon a sliver of the damage dealt back as health.
     if (hasPower('lifesteal') && game.char && game.char.hp > 0 && game.char.hp < game.char.hpMax) {
@@ -4527,6 +4708,7 @@
       for (let j = 0; j < 14; j++) { const a = (j / 14) * PI2; addParticle({ x: e.x, y: e.y, vx: Math.cos(a) * 5, vy: Math.sin(a) * 5, color: j % 2 ? '#ff7a3c' : '#ffc857', life: 0.45 + rand() * 0.3, age: 0, size: 2.5 + rand() * 2 }); }
       const targets = game.enemies.filter(o => o !== e && !o.hazard && dist(o, e) <= 2.6);
       for (const o of targets) hitEnemy(o, e.hazDmg || 20, false);
+      const at = game.enemies.indexOf(e); if (at >= 0) game.enemies.splice(at, 1);
       return;
     }
     sfx(e.boss ? 'bossDie' : 'enemyDie');
@@ -4549,6 +4731,7 @@
       burst(e.x, e.y, '#ff7a3c', 18);
       if (dist(game.world.player, e) <= 2.2) damagePlayer(Math.floor((e.dmg || 8) * 1.5), 'fire');
     }
+    if (!game.save || game.char.hp <= 0) return; // a lethal death explosion cannot award a level-up revival
     // Boss Gauntlet: a fallen gauntlet boss advances the run.
     if (e._gauntlet && game.gauntlet) gauntletAdvance(e);
     // Daily Challenge: felling the day's boss completes it.
@@ -4602,6 +4785,7 @@
     // The Abyss: count progress toward the descend portal (the boon draft)
     if (game.abyss && game.abyss.active && game.world && game.world.isAbyss) {
       game.abyss.kills++;
+      if (game.abyss.floor === 1 && game.abyss.kills === 1) addRep('covenant', 4);
       abyssCheckProgress();
     }
     // Voidling split: spawns 2 smaller copies on death (only if not already a split)
@@ -4675,7 +4859,7 @@
       const gemItem = makeGemItem(gemId);
       if (gemItem) {
         game.items.push({ x: e.x + (rand() - 0.5) * 0.4, y: e.y + 0.2, item: gemItem, age: 0 });
-        setTimeout(() => floatText(`${GEMS[gemId].name} gem`, e.x, e.y - 0.6, 'loot'), 200);
+        queueWorldEffect(() => floatText(`${GEMS[gemId].name} gem`, e.x, e.y - 0.6, 'loot'), 200);
       }
     }
 
@@ -4691,7 +4875,7 @@
       const item = rollItem(Math.max(1, e.ilvl + 1 + dropIlvlBonus), 'rare');
       if (item) {
         game.items.push({ x: e.x, y: e.y, item, age: 0 });
-        setTimeout(() => floatText(item.name, e.x, e.y - 0.7, 'loot'), 250);
+        queueWorldEffect(() => floatText(item.name, e.x, e.y - 0.7, 'loot'), 250);
       }
       // Elite-color particle burst
       for (let i = 0; i < 14; i++) {
@@ -4708,7 +4892,7 @@
       sfx('legendary');
       const cr = roll(0.4) ? 'unique' : 'rare';
       const citem = rollItem(Math.max(1, e.ilvl + 2 + dropIlvlBonus), cr, { preferLegendary: cr === 'unique' });
-      if (citem) { game.items.push({ x: e.x + 0.4, y: e.y, item: citem, age: 0 }); setTimeout(() => floatText(citem.name, e.x, e.y - 1.0, 'loot'), 320); }
+      if (citem) { game.items.push({ x: e.x + 0.4, y: e.y, item: citem, age: 0 }); queueWorldEffect(() => floatText(citem.name, e.x, e.y - 1.0, 'loot'), 320); }
       game.char.glassTears = (game.char.glassTears || 0) + 1;
     }
 
@@ -4718,7 +4902,7 @@
       // Boss treasure hoard: 2-3 items spread around the kill point
       const bossDropCount = 2 + (roll(0.5) ? 1 : 0);
       // The guaranteed legendary slot has a chance to ascend to mythic
-      const rarities = ['rare', 'rare', roll(0.12) ? 'mythic' : 'unique'];
+      const rarities = [roll(0.12) ? 'mythic' : 'unique', 'rare', 'rare'];
       for (let di = 0; di < bossDropCount; di++) {
         const r = rarities[di] || 'rare';
         const item = rollItem(Math.max(1, e.ilvl + 1 + dropIlvlBonus), r, { preferLegendary: r === 'unique' || r === 'mythic' });
@@ -4726,7 +4910,7 @@
           const ox = (di - 1) * 0.6; // spread items left/center/right
           game.items.push({ x: e.x + ox, y: e.y + 0.3, item, age: 0 });
           // staggered floating text for each drop
-          setTimeout(() => {
+          queueWorldEffect(() => {
             const rarCol = r === 'unique' ? '#ffaa00' : '#c77dff';
             floatText(item.name, e.x + ox, e.y - 0.5 - di * 0.4, 'loot');
           }, 300 + di * 400);
@@ -4765,15 +4949,16 @@
       game.save.quest.progress = Math.min(game.save.quest.required, game.save.quest.progress + 1);
     }
 
-    // Boss flag
-    if (e.boss) {
+    // Challenge bosses keep their ordinary loot, but cannot skip campaign gates.
+    if (e.boss && roll(0.6)) { game.char.sigils = (game.char.sigils || 0) + 1; showHudToast('+1 Nightmare Sigil'); floatText('+ Sigil', e.x, e.y - 0.8, 'loot'); }
+    if (e.boss && !e._gauntlet && !e._daily && !game.world.isGauntlet && !game.world.daily && !game.world.isRift && !game.world.isAbyss) {
       game.bossKilled = true;
-      // bosses drop Nightmare Sigils (key for the Nightmare dungeons)
-      if (roll(0.6)) { game.char.sigils = (game.char.sigils || 0) + 1; showHudToast('+1 Nightmare Sigil'); floatText('+ Sigil', e.x, e.y - 0.8, 'loot'); }
+      game.bossAlive = false;
       // THE HOLLOW KING — campaign victory
       if (e.id === 'hollowking') {
         game.bossAlive = false;
         game.save.gameWon = true;
+        game.save.bossesKilled.hollowking = (game.save.bossesKilled.hollowking || 0) + 1;
         if (!game.save.actsSeen) game.save.actsSeen = {};
         game.save.actsSeen.finale = true;   // the victory screen is the finale beat; log it in the Chronicle
         game.char.gold += 2500;
@@ -4781,9 +4966,21 @@
           const it = rollItem(Math.max(1, e.ilvl + 2), i === 0 ? 'mythic' : 'unique', { preferLegendary: true });
           if (it) game.items.push({ x: e.x + (i - 1.5) * 0.6, y: e.y + 0.3, item: it, age: 0 });
         }
+        // Victory leaves this temporary arena. Secure the hoard before that
+        // transition instead of forcing a timed scramble for unsaved drops.
+        if (!game.save.stash) game.save.stash = [];
+        for (const drop of game.items) {
+          if (!drop.item) continue;
+          if (game.char.inventory.length < inventoryCap()) game.char.inventory.push(drop.item);
+          else game.save.stash.push(drop.item);
+        }
+        game.items = [];
+        const deadIndex = game.enemies.indexOf(e);
+        if (deadIndex >= 0) game.enemies.splice(deadIndex, 1);
+        showHudToast('Victory hoard secured · overflow sent to Stash');
         saveGame(); sfx('legendary');
         if (window.__AUDIO) window.__AUDIO.stopMusic();
-        setTimeout(() => { if (game.char && game.char.hp > 0) navigateTo('victory'); }, 1300);
+        queueWorldEffect(() => { if (game.char && game.char.hp > 0) navigateTo('victory'); }, 1300);
         return;   // skip the normal biome-unlock / portal handling
       }
       const biomeId = game.activeBiomeId;
@@ -4833,7 +5030,7 @@
   function explodeProjectile(p) {
     const ex = p.explosive; if (!ex) return;
     const crit = derived(game.char).crit;
-    const targets = game.enemies.filter(e => dist(e, p) <= ex.radius);
+    const targets = game.enemies.filter(e => e.hp > 0 && dist(e, p) <= ex.radius && hasLineOfSight(p, e));
     for (const e of targets) {
       hitEnemy(e, p.dmg, crit);
       if (e.hp > 0 && ex.burn) applyStatus(e, 'burn', { dmg: ex.burn, dt: 3 });
@@ -4850,16 +5047,19 @@
     for (let i = game.projectiles.length - 1; i >= 0; i--) {
       const p = game.projectiles[i];
       p.age += dt;
-      p.x += p.dx * p.speed * dt;
-      p.y += p.dy * p.speed * dt;
       let removed = false;
-      // wall collision
-      const gy = Math.floor(p.y), gx = Math.floor(p.x);
-      if (gy < 0 || gy >= game.world.h || gx < 0 || gx >= game.world.w ||
-          game.world.grid[gy][gx] !== 0) {
-        if (p.explosive) explodeProjectile(p);
-        game.projectiles.splice(i, 1); continue;
-      }
+      // Short swept steps preserve wall/target order, including fast arrows
+      // and diagonal corners. No ray can jump a wall between two frames.
+      const steps = Math.max(1, Math.ceil(Math.hypot(p.dx, p.dy) * p.speed * dt / 0.25));
+      for (let step = 0; step < steps && !removed; step++) {
+        const before = { x: p.x, y: p.y };
+        p.x += p.dx * p.speed * dt / steps;
+        p.y += p.dy * p.speed * dt / steps;
+        if (!hasLineOfSight(before, p)) {
+          p.x = before.x; p.y = before.y;
+          if (p.explosive) explodeProjectile(p);
+          game.projectiles.splice(i, 1); removed = true; break;
+        }
       if (p.friendly) {
         if (p.piercing) {
           // Piercing projectile — hits each enemy once, doesn't stop
@@ -4868,7 +5068,7 @@
           for (const e of snapshot) {
             if (e.hp <= 0) continue;
             if (p.hitList.has(e)) continue;
-            if (dist(e, p) < 0.45) {
+            if (dist(e, p) < 0.45 && hasLineOfSight(p, e)) {
               p.hitList.add(e);
               hitEnemy(e, p.dmg, derived(game.char).crit);
               burst(p.x, p.y, p.color, 6);
@@ -4883,7 +5083,8 @@
           // Find first hit — don't iterate with for-of since hitEnemy can splice
           let hitTarget = null;
           for (let ei = 0; ei < game.enemies.length; ei++) {
-            if (dist(game.enemies[ei], p) < 0.45) { hitTarget = game.enemies[ei]; break; }
+            const enemy = game.enemies[ei];
+            if (enemy.hp > 0 && dist(enemy, p) < 0.45 && hasLineOfSight(p, enemy)) { hitTarget = enemy; break; }
           }
           if (hitTarget) {
             if (p.explosive) explodeProjectile(p);
@@ -4893,17 +5094,18 @@
             removed = true;
           }
         }
-        if (removed) continue;
       } else {
         const pl = game.world.player;
-        if (dist(pl, p) < 0.45) {
+        if (dist(pl, p) < 0.45 && hasLineOfSight(p, pl)) {
           damagePlayer(p.dmg, (BIOME_ELEM[game.activeBiomeId] || {}).element);
           if (p.curse && game.char.hp > 0) applyCurse(p.curse);  // cursing elite's projectile
           game.projectiles.splice(i, 1);
           burst(p.x, p.y, p.color, 8);
-          continue;
+          removed = true;
         }
       }
+      }
+      if (removed) continue;
       if (p.age > p.life) { if (p.explosive) explodeProjectile(p); game.projectiles.splice(i, 1); }
     }
   }
@@ -4941,6 +5143,10 @@
   // Per-boss special behaviors layered on top of its trait. Returns nothing;
   // mutates the boss + world. Called each tick for boss enemies.
   function tickBoss(e, dt, d, p) {
+    // Exploration is not time spent fighting. Once engaged, retreating does not
+    // reset the fight or its existing enrage timer.
+    if (!e.engaged) e.engaged = e.hp < e.hpMax || (d <= 9 && hasLineOfSight(e, p));
+    if (!e.engaged) return;
     // --- Enrage timer ---
     e.fightTime = (e.fightTime || 0) + dt;
     if (!e.enraged && e.fightTime >= BOSS_ENRAGE_TIME) {
@@ -4959,7 +5165,7 @@
       summonBossAdds(e);
     }
     // --- Telegraphed ground smash: periodic, dodgeable AoE aimed at the player ---
-    if (d < 9) {
+    if (d < 9 && hasLineOfSight(e, p)) {
       e.smashCd = (e.smashCd || (3 + rand() * 2)) - dt;
       if (e.smashCd <= 0) {
         e.smashCd = (e.enraged ? 4 : 6) + rand() * 2;
@@ -5074,12 +5280,13 @@
       const d = Math.sqrt(dx * dx + dy * dy);
       // Treasure Goblin: only ever flees + escapes — never runs the normal chase/attack AI
       if (e.isGoblin) { tickGoblin(e, dt, dx, dy, d, _i); continue; }
-      // Boss mechanics (enrage / summon / telegraphed smash) run before awareness cull
+      // Boss timers start on first engagement, not while exploring distant rooms.
       if (e.boss) tickBoss(e, dt, d, p);
       if (d > 12) continue; // out of awareness
+      const seesPlayer = hasLineOfSight(e, p);
 
       // --- Trait-based special behaviors (fired before basic AI) ---
-      if (e.trait && e.traitCd <= 0) {
+      if (e.trait && e.traitCd <= 0 && seesPlayer) {
         switch (e.trait) {
           case 'lunge': // Ghoul: lunges forward dealing bonus damage
             if (d < 4 && d > 1.5) {
@@ -5304,7 +5511,7 @@
           const speed = e.speed * dt * 0.6;
           tryMove(e, -dx / d * speed, -dy / d * speed);
         }
-        if (d < e.range && e.atkCd <= 0) {
+        if (d < e.range && e.atkCd <= 0 && seesPlayer) {
           spawnProjectile(e.x, e.y, dx / d, dy / d, 6.5, e.dmg, e.projColor || '#c489ff', 'soul', false, enemyCurse(e));
           e.atkCd = 2.0 + rand() * 0.6;
         }
@@ -5312,16 +5519,41 @@
     }
   }
 
-  function tryMove(ent, vx, vy) {
+  function canStandAt(x, y, radius = 0.22) {
     const w = game.world;
-    const nx = ent.x + vx, ny = ent.y + vy;
-    const gx = Math.floor(nx), gy = Math.floor(ny);
-    const ex = Math.floor(ent.x), ey = Math.floor(ent.y);
-    // X-axis movement
-    if (gx >= 0 && gx < w.w && ey >= 0 && ey < w.h && w.grid[ey][gx] === 0) ent.x = nx;
-    // Y-axis movement (re-check with updated ent.x)
-    const ex2 = Math.floor(ent.x);
-    if (gy >= 0 && gy < w.h && ex2 >= 0 && ex2 < w.w && w.grid[gy][ex2] === 0) ent.y = ny;
+    if (!w || !Number.isFinite(x) || !Number.isFinite(y) || x - radius < 0 || y - radius < 0 || x + radius >= w.w || y + radius >= w.h) return false;
+    for (let gy = Math.floor(y - radius); gy <= Math.floor(y + radius); gy++) {
+      for (let gx = Math.floor(x - radius); gx <= Math.floor(x + radius); gx++) {
+        if (w.grid[gy][gx] === 0) continue;
+        const dx = x - clamp(x, gx, gx + 1), dy = y - clamp(y, gy, gy + 1);
+        if (dx * dx + dy * dy < radius * radius) return false;
+      }
+    }
+    return true;
+  }
+  function restorePosition(x, y) {
+    const p = game.world.player;
+    if (canStandAt(x, y)) { p.x = x; p.y = y; }
+    else if (Number.isFinite(x) && Number.isFinite(y)) {
+      let best = null, distance = Infinity;
+      for (let gy = 1; gy < game.world.h - 1; gy++) for (let gx = 1; gx < game.world.w - 1; gx++) {
+        const d = (gx + 0.5 - x) ** 2 + (gy + 0.5 - y) ** 2;
+        if (d < distance && canStandAt(gx + 0.5, gy + 0.5)) { distance = d; best = { x: gx + 0.5, y: gy + 0.5 }; }
+      }
+      if (best) { p.x = best.x; p.y = best.y; }
+      showHudToast('The dungeon has shifted. Resumed on nearby safe ground.');
+    }
+    clearMovement(); tickInteraction(); snapCamera();
+  }
+  function tryMove(ent, vx, vy) {
+    if (!Number.isFinite(vx) || !Number.isFinite(vy)) return;
+    const steps = Math.max(1, Math.ceil(Math.max(Math.abs(vx), Math.abs(vy)) / 0.1));
+    const sx = vx / steps, sy = vy / steps;
+    const radius = ent === game.world.player ? 0.22 : 0.12;
+    for (let i = 0; i < steps; i++) {
+      if (canStandAt(ent.x + sx, ent.y, radius)) ent.x += sx;
+      if (canStandAt(ent.x, ent.y + sy, radius)) ent.y += sy;
+    }
   }
 
   // ============================================================
@@ -5363,7 +5595,7 @@
     m.lastDir = { x: dx, y: dy };
     if (d > m.range * 0.9) {
       tryMove(m, dx / d * m.speed * dt, dy / d * m.speed * dt);
-    } else if (m.atkCd <= 0) {
+    } else if (m.atkCd <= 0 && hasLineOfSight(m, near)) {
       if (m.ranged) {
         const a = Math.atan2(dy, dx);
         spawnProjectile(m.x, m.y, Math.cos(a), Math.sin(a), 9, m.dmg, m.projColor || '#fff', m.htype === 'marksman' ? 'arrow' : 'bolt', true);
@@ -5392,7 +5624,7 @@
       const d = Math.sqrt(dx * dx + dy * dy);
       if (d > m.range * 0.95) {
         tryMove(m, dx / d * m.speed * dt, dy / d * m.speed * dt);
-      } else if (m.atkCd <= 0) {
+      } else if (m.atkCd <= 0 && hasLineOfSight(m, near)) {
         hitEnemy(near, m.dmg, 5);
         m.atkCd = 0.9;
       }
@@ -5528,18 +5760,6 @@
   // ============================================================
   function tickPlayer(dt) {
     const p = game.world.player;
-
-    // Guard: for 200ms after returning from a menu/overlay, force-clear ALL movement
-    // state. This catches any stale EMG gestures or key events from menu navigation.
-    if (game._menuReturnGuardUntil && performance.now() < game._menuReturnGuardUntil) {
-      game.keys = {};
-      game.tapped = {};
-      p._impulseT = 0;
-      p._impulseX = 0;
-      p._impulseY = 0;
-      return; // skip this tick — require a fresh input after guard expires
-    }
-    game._menuReturnGuardUntil = 0; // clear expired guard
 
     let vx = 0, vy = 0;
 
@@ -5793,15 +6013,35 @@
     return yld;
   }
 
+  // Scatter effects may put a drop into nearby masonry. Settle it once onto
+  // actual floor so pickup can obey walls without making treasure unreachable.
+  function settleGroundLoot() {
+    const w = game.world;
+    if (!w) return;
+    for (const drop of game.items) {
+      const gx = Math.floor(drop.x), gy = Math.floor(drop.y);
+      if (w.grid[gy]?.[gx] === 0) continue;
+      let best = null, bestDistance = Infinity;
+      for (let y = Math.max(0, gy - 3); y <= Math.min(w.h - 1, gy + 3); y++) {
+        for (let x = Math.max(0, gx - 3); x <= Math.min(w.w - 1, gx + 3); x++) {
+          if (w.grid[y][x] !== 0) continue;
+          const d = (x + 0.5 - drop.x) ** 2 + (y + 0.5 - drop.y) ** 2;
+          if (d < bestDistance) { bestDistance = d; best = { x: x + 0.5, y: y + 0.5 }; }
+        }
+      }
+      if (best) { drop.x = best.x; drop.y = best.y; }
+    }
+  }
   function tickInteraction() {
     if (!game.world) return;
+    settleGroundLoot();
     const p = game.world.player;
     // NPC nearby
     let near = null, nd = 1.4;
     if (game.world.npcs) {
       for (const n of game.world.npcs) {
         const d = dist({ x: n.x + 0.5, y: n.y + 0.5 }, p);
-        if (d < nd) { nd = d; near = n; }
+        if (d < nd && hasLineOfSight(p, { x:n.x + 0.5, y:n.y + 0.5 })) { nd = d; near = n; }
       }
     }
     game.nearbyNpc = near;
@@ -5810,7 +6050,7 @@
     if (game.world.portals) {
       for (const po of game.world.portals) {
         const d = dist(po, p);
-        if (d < pd) { pd = d; pn = po; }
+        if (d < pd && hasLineOfSight(p, po)) { pd = d; pn = po; }
       }
     }
     game.nearbyPortal = pn;
@@ -5820,7 +6060,7 @@
       for (const sh of game.world.shrines) {
         if (sh.used) continue;
         const d = dist(sh, p);
-        if (d < sdist) { sdist = d; sn = sh; }
+        if (d < sdist && hasLineOfSight(p, sh)) { sdist = d; sn = sh; }
       }
     }
     game.nearbyShrine = sn;
@@ -5829,7 +6069,7 @@
     let it = null, idx = -1;
     for (let i = 0; i < game.items.length; i++) {
       const gi = game.items[i];
-      if (dist(gi, p) < pickRadius) { it = gi; idx = i; break; }
+      if (dist(gi, p) < pickRadius && hasLineOfSight(p, gi)) { it = gi; idx = i; break; }
     }
     // Loot filter: trash gear at/below the chosen rarity is salvaged instead of picked up.
     if (it && it.item) {
@@ -8746,6 +8986,11 @@
   // HUD
   // ============================================================
   function updateHud() {
+    const phoneHint = $('phone-game-hint');
+    if (phoneHint && game.world) {
+      const message = game.world.kind === 'town' ? 'Walk near a character, then tap Interact.' : 'Attacks are automatic. Use Skill and Dash in combat.';
+      if (phoneHint.textContent !== message) phoneHint.textContent = message;
+    }
     if (!game.char) return;
     const c = game.char;
     $('hud-name').textContent = CLASSES[c.classId].name;
@@ -8961,9 +9206,8 @@
         game.world.player._impulseX = 0;
         game.world.player._impulseY = 0;
       }
-      // Set time-based guard — block ALL input for 200ms after returning to game.
-      // This catches any stale EMG wristband gestures or lingering key events.
-      game._menuReturnGuardUntil = performance.now() + 200;
+      game.comboBuffer = [];
+      game.paused = false;
       updateHud();
     }
   }
@@ -9285,7 +9529,7 @@
   // counters) grouped into chapters; completing one grants a milestone reward + a title.
   // ============================================================
   function _jTotalKills() { return Object.values(game.save.bestiary || {}).reduce((a, b) => a + b, 0); }
-  function _jBossBiomes() { return Object.values(game.save.bossesKilled || {}).filter(v => v > 0).length; }
+  function _jBossBiomes() { return BIOMES.filter(b => (game.save.bossesKilled || {})[b.id] > 0).length; }
   const JOURNEY = [
     { id: 'ch1', name: 'Chapter I — Awakening', title: 'the Wanderer',
       objectives: [
@@ -9306,13 +9550,13 @@
         { label: 'Reach Greater Rift 10', tgt: 10, cur: () => game.save.bestRift || 0 },
         { label: 'Reach Abyss Depth 12', tgt: 12, cur: () => game.save.bestAbyss || 0 },
         { label: 'Clear the Boss Gauntlet', tgt: 6, cur: () => game.save.bestGauntlet || 0 },
-        { label: 'Reach Paragon 5', tgt: 5, cur: () => game.char.paragonLevel || 0 },
       ], reward: { gold: 4000, tears: 8, dust: 150, item: 'mythic' } },
     { id: 'ch4', name: 'Chapter IV — Hollowbane', title: 'Hollowbane',
       objectives: [
         { label: 'Reach Level 60', tgt: 60, cur: () => game.char.level },
         { label: 'Reach Abyss Depth 20', tgt: 20, cur: () => game.save.bestAbyss || 0 },
-        { label: 'Fell every biome boss', tgt: 5, cur: _jBossBiomes },
+        { label: 'Fell every biome boss', tgt: BIOMES.length, cur: _jBossBiomes },
+        { label: 'Reach Paragon 5', tgt: 5, cur: () => game.char.paragonLevel || 0 },
         { label: 'Learn 5 Legendary Aspects', tgt: 5, cur: () => (game.char.aspects || []).length },
       ], reward: { gold: 10000, tears: 20, dust: 400, item: 'mythic', primal: true } },
   ];
@@ -9332,14 +9576,19 @@
     c.gold += r.gold || 0;
     c.glassTears = (c.glassTears || 0) + (r.tears || 0);
     c.craftDust = (c.craftDust || 0) + (r.dust || 0);
+    let rewardToStash = false;
     if (r.item) {
       const it = rollItem(Math.max(10, c.level + 4), r.item, { preferLegendary: r.item === 'unique' || r.item === 'mythic', primal: !!r.primal });
-      if (it) { if (c.inventory.length < inventoryCap()) c.inventory.push(it); else { game.items.push({ x: game.world.player.x, y: game.world.player.y, item: it, age: 0 }); } }
+      if (it) {
+        rewardToStash = c.inventory.length >= inventoryCap();
+        if (rewardToStash && !game.save.stash) game.save.stash = [];
+        (rewardToStash ? game.save.stash : c.inventory).push(it);
+      }
     }
     c.title = ch.title;
     c.journeyClaimed.push(id);
     sfx('legendary'); saveGame(); applyDerivedToChar(); renderJourney();
-    showHudToast(`★ ${ch.name} complete! +${r.gold}g, a reward, and the title "${ch.title}".`);
+    showHudToast(`★ ${ch.name} complete! +${r.gold}g; reward ${rewardToStash ? 'sent to your Stash' : 'in your bag'}; title "${ch.title}".`);
   }
   // ============================================================
   // THE CHRONICLE — a multi-act story revealed as the campaign advances. Each biome
@@ -9688,10 +9937,8 @@
     const newAffixes = [];
     const usedKeys = new Set();
     for (let i = 0; i < it.affixes.length; i++) {
-      let af = rollAffix(it.rarity, ilvl);
-      let tries = 0;
-      while (usedKeys.has(af.key) && tries++ < 6) af = rollAffix(it.rarity, ilvl);
-      if (usedKeys.has(af.key)) continue;
+      const af = rollAffix(it.rarity, ilvl, !!it.primal, usedKeys);
+      if (!af) break;
       usedKeys.add(af.key);
       newAffixes.push(af);
     }
@@ -9726,9 +9973,8 @@
     const newAffixes = [keep];
     const usedKeys = new Set([keep.key]);
     for (let i = 1; i < it.affixes.length; i++) {
-      let af = rollAffix(it.rarity, ilvl), tries = 0;
-      while (usedKeys.has(af.key) && tries++ < 6) af = rollAffix(it.rarity, ilvl);
-      if (usedKeys.has(af.key)) continue;
+      const af = rollAffix(it.rarity, ilvl, !!it.primal, usedKeys);
+      if (!af) break;
       usedKeys.add(af.key); newAffixes.push(af);
     }
     it.affixes = newAffixes;
@@ -9920,6 +10166,11 @@
     if (!it || !isCraftable(it)) return;
     if (isEquipped(it)) { showHudToast('Unequip it first.'); return; }
     const yld = SALVAGE_YIELD[it.rarity] || 1;
+    // Validate the complete transaction before extracting an aspect or changing inventory.
+    const _gemCount = (it.gems && it.gems.length) || 0;
+    if (_gemCount > 0 && (c.inventory.length - 1 + _gemCount) > inventoryCap()) {
+      showHudToast('Inventory full — make room for the returned gems.'); return;
+    }
     // Legendary Aspect EXTRACTION — salvaging an item that carries a power learns it to your Codex.
     const _eb = ITEM_BASES[it.baseId];
     const _epw = (_eb && _eb.power) || it.power;
@@ -9929,10 +10180,6 @@
     }
     // Return any socketed gems to the inventory so they aren't destroyed — but only if
     // there's room (net change is +gems −1 item), else the cap would be exceeded.
-    const _gemCount = (it.gems && it.gems.length) || 0;
-    if (_gemCount > 0 && (c.inventory.length - 1 + _gemCount) > inventoryCap()) {
-      showHudToast('Inventory full — make room for the returned gems.'); return;
-    }
     let gemsBack = 0;
     if (it.gems && it.gems.length) {
       it.gems.forEach(gemId => {
@@ -10052,6 +10299,57 @@
   function renderWaypoint() {
     const el = $('waypoint-content');
     el.innerHTML = '';
+    const bossesKilled = game.save.bossesKilled || {};
+    const nextBiome = BIOMES.find(b => game.save.unlockedBiomes[b.id] && !(bossesKilled[b.id] > 0));
+    const allBossesDefeated = BIOMES.every(b => bossesKilled[b.id] > 0);
+    const objective = document.createElement('div');
+    objective.className = 'quest-card';
+    const objectiveTitle = document.createElement('div');
+    objectiveTitle.className = 'quest-name';
+    objectiveTitle.textContent = game.save.gameWon ? 'Your next adventure' : 'Next campaign objective';
+    const objectiveText = document.createElement('div');
+    objectiveText.className = 'waypoint-sub';
+    if (game.save.gameWon) {
+      objectiveText.textContent = 'Campaign complete. Revisit a biome, raise the difficulty, or try a special expedition below.';
+    } else if (allBossesDefeated) {
+      objectiveText.textContent = `All ${BIOMES.length} biome bosses defeated. Enter The Hollow Throne below to face the Hollow King.`;
+    } else if (nextBiome) {
+      const following = BIOMES[BIOMES.indexOf(nextBiome) + 1];
+      const bossName = ENEMIES[nextBiome.boss].name;
+      objectiveText.textContent = `Defeat ${bossName} on Floor 4 of ${nextBiome.name}${following ? ` to unlock ${following.name}` : ' to open The Hollow Throne'}.`;
+    } else {
+      objectiveText.textContent = 'Explore an unlocked biome and defeat its Floor 4 boss to continue the campaign.';
+    }
+    objective.append(objectiveTitle, objectiveText);
+    el.appendChild(objective);
+    const campaignHeading = document.createElement('h2');
+    campaignHeading.className = 'skill-header';
+    campaignHeading.textContent = 'Campaign';
+    el.appendChild(campaignHeading);
+    BIOMES.forEach((b, index) => {
+      const unlocked = game.save.unlockedBiomes[b.id];
+      const card = document.createElement('button');
+      card.className = 'waypoint-card focusable' + (unlocked ? '' : ' locked');
+      if (unlocked) {
+        card.dataset.action = 'travel';
+        card.dataset.biome = b.id;
+      } else {
+        card.tabIndex = -1;
+      }
+      const previousBiome = BIOMES[index - 1];
+      const bossName = ENEMIES[b.boss].name;
+      const description = unlocked
+        ? `${bossesKilled[b.id] > 0 ? 'Boss defeated · Revisit' : 'Floors 1–4'} · ${bossName}`
+        : previousBiome ? `Defeat ${ENEMIES[previousBiome.boss].name} in ${previousBiome.name} to unlock` : 'Not yet discovered';
+      card.innerHTML = `
+        <div class="waypoint-glyph" style="color:${b.palette.wall}">${unlocked ? '✦' : '🔒'}</div>
+        <div class="waypoint-meta">
+          <div class="waypoint-name" style="color:${unlocked ? '#ffffff' : '#9a9ab0'}">${b.name}</div>
+          <div class="waypoint-sub">${description}</div>
+        </div>
+      `;
+      el.appendChild(card);
+    });
     // Difficulty selector — Normal / Nightmare / Hell
     const maxIdx = DIFFICULTY_ORDER.indexOf(game.save.maxDifficulty || 'normal');
     const diffWrap = document.createElement('div');
@@ -10068,6 +10366,10 @@
     diffChips += '</div>';
     diffWrap.innerHTML = diffChips;
     el.appendChild(diffWrap);
+    const specialHeading = document.createElement('h2');
+    specialHeading.className = 'skill-header';
+    specialHeading.textContent = 'Special expeditions';
+    el.appendChild(specialHeading);
     // Greater Rift — endgame endless mode, unlocked after the first boss falls
     const riftUnlocked = !!game.save.unlockedBiomes.overgrowth;
     const best = game.save.bestRift || 0;
@@ -10083,7 +10385,7 @@
     `;
     el.appendChild(riftCard);
     // The Hollow Throne — the campaign's final battle, unlocked once all biome bosses fall
-    const throneUnlocked = BIOMES.every(b => (game.save.bossesKilled[b.id] || 0) > 0);
+    const throneUnlocked = allBossesDefeated;
     const won = !!game.save.gameWon;
     const throneCard = document.createElement('button');
     throneCard.className = 'waypoint-card rift-card focusable' + (throneUnlocked ? '' : ' locked');
@@ -10092,7 +10394,7 @@
       <div class="waypoint-glyph" style="color:#ff3df0;text-shadow:0 0 14px #c489ff">${throneUnlocked ? '♔' : '🔒'}</div>
       <div class="waypoint-meta">
         <div class="waypoint-name" style="color:${throneUnlocked ? '#e7c2ff' : '#9a9ab0'};text-shadow:0 0 10px #c489ff">The Hollow Throne</div>
-        <div class="waypoint-sub">${throneUnlocked ? (won ? 'The Hollow King stirs once more…' : 'Face the Hollow King — the final battle') : 'Locked — defeat all five biome bosses'}</div>
+        <div class="waypoint-sub">${throneUnlocked ? (won ? 'The Hollow King stirs once more…' : 'Face the Hollow King — the final battle') : `Locked — defeat all ${BIOMES.length} biome bosses`}</div>
       </div>`;
     el.appendChild(throneCard);
     // Nightmare Dungeon — keyed by Sigils (dropped by bosses)
@@ -10117,7 +10419,7 @@
       <div class="waypoint-glyph" style="color:#ff4d6d;text-shadow:0 0 12px #ff4d6d">${gauntletUnlocked ? '☠' : '🔒'}</div>
       <div class="waypoint-meta">
         <div class="waypoint-name" style="color:${gauntletUnlocked ? '#ffb3c0' : '#9a9ab0'};text-shadow:0 0 8px #ff4d6d">Boss Gauntlet</div>
-        <div class="waypoint-sub">${gauntletUnlocked ? `Six bosses, no rest · Best: ${gBest}/6` : 'Locked — defeat a biome boss first'}</div>
+        <div class="waypoint-sub">${gauntletUnlocked ? `${GAUNTLET_BOSSES.length} bosses, no rest · Best: ${gBest}/${GAUNTLET_BOSSES.length}` : 'Locked — defeat a biome boss first'}</div>
       </div>`;
     el.appendChild(gCard);
     // Daily Challenge — date-seeded run with a once-a-day reward
@@ -10145,26 +10447,6 @@
         <div class="waypoint-sub">${abyssUnlocked ? `Endless · draft a boon each floor · Best: Depth ${abBest}` : 'Locked — defeat the first boss'}</div>
       </div>`;
     el.appendChild(abCard);
-    BIOMES.forEach(b => {
-      const unlocked = game.save.unlockedBiomes[b.id];
-      const card = document.createElement('button');
-      card.className = 'waypoint-card focusable' + (unlocked ? '' : ' locked');
-      if (unlocked) {
-        card.dataset.action = 'travel';
-        card.dataset.biome = b.id;
-      } else {
-        card.tabIndex = -1;
-      }
-      const nameColor = unlocked ? '#ffffff' : '#9a9ab0';
-      card.innerHTML = `
-        <div class="waypoint-glyph" style="color:${b.palette.wall};text-shadow:0 0 12px ${b.palette.wall}">${unlocked ? '✦' : '?'}</div>
-        <div class="waypoint-meta">
-          <div class="waypoint-name" style="color:${nameColor};text-shadow:0 0 6px ${b.palette.wall}">${b.name}</div>
-          <div class="waypoint-sub">${unlocked ? 'Discovered' : 'Locked — defeat boss to unlock'}</div>
-        </div>
-      `;
-      el.appendChild(card);
-    });
   }
 
   function renderBestiary() {
@@ -10272,7 +10554,19 @@
   // ACTIONS (DOM)
   // ============================================================
   function handleAction(action, el) {
+    if (game.screen === 'game' && ['game-interact', 'game-skill', 'game-dash', 'game-potion'].includes(action)) {
+      // A completed action returns directional input to movement. Otherwise Tab
+      // -> Skill -> Enter leaves the player trapped navigating the action rail.
+      game._actionsFocus = false;
+      const interact = screens.game.querySelector('[data-action="game-interact"]');
+      if (interact) interact.focus({ preventScroll: true });
+    }
     switch (action) {
+      case 'game-menu': if (game.screen === 'game') openInGameMenu(); return;
+      case 'game-interact': onPinch(); return;
+      case 'game-skill': if (game.screen === 'game' && game.char.hp > 0) castActiveSkill(); return;
+      case 'game-dash': tryDash(); return;
+      case 'game-potion': if (game.screen === 'game' && game.char.hp > 0) drinkPotion(); return;
       case 'back': navigateBack(); return;
 
       // title
@@ -10280,20 +10574,24 @@
         if (game._cloudPullPending) { showHudToast('Syncing your latest save…'); return; }
         if (!game.save) return;
         loadIntoSession(game.save);
+        game.history = [];
+        if (game.char.hp <= 0) {
+          game._permadeath = !!game.char.hardcore;
+          if (game._permadeath) { onDeath(); return; }
+          navigateTo('death', { addToHistory: false }); return;
+        }
         // Resume at last known location if saved
         const ws = game.save.worldState;
-        if (ws && ws.kind === 'dungeon' && ws.biomeId) {
+        if (ws && ws.kind === 'dungeon' && BIOMES.some(b => b.id === ws.biomeId)) {
           enterBiome(ws.biomeId, ws.floor || 1);
           // restore exact player position within the dungeon
           if (game.world && game.world.player && typeof ws.x === 'number') {
-            game.world.player.x = ws.x;
-            game.world.player.y = ws.y;
-            snapCamera();
+            restorePosition(ws.x, ws.y);
           }
         } else {
           enterTown();
         }
-        return;
+        saveGame(); return;
       case 'title-new':
         navigateTo('class-select'); return;
       case 'title-about':
@@ -10308,15 +10606,18 @@
       // class select
       case 'pick-class': {
         const id = el.dataset.class;
-        game.save = defaultSave(id);
-        loadIntoSession(game.save);
-        game.char.hardcore = _hardcorePick;   // one-life mode chosen on this screen
-        // top up to derived maxima after equipment/stat bonuses applied
-        game.char.hp = game.char.hpMax;
-        game.char.mp = game.char.mpMax;
-        saveGame();
-        revealAct('prologue');   // queue the opening story beat (shown on first town arrival)
-        enterTown();
+        if (!CLASSES[id]) return;
+        const begin = () => {
+          game.world = null; game._permadeath = false; game._pendingAct = null;
+          game.abyss = freshAbyss(); game.gauntlet = null; game.rift = null;
+          game.save = defaultSave(id);
+          loadIntoSession(game.save);
+          game.char.hardcore = _hardcorePick;
+          game.char.hp = game.char.hpMax; game.char.mp = game.char.mpMax;
+          revealAct('prologue'); enterTown();
+        };
+        if (game.save) showDialog({ portrait: '✦', portraitColor: '#ffc857', title: 'Replace this hero?', line: 'Starting a new hero replaces this device’s current character. Export your save first if you want to keep it.', options: [{ label: 'Keep current hero', cb: () => navigateBack() }, { label: 'Start new ' + CLASSES[id].name, cb: begin }] });
+        else begin();
         return;
       }
 
@@ -10431,9 +10732,7 @@
           enterBiome(sd.biomeId, sd.floor);
           // restore player to exact spot
           if (game.world && game.world.player && typeof sd.x === 'number') {
-            game.world.player.x = sd.x;
-            game.world.player.y = sd.y;
-            snapCamera();
+            restorePosition(sd.x, sd.y);
           }
           game.save.savedDungeon = null;
           saveGame();
@@ -10443,7 +10742,8 @@
         return;
       case 'menu-title':
         saveGame();
-        navigateTo('title');
+        game.history = [];
+        navigateTo('title', { addToHistory: false });
         return;
       case 'open-game-menu':
         if (game.screen === 'game') openInGameMenu();
@@ -10568,6 +10868,9 @@
         return;
       case 'picker-submit':
         submitCodePicker();
+        return;
+      case 'picker-slot':
+        if (game.codePicker) { game.codePicker.cursor = clamp(parseInt(el.dataset.index, 10) || 0, 0, PICKER_LEN - 1); renderCodePicker(); }
         return;
 
       // inventory
@@ -10723,7 +11026,7 @@
       case 'victory-return':
         enterTown(); game.history = []; return;
       case 'death-return':
-        if (game._permadeath) { game._permadeath = false; navigateTo('title'); return; }
+        if (game._permadeath) { game._permadeath = false; game.history = []; navigateTo('title', { addToHistory: false }); return; }
         respawn();
         return;
     }
@@ -10741,6 +11044,11 @@
     if (base.base.dmg) baseLines.push(`+${base.base.dmg} damage`);
     if (base.base.def) baseLines.push(`+${base.base.def} armor`);
     if (base.base.mp)  baseLines.push(`+${base.base.mp} mana`);
+    if (base.base.hp) baseLines.push(`+${base.base.hp} life`);
+    const statLabels = { str: 'Strength', int: 'Intellect', dex: 'Dexterity', vit: 'Vitality', crit: 'Crit %', aspd: 'Attack Speed %', res: 'Elemental Resist %' };
+    for (const [key, label] of Object.entries(statLabels)) {
+      if (base.base[key]) baseLines.push(`+${base.base[key]} ${label}`);
+    }
     // Check if this item belongs to a set
     let setInfo = '';
     for (const setId in SETS) {
@@ -10812,6 +11120,7 @@
       <div class="item-type">${base.type} · ilvl ${it.ilvl} · ${it.rarity.toUpperCase()}${it.primal ? ' · <span class="primal-tag">PRIMAL</span>' : ''}</div>
       ${baseLines.map(l => `<div class="item-affix">${l}</div>`).join('')}
       ${(base.type === 'weapon' && weaponElement(it) !== 'physical') ? (function(){ const el = ELEMENTS[weaponElement(it)]; return `<div class="item-affix" style="color:${el.color}">${el.icon} ${el.name} damage</div>`; })() : ''}
+      ${base.type === 'weapon' ? `<div class="item-affix">Attack style follows your ${CLASSES[game.char.classId].name} class.</div>` : ''}
       ${(function(){ const pw = (base.power && POWERS[base.power]) || (it.power && POWERS[it.power]); return pw ? `<div class="item-affix" style="color:#ffd27a">★ ${pw.name} — ${pw.desc}</div>` : ''; })()}
       ${(it.affixes || []).map(a => `<div class="item-affix">+${a.val} ${a.label}</div>`).join('')}
       ${socketInfo}
@@ -11064,7 +11373,7 @@
           ? `Well done! Claim: ${q.rewardGold}g + ${q.rewardXp} XP + bonus item${q.rewardSigil ? ' + a Nightmare Sigil' : ''}.`
           : `Progress: ${q.progress}/${q.required} ${q.targetName}s. Reward: ${q.rewardGold}g + ${q.rewardXp} XP + item${q.rewardSigil ? ' + Sigil' : ''}.`,
         options: done
-          ? [{ label: 'Turn In', cb: () => { turnInQuest(); navigateBack(); } }]
+          ? [{ label: 'Turn In', cb: () => { navigateBack(); turnInQuest(); } }]
           : [{ label: 'Onward', cb: () => navigateBack() }],
       });
     }
@@ -11077,9 +11386,8 @@
     // Bonus item reward for quest completion (magic or rare quality)
     const bonusRarity = roll(0.3) ? 'rare' : 'magic';
     const bonusItem = rollItem(Math.max(1, game.char.level), bonusRarity);
-    if (bonusItem && game.char.inventory.length < inventoryCap()) {
-      game.char.inventory.push(bonusItem);
-    }
+    const rewardToStash = bonusItem && game.char.inventory.length >= inventoryCap();
+    if (bonusItem) (rewardToStash ? game.save.stash : game.char.inventory).push(bonusItem);
     // Some bounties also award a Nightmare Sigil (keys the Nightmare dungeons)
     if (q.rewardSigil) game.char.sigils = (game.char.sigils || 0) + 1;
     game.save.questsCompleted += 1;
@@ -11087,7 +11395,7 @@
     saveGame();
     // Explicit reward breakdown
     const rewardLines = [`+${q.rewardGold} Gold`, `+${q.rewardXp} XP`];
-    if (bonusItem) rewardLines.push(`+ ${bonusItem.name}`);
+    if (bonusItem) rewardLines.push(`+ ${bonusItem.name}${rewardToStash ? ' (sent to stash)' : ''}`);
     if (q.rewardSigil) rewardLines.push('+ Nightmare Sigil');
     showHudToast(`QUEST COMPLETE! ${rewardLines.join(' | ')}`);
   }
@@ -11305,8 +11613,9 @@
     game.char.mp = game.char.mpMax;
     // small gold penalty
     game.char.gold = Math.floor(game.char.gold * 0.85);
-    saveGame();
     enterTown();
+    game.history = [];
+    saveGame();
   }
 
   // ============================================================
@@ -11378,16 +11687,20 @@
     // Validate the inner payload is a real HollowLight save
     let payloadObj;
     try { payloadObj = JSON.parse(parsed.payload); } catch (e) { payloadObj = null; }
-    if (!payloadObj || payloadObj.v !== 2 || !payloadObj.char) {
+    if (!validSavePayload(payloadObj)) {
       showHudToast('Code is not a valid HollowLight save.');
       return;
     }
     // Overwrite localStorage and reload the page so all state is fresh
     try {
-      localStorage.setItem(CFG.storageKey, parsed.payload);
+      game._saveReplacementPending = true;
+      if (window.__CLOUD && window.__CLOUD.cancelPending) window.__CLOUD.cancelPending();
+      payloadObj.t = Date.now(); // an explicit import is the user's newest save choice
+      localStorage.setItem(CFG.storageKey, JSON.stringify(payloadObj));
       showHudToast('Save imported. Reloading...');
       setTimeout(() => location.reload(), 800);
     } catch (e) {
+      game._saveReplacementPending = false;
       showHudToast('Save failed: storage error.');
     }
   }
@@ -11469,14 +11782,18 @@
       }
       let payloadObj;
       try { payloadObj = JSON.parse(wrapper.payload); } catch (e) { payloadObj = null; }
-      if (!payloadObj || payloadObj.v !== 2 || !payloadObj.char) {
+      if (!validSavePayload(payloadObj)) {
         showHudToast('Save payload is invalid.');
         return;
       }
-      localStorage.setItem(CFG.storageKey, wrapper.payload);
+      game._saveReplacementPending = true;
+      if (window.__CLOUD && window.__CLOUD.cancelPending) window.__CLOUD.cancelPending();
+      payloadObj.t = Date.now();
+      localStorage.setItem(CFG.storageKey, JSON.stringify(payloadObj));
       showHudToast('Save imported. Reloading...');
       setTimeout(() => location.reload(), 800);
     } catch (e) {
+      game._saveReplacementPending = false;
       showHudToast('Could not fetch code. Check the code and your connection.');
     }
   }
@@ -11521,8 +11838,10 @@
     const container = document.getElementById('code-picker-slots');
     if (!container) return;
     container.innerHTML = cp.code.map((c, i) =>
-      `<div class="picker-slot ${i === cp.cursor ? 'active' : ''}">${c}</div>`
+      `<button class="picker-slot focusable ${i === cp.cursor ? 'active' : ''}" data-action="picker-slot" data-index="${i}" aria-label="Character ${i + 1}: ${c}">${c}</button>`
     ).join('');
+    const slot = container.children[cp.cursor];
+    if (slot && game.screen === 'code-picker') slot.focus({ preventScroll: true });
     const status = document.getElementById('code-picker-status');
     if (status) status.textContent = game._pickerMode === 'cloud'
       ? `Cloud code — type it, leave extra slots blank (·) · slot ${cp.cursor + 1}/${PICKER_LEN}`
@@ -11543,7 +11862,13 @@
 
   function movePickerCursor(dir) {
     const cp = game.codePicker; if (!cp) return;
-    cp.cursor = Math.max(0, Math.min(cp.code.length - 1, cp.cursor + dir));
+    const next = cp.cursor + dir;
+    if (next < 0 || next >= cp.code.length) {
+      const selector = next < 0 ? '[data-action="back"]' : '[data-action="picker-submit"]';
+      const control = screens['code-picker'].querySelector(selector); if (control) control.focus();
+      return;
+    }
+    cp.cursor = next;
     renderCodePicker();
   }
 
@@ -11572,34 +11897,59 @@
 
     pollGamepad();   // Bluetooth/USB controller -> movement / action / menu (no-op if none)
 
-    if (game.screen === 'game' && game.world && game.char && game.char.hp > 0) {
-      // Auto-play drives the player first; if it descended to a new realm, skip the rest this frame.
-      const apTransitioned = game.char.autoPlay ? autoPlayTick(dt) : false;
-      if (!apTransitioned) {
-      tickPlayer(dt);
-      autoAttackTick(dt);
-      tickEnemies(dt);
-      tickMinions(dt);
-      tickProjectiles(dt);
-      tickTelegraphs(dt);
-      tickSkillEffects(dt);
-      tickEffects(dt);
-      tickAmbient(dt);
-      tickRift(dt);
-      tickGauntlet(dt);
-      tickAmbush(dt);
-      tickInteraction();
-      }   // end !apTransitioned
-      updateCamera();
-      render();
-      // periodic HUD updates
-      if ((frame._hudT = (frame._hudT || 0) + dt) > 0.1) {
-        frame._hudT = 0;
-        updateHud();
-      }
-    }
+    if (!game._testHold) stepSimulation(dt);
+    if (simulationActive()) { updateCamera(); render(); }
     requestAnimationFrame(frame);
   }
+
+  function simulationActive() {
+    return game.screen === 'game' && !game.paused && !game._saveReplacementPending && !document.hidden && game.world && game.char && game.char.hp > 0;
+  }
+  function queueWorldEffect(callback, delay) {
+    const queue = game.scheduledEffects || (game.scheduledEffects = []);
+    if (queue.length < 128) queue.push({ callback, world: game.world, at: game.simTime + delay });
+  }
+  function stepSimulation(dt) {
+    if (!simulationActive() || !(dt > 0)) return;
+    const world = game.world;
+    game.simTime += dt * 1000;
+    game.timeInZone += dt;
+    const queue = game.scheduledEffects || [];
+    for (let i = queue.length - 1; i >= 0; i--) {
+      const effect = queue[i];
+      if (effect.world !== game.world) { queue.splice(i, 1); continue; }
+      if (effect.at <= game.simTime) { queue.splice(i, 1); effect.callback(); }
+      if (!simulationActive() || game.world !== world) return;
+    }
+    if (game.char.autoPlay && autoPlayTick(dt)) return;
+    for (const tick of [tickPlayer, autoAttackTick, tickEnemies, tickMinions, tickProjectiles, tickTelegraphs, tickSkillEffects, tickEffects, tickAmbient, tickRift, tickGauntlet, tickAmbush, tickInteraction]) {
+      if (!simulationActive() || game.world !== world) break;
+      tick(dt);
+    }
+    if ((frame._hudT = (frame._hudT || 0) + dt) > 0.1) { frame._hudT = 0; updateHud(); }
+  }
+  function renderGameToText() {
+    const w = game.world, p = w && w.player, c = game.char;
+    const n = v => Number.isFinite(v) ? Math.round(v * 100) / 100 : null;
+    const pos = o => ({ x: n(o.x), y: n(o.y) });
+    const near = rows => p ? rows.filter(o => dist(o, p) < 12).sort((a, b) => dist(a, p) - dist(b, p)).slice(0, 16) : [];
+    const interaction = game.nearbyNpc ? { type: 'npc', name: game.nearbyNpc.name } : game.nearbyPortal ? { type: 'portal', kind: game.nearbyPortal.kind, locked: !!game.nearbyPortal.locked } : game.nearbyShrine ? { type: 'shrine', kind: game.nearbyShrine.type } : { type: 'skill', name: c ? getActiveSkillId() : null };
+    return JSON.stringify({ screen: game.screen, paused: !simulationActive(), coordinates: 'Tiles: x increases right/east, y increases down/south; origin is the upper-left grid corner.', zone: w ? { name: w.name, kind: w.kind, biome: game.activeBiomeId, floor: game.activeFloor, width: w.w, height: w.h } : null,
+      player: p && c ? { ...pos(p), radius: 0.22, class: c.classId, hp: n(c.hp), hpMax: c.hpMax, mana: n(c.mp), level: c.level, xp: c.xp, gold: c.gold, potions: c.potions, inventory: c.inventory.length, dashCooldown: n(p.dashCd || 0), skillCooldown: n(p.skillCd), facing: p.lastDir } : null,
+      enemies: near(game.enemies).map(e => ({ name: e.name, ...pos(e), hp: n(e.hp), boss: !!e.boss })),
+      loot: near(game.items).map(o => ({ name: o.item && o.item.name, ...pos(o) })),
+      portals: w ? w.portals.map(o => ({ ...pos(o), kind: o.kind, locked: !!o.locked })) : [],
+      npcs: w && w.npcs ? w.npcs.map(o => ({ name: o.name, x: o.x + 0.5, y: o.y + 0.5 })) : [],
+      interaction, quest: game.save && game.save.quest ? { name: game.save.quest.name, progress: game.save.quest.progress, required: game.save.quest.required } : null,
+      focus: document.activeElement && (document.activeElement.dataset.action || document.activeElement.textContent || '').trim().slice(0, 100), simulatedSeconds: n(game.simTime / 1000) });
+  }
+  window.render_game_to_text = renderGameToText;
+  window.advanceTime = ms => {
+    let seconds = clamp(Number(ms) || 0, 0, 60000) / 1000;
+    while (seconds > 0) { const dt = Math.min(1 / 60, seconds); stepSimulation(dt); seconds -= dt; }
+    if (simulationActive()) { updateCamera(); render(); updateHud(); }
+    return renderGameToText();
+  };
 
   // ============================================================
   // INIT
@@ -11642,18 +11992,28 @@
       // cloud-write-reduce-v1 — lifecycle flushes + safety net so a tab hard-killed
       // without a visibility event still syncs, and idle changes eventually reach cloud.
       document.addEventListener('visibilitychange', function () {
-        if (document.hidden) { try { saveGame(); window.__CLOUD.push(game.save, true); } catch (e) {} }
+        if (document.hidden && !game._saveReplacementPending) { try { saveGame(); window.__CLOUD.push(game.save, true); } catch (e) {} }
       });
       window.addEventListener('pagehide', function () {
-        try { saveGame(); window.__CLOUD.push(game.save, true); } catch (e) {}
+        try { if (!game._saveReplacementPending) { saveGame(); window.__CLOUD.push(game.save, true); } } catch (e) {}
       });
       // 5-min safety-net: pushes any unsynced change even with no user action to trigger it.
       setInterval(function () {
-        try { if (window.__CLOUD && window.__CLOUD.enabled) window.__CLOUD.push(game.save); } catch (e) {}
+        try { if (!game._saveReplacementPending && window.__CLOUD && window.__CLOUD.enabled) window.__CLOUD.push(game.save); } catch (e) {}
       }, 300000);
     }
     // expose for debugging (old alias kept for back-compat)
-    window.__hollowlight = window.__glasspire = { game, enterBiome, enterTown, CLASSES, BIOMES };
+    window.__hollowlight = window.__glasspire = { game, enterBiome, enterTown, CLASSES, BIOMES, validSavePayload };
+    if (['localhost', '127.0.0.1', '[::1]'].includes(location.hostname) && new URLSearchParams(location.search).has('test')) {
+      window.__hollowlight.test = {
+        hold: value => { game._testHold = !!value; },
+        start: classId => { if (!CLASSES[classId]) throw new Error('Unknown class'); game.world = null; game.save = defaultSave(classId); loadIntoSession(game.save); game.char.hp = game.char.hpMax; game.char.mp = game.char.mpMax; enterTown(); },
+        damage: value => damagePlayer(clamp(Number(value) || 0, 0, 1000000)),
+        makeEnemy: (id, x, y) => { if (!ENEMIES[id] || !Number.isFinite(x) || !Number.isFinite(y)) throw new Error('Invalid enemy fixture'); return makeEnemy(id, x, y, 1); },
+        item: (baseId) => { if (!ITEM_BASES[baseId]) throw new Error('Unknown item'); return makeStarterItem(baseId); },
+        save: saveGame, interact: tickInteraction, canStand: canStandAt, restore: restorePosition,
+      };
+    }
   }
 
   // Data shim for the optional WebGL 3D renderer (render3d.js). Set at top-level so it

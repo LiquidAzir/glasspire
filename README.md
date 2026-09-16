@@ -23,11 +23,13 @@ Combo gestures (deliberate multi-tap patterns):
 2. In the Render dashboard → **New +** → **Static Site**.
 3. Connect the repo and pick this directory as the root.
 4. Settings:
-   - **Build command:** *(leave empty)*
-   - **Publish directory:** `.`
+   - **Build command:** `node scripts/build-static.cjs`
+   - **Publish directory:** `dist`
 5. Click **Create Static Site**. Done in ~30s — you get a URL like `https://hollowlight.onrender.com`.
 
 The bundled `render.yaml` lets Render auto-detect these settings if you use Infrastructure as Code.
+
+The existing production site is `https://glasspire.onrender.com`. The build publishes only the game runtime and assets, adds content-versioned asset URLs, and writes a public `release.json` manifest for deployment verification. Tests, editable Blender sources and local development files are excluded. Keep the configured `Cache-Control: public, max-age=0, must-revalidate` header when updating the service. Existing save keys and personal sync-link parameters are retained.
 
 ## Add to the glasses
 
@@ -54,7 +56,8 @@ Unlock in order by beating each boss:
 2. **Overgrown Ruins** — spiders, thornlings, wisps · boss: Old Druid
 3. **Frozen Peaks** — frostwolves, frost giants, ice bats · boss: Ice Wyrm
 4. **Infernal Depths** — imps, hellhounds, demons · boss: Archdemon
-5. **The Void Spire** — voidlings, nullweavers, crystal sentinels · boss: Void Lord
+5. **The Tempest Reach** — storm creatures · boss: Storm Sovereign
+6. **The Void Spire** — voidlings, nullweavers, crystal sentinels · boss: Void Lord
 
 ## Debug
 

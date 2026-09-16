@@ -1,5 +1,5 @@
 // =============================================================
-// HollowLight — WebGL 3D renderer (top-down). Opt-in via ?gl=1
+// HollowLight — lightweight WebGL 3D renderer. Default; opt out with ?gl=0
 // Replaces ONLY the Canvas2D draw layer. All game logic lives in app.js.
 // See RENDER3D_PLAN.md. app.js stays an IIFE and talks to us via
 // window.__GL (facade) + window.__GL_DATA (data shim).
@@ -7,6 +7,8 @@
 // =============================================================
 import * as THREE from 'three';
 import * as Builders from './builders.js';
+import {loadArt,artReady,artModel,buildHero,buildGate,compactObject,compactBuilder,releaseCompact,artStats} from './spire-art.js';
+import {buildWorldArt} from './spire-world.js';
 
 // 3D is the default renderer. Opt out with the in-game toggle (localStorage
 // hl_render='2d') or ?gl=0; ?gl / ?gl=1 forces it on regardless.
@@ -21,16 +23,49 @@ const SPAN = 600 / TILE;          // 21.4286 tiles across the viewport
 const HALF = SPAN / 2;
 const TILT = THREE.MathUtils.degToRad(45);   // camera tilt from straight-down (0 = pure top-down; higher = more angled, shows wall faces + character fronts)
 const ORTHO_DIST = 60;            // ortho: distance is arbitrary, doesn't change scale
-const WALLH = 0.9;                // wall height in world units (1 unit = 1 tile)
 
 // ---- module state ----
 let renderer = null, scene = null, cam = null;
-let worldGroup = null;            // merged floor+walls+decor mesh (one draw call), rebuilt per zone
+let worldGroup = null;            // chunked floor/walls/Blender decor, rebuilt per zone
 let torch = null;                 // player torch blob
 let playerMesh = null;            // armored player rig
 let overlayCtx = null;            // crisp 2D overlay canvas (HP bars projected over the 3D models)
 let DATA = {};                    // window.__GL_DATA
+let groundShadows = null;
+const shadowMatrix = new THREE.Matrix4();
 const _color = new THREE.Color();
+const fogCenter = new THREE.Vector2();
+const foggedMaterials = new WeakSet();
+let overlayBoundsDirty = true, overlayObstacles = [];
+window.addEventListener('resize', () => { overlayBoundsDirty = true; });
+function updateOverlayBounds() {
+  if (!overlayBoundsDirty || !overlayCtx) return;
+  const rect = overlayCtx.canvas.getBoundingClientRect();
+  if (!rect.width || !rect.height) return;
+  const sx = 600 / rect.width, sy = 600 / rect.height;
+  overlayObstacles = ['hud-zone', 'minimap'].map(id => document.getElementById(id)).filter(Boolean).map(el => {
+    const r = el.getBoundingClientRect();
+    return { left:(r.left-rect.left)*sx-5, right:(r.right-rect.left)*sx+5, top:(r.top-rect.top)*sy-5, bottom:(r.bottom-rect.top)*sy+5 };
+  });
+  overlayBoundsDirty = false;
+}
+// Ground-distance fog avoids dimming the whole scene because the orthographic
+// camera is sixty units above it. This retains a gentle fade around the hero.
+function applyWorldFog(root) {
+  root.traverse(o => {
+    for (const material of (Array.isArray(o.material) ? o.material : [o.material])) {
+      if (!material || !material.fog || foggedMaterials.has(material)) continue;
+      foggedMaterials.add(material);
+      material.onBeforeCompile = shader => {
+        shader.uniforms.spireFogCenter = { value: fogCenter };
+        shader.vertexShader = 'uniform vec2 spireFogCenter;\n' + shader.vertexShader;
+        shader.vertexShader = shader.vertexShader.replace('#include <fog_vertex>', '#ifdef USE_FOG\nvec4 spireWorld = modelMatrix * vec4(transformed, 1.0);\nvFogDepth = length(spireWorld.xz - spireFogCenter);\n#endif');
+      };
+      material.customProgramCacheKey = () => 'spire-ground-fog-v1';
+      material.needsUpdate = true;
+    }
+  });
+}
 
 // ---- the facade app.js sees ----
 const GL = {
@@ -48,6 +83,8 @@ window.__GL = GL;
 let _frames = 0;
 GL._dbg = () => ({
   frames: _frames,
+  rendererInfo: renderer ? {calls:renderer.info.render.calls,triangles:renderer.info.render.triangles,geometries:renderer.info.memory.geometries,textures:renderer.info.memory.textures} : null,
+  art: artStats(),
   sceneChildren: scene ? scene.children.length : 0,
   worldVerts: worldGroup && worldGroup.children[0] && worldGroup.children[0].geometry
     ? worldGroup.children[0].geometry.getAttribute('position').count : 0,
@@ -104,8 +141,10 @@ function init() {
   scene = new THREE.Scene();
   scene.fog = new THREE.FogExp2(0x000000, 0.04);   // black fog = edge fade to transparent (the vignette)
 
-  // tilted orthographic camera; vertical frustum divided by cos(tilt) to keep ~28px/tile after foreshortening
-  const vt = HALF / Math.cos(TILT);
+  // Ground tiles must project to 28px on BOTH axes, matching movement, the 2D
+  // fallback and overlay coordinates. Dividing here flattened the world to half
+  // height and made every 3D hero and doorway appear tiny.
+  const vt = HALF * Math.cos(TILT);
   cam = new THREE.OrthographicCamera(-HALF, HALF, vt, -vt, 0.1, 200);
 
   // player torch blob — a warm additive radial glow on the ground
@@ -133,6 +172,7 @@ function updateCamera3D(game) {
   const cx = game.cam.x + HALF;     // view-center in world tiles (matches drawWorld window)
   const cz = game.cam.y + HALF;
   _viewCX = cx; _viewCZ = cz;
+  fogCenter.set(game.world.player.x,game.world.player.y);
   // shared screen-shake set by app.js render() (px) → world units
   const sx = (game._shakeX || 0) / TILE;
   const sz = (game._shakeY || 0) / TILE;
@@ -141,21 +181,23 @@ function updateCamera3D(game) {
 }
 
 // =============================================================
-// WORLD GEOMETRY — built once per zone, one merged mesh (1 draw call)
+// WORLD GEOMETRY — baked once per zone with off-screen chunk culling
 // =============================================================
 function onZoneChange(world) {
   if (!renderer) return;
+  overlayBoundsDirty = true;
   for (const L of ALL_LAYERS) L.clear();           // drop the previous zone's entities
   if (overlayCtx) overlayCtx.clearRect(0, 0, 600, 600);
-  if (townGroup) { scene.remove(townGroup); townGroup = null; }   // cached resources — remove, don't dispose
+  if (townGroup) { scene.remove(townGroup); releaseCompact(townGroup); townGroup = null; }
   disposeWorld();
   if (!world || !world.grid) return;
-  worldGroup = buildWorld(world);
+  worldGroup = buildWorldArt(world);
+  applyWorldFog(worldGroup);
   scene.add(worldGroup);
   townGroup = buildTownFeatures(world);
-  if (townGroup) scene.add(townGroup);
+  if (townGroup) { applyWorldFog(townGroup); scene.add(townGroup); }
   // fog density: dungeons a touch tighter, town airier (lower = brighter, more visible)
-  scene.fog.density = world.kind === 'town' ? 0.026 : 0.042;
+  scene.fog.density = world.kind === 'town' ? 0.038 : 0.065;
 }
 
 function disposeWorld() {
@@ -168,132 +210,6 @@ function disposeWorld() {
   worldGroup = null;
 }
 
-// Per-biome baked art profile: a glowing wall-base band, a floor motif, and decor
-// colour. All of this is baked ONCE into the merged world mesh (no per-frame cost),
-// and every colour is emissive/bright so it reads as light on the additive panel.
-const BIOME_ART = {
-  crypts:     { trim: '#79dcff', motif: 'runes', mcol: '#9fe4ff', mb: 1.0,  dens: 0.20 },
-  overgrowth: { trim: '#6bffab', motif: 'moss',  mcol: '#a6ff7a', mb: 0.85, dens: 0.30 },
-  frostpeak:  { trim: '#d2eeff', motif: 'ice',   mcol: '#eaf7ff', mb: 1.05, dens: 0.26 },
-  infernal:   { trim: '#ff8a3c', motif: 'lava',  mcol: '#ffb047', mb: 1.2,  dens: 0.26 },
-  tempest:    { trim: '#8fc4ff', motif: 'arc',   mcol: '#ffe066', mb: 1.15, dens: 0.22 },
-  voidspire:  { trim: '#c49bff', motif: 'rift',  mcol: '#d8a9ff', mb: 1.05, dens: 0.24 },
-  town:       { trim: '#ffcf8a', motif: 'inlay', mcol: '#ffe1a6', mb: 0.8,  dens: 0.16 },
-};
-
-function buildWorld(world) {
-  const grid = world.grid, W = world.w, H = world.h;
-  const pal = world.palette || { wall: '#6df1ff', floor: '#221a14', accent: '#6df1ff' };
-  // derive colors (emissive on additive). Gothic look: visible floor, bright torch-lit
-  // wall tops, and wall sides bright enough to read as stone (not a black void).
-  const floorCol = mul(pal.floor, 2.15);
-  const wallTop = mul(pal.wall, 1.05);
-  const wallSide = mul(pal.wall, 0.46);
-  const art = BIOME_ART[world.biomeId] || (world.kind === 'town' ? BIOME_ART.town
-    : { trim: pal.accent, motif: 'runes', mcol: pal.accent, mb: 1.0, dens: 0.2 });
-  const trimCol = mul(art.trim, 0.9);   // glowing skirting where wall meets floor
-  const BAND = 0.18;                     // height of that base band
-
-  const isFloor = (x, y) => y >= 0 && y < H && x >= 0 && x < W && grid[y][x] === 0;
-  const pos = [], col = [];
-
-  function quad(ax, ay, az, bx, by, bz, cx, cy, cz, dx, dy, dz, c) {
-    // two tris (a,b,c) (a,c,d); DoubleSide material so winding never matters in Stage 1
-    pos.push(ax, ay, az, bx, by, bz, cx, cy, cz, ax, ay, az, cx, cy, cz, dx, dy, dz);
-    for (let i = 0; i < 6; i++) col.push(c.r, c.g, c.b);
-  }
-  // deterministic 0..1 hash so baked detail is stable across rebuilds (no flicker).
-  function h01(x, y, s) { const n = (((x * 73856093) ^ (y * 19349663) ^ (s * 83492791)) >>> 0); return (n % 10000) / 10000; }
-  // a thin bright quad lying flat on the floor, centred at (cx,cz), rotated by `ang`.
-  function floorBar(cx, cz, ang, hl, hw, yy) {
-    const dx = Math.cos(ang), dz = Math.sin(ang), px = -dz, pz = dx;
-    quad(cx + dx * hl + px * hw, yy, cz + dz * hl + pz * hw,
-         cx + dx * hl - px * hw, yy, cz + dz * hl - pz * hw,
-         cx - dx * hl - px * hw, yy, cz - dz * hl - pz * hw,
-         cx - dx * hl + px * hw, yy, cz - dz * hl + pz * hw, _color);
-  }
-  // a wall side face split into a bright base band + the normal upper wall (no z-fight).
-  function sideFace(x0, z0, x1, z1) {
-    _color.set(trimCol);
-    quad(x0, 0, z0,  x1, 0, z1,  x1, BAND, z1,  x0, BAND, z0, _color);
-    _color.set(wallSide).multiplyScalar(0.9 + h01(x0, z0, 7) * 0.22);
-    quad(x0, BAND, z0,  x1, BAND, z1,  x1, WALLH, z1,  x0, WALLH, z0, _color);
-  }
-  // biome-specific glowing motif baked onto a floor tile.
-  function floorMotif(x, y) {
-    if (h01(x, y, 1) >= art.dens) return;
-    _color.set(art.mcol).multiplyScalar(art.mb * (0.7 + h01(x, y, 5) * 0.5));
-    const cx = x + 0.5, cz = y + 0.5, a = h01(x, y, 2) * Math.PI, yy = 0.03;
-    switch (art.motif) {
-      case 'lava': case 'rift':            // molten / void seams cracking the floor
-        floorBar(cx, cz, a, 0.34, 0.035, yy);
-        if (h01(x, y, 3) < 0.45) floorBar(cx + 0.08, cz + 0.08, a + 0.6, 0.2, 0.03, yy);
-        break;
-      case 'arc':                          // a jagged crackle of stored lightning
-        floorBar(cx - 0.12, cz - 0.05, a, 0.18, 0.028, yy);
-        floorBar(cx + 0.1, cz + 0.06, a + 0.9, 0.16, 0.028, yy);
-        break;
-      case 'ice':                          // a frost star
-        floorBar(cx, cz, a, 0.3, 0.03, yy);
-        floorBar(cx, cz, a + Math.PI / 2, 0.3, 0.03, yy);
-        break;
-      case 'moss': case 'inlay':           // a soft glowing patch / tile inlay
-        floorBar(cx, cz, a, 0.17, 0.15, yy);
-        break;
-      default:                             // 'runes' — a small carved ring
-        floorBar(cx, cz - 0.18, 0, 0.18, 0.028, yy);
-        floorBar(cx, cz + 0.18, 0, 0.18, 0.028, yy);
-        floorBar(cx - 0.18, cz, Math.PI / 2, 0.18, 0.028, yy);
-        floorBar(cx + 0.18, cz, Math.PI / 2, 0.18, 0.028, yy);
-        break;
-    }
-  }
-
-  for (let y = 0; y < H; y++) {
-    for (let x = 0; x < W; x++) {
-      const g = grid[y][x];
-      if (g === 0) {
-        // floor quad at y=0 with a faint per-tile brightness variation
-        const h = ((x * 73 + y * 41) & 7) / 7;
-        _color.set(floorCol).multiplyScalar(0.9 + h * 0.2);
-        quad(x, 0, y,  x + 1, 0, y,  x + 1, 0, y + 1,  x, 0, y + 1, _color);
-        floorMotif(x, y);                  // baked biome detail on top
-      } else if (g === 1) {
-        const nearFloor = isFloor(x, y - 1) || isFloor(x, y + 1) || isFloor(x - 1, y) || isFloor(x + 1, y);
-        if (!nearFloor) continue;
-        // roof (top face) — faint per-tile variation so long walls aren't dead-flat
-        _color.set(wallTop).multiplyScalar(0.82 + h01(x, y, 9) * 0.32);
-        quad(x, WALLH, y,  x + 1, WALLH, y,  x + 1, WALLH, y + 1,  x, WALLH, y + 1, _color);
-        // floor-facing side faces (3D walls) — each gets a glowing base band
-        if (isFloor(x, y + 1)) sideFace(x, y + 1, x + 1, y + 1);  // south
-        if (isFloor(x, y - 1)) sideFace(x, y,     x + 1, y);      // north
-        if (isFloor(x - 1, y)) sideFace(x, y,     x, y + 1);      // west
-        if (isFloor(x + 1, y)) sideFace(x + 1, y, x + 1, y + 1);  // east
-      } else if (g === 2) {
-        // decor: a glowing biome-coloured obelisk with a bright cap
-        const dh = WALLH * 0.78;
-        _color.set(art.mcol).multiplyScalar(0.95);
-        quad(x + 0.3, 0, y + 0.3,  x + 0.7, 0, y + 0.3,  x + 0.7, dh, y + 0.3,  x + 0.3, dh, y + 0.3, _color);  // north
-        quad(x + 0.3, 0, y + 0.7,  x + 0.7, 0, y + 0.7,  x + 0.7, dh, y + 0.7,  x + 0.3, dh, y + 0.7, _color);  // south
-        quad(x + 0.3, 0, y + 0.3,  x + 0.3, 0, y + 0.7,  x + 0.3, dh, y + 0.7,  x + 0.3, dh, y + 0.3, _color);  // west
-        quad(x + 0.7, 0, y + 0.3,  x + 0.7, 0, y + 0.7,  x + 0.7, dh, y + 0.7,  x + 0.7, dh, y + 0.3, _color);  // east
-        _color.set(art.mcol).multiplyScalar(1.45);   // bright cap glow
-        quad(x + 0.28, dh, y + 0.28,  x + 0.72, dh, y + 0.28,  x + 0.72, dh, y + 0.72,  x + 0.28, dh, y + 0.72, _color);
-      }
-    }
-  }
-
-  const geo = new THREE.BufferGeometry();
-  geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
-  geo.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
-  const mat = new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.DoubleSide, fog: true });
-  const mesh = new THREE.Mesh(geo, mat);
-  mesh.frustumCulled = false;
-  const grp = new THREE.Group();
-  grp.add(mesh);
-  return grp;
-}
-
 // =============================================================
 // PLAYER — armored rig from builders.js. Tinted to class colour, with the
 // equipped weapon model, rarity-coloured trim, and gear-look cosmetics.
@@ -304,15 +220,17 @@ const RANK = () => DATA.RARITY_RANK || { common: 0, magic: 1, rare: 2, unique: 3
 
 function ensurePlayer(char) {
   const classId = (char && char.classId) || 'warrior';
-  if (playerMesh && playerMesh.userData.classId === classId) return;
+  if (playerMesh && playerMesh.userData.classId === classId && !!playerMesh.userData.bakedArt === !!artModel('hero_core_' + classId)) return;
   if (playerMesh) { scene.remove(playerMesh); playerMesh = null; }   // class changed (new game) -> rebuild
   const fn = Builders['buildPlayer_' + classId] || Builders.buildPlayer;
-  playerMesh = fn({ classId });
+  playerMesh = buildHero(classId) || fn({ classId });
   const u = playerMesh.userData;
   u.classId = classId;
   u.equipKey = '';
+  u.weaponBasePosition = u.weaponMount.position.clone();
+  u.weaponBaseScale = u.weaponMount.scale.clone();
   if (u.eyeMat) u.eyeMat.color.set('#d6f4ff');       // constant — set once
-  scene.add(playerMesh);
+  applyWorldFog(playerMesh); scene.add(playerMesh);
 }
 
 function weaponKindFor(char) {
@@ -377,8 +295,8 @@ function syncPlayer(game, now) {
   const key = [char && char.classId, accent, wKind, wColor, wFx, wTier, wPrism, aBody, ac, aTier, aPrism, top, mog.weapon, mog.armor].join('|');
   if (key !== ud.equipKey) {
     ud.equipKey = key;
-    ud.bodyMat.color.set((cls && cls.color) || '#8899aa').multiplyScalar(0.85); // gothic: darkened armour
-    ud.trimMat.color.set(accent);
+    if (ud.bodyMat) ud.bodyMat.color.set((cls && cls.color) || '#8899aa').multiplyScalar(0.85); // gothic: darkened armour
+    if (ud.trimMat) ud.trimMat.color.set(accent);
     // weapon — type + tier + element + prismatic
     clearMount(ud.weaponMount);
     ud.weaponMount.add((Builders['buildWeapon_' + wKind] || Builders.buildWeapon_sword)({ color: wColor, fx: wFx, tier: wTier, prismatic: wPrism }));
@@ -395,18 +313,21 @@ function syncPlayer(game, now) {
     // legendary / mythic character aura at the feet
     clearMount(ud.auraMount);
     if (top >= 3 && Builders.buildAura) ud.auraMount.add(Builders.buildAura({ color: accent, prismatic: top >= 4, tier: top }));
+    applyWorldFog(pm);
   }
 
   // --- reset transient cast transforms (cast anims mutate these; nothing else does) ---
   pm.rotation.x = 0; pm.rotation.z = 0; pm.scale.setScalar(1);
   ud.weaponMount.rotation.set(0, 0, 0);
+  ud.weaponMount.position.copy(ud.weaponBasePosition);
+  ud.weaponMount.scale.copy(ud.weaponBaseScale);
 
   // --- position, facing, bob + walk cycle ---
   const dx = p.x - (ud.lastX == null ? p.x : ud.lastX);
   const dy = p.y - (ud.lastY == null ? p.y : ud.lastY);
   ud.lastX = p.x; ud.lastY = p.y;
   const moving = Math.hypot(dx, dy) > 0.002;
-  const bob = Math.sin(now / 200) * (moving ? 0.06 : 0.03);
+  const bob = 0.04 + Math.abs(Math.sin(now / 200)) * (moving ? 0.04 : 0.012);
   pm.position.set(p.x, bob, p.y);
   const d = p.lastDir || { x: 0, y: 1 };
   if (d.x || d.y) pm.rotation.y = Math.atan2(d.x, d.y);
@@ -429,11 +350,15 @@ function syncPlayer(game, now) {
       clearMount(ud.castFxMount);
       const fxFn = Builders['buildCastFx_' + cast.id];
       if (fxFn) { try { ud.castFxMount.add(fxFn({ color: cast.color })); } catch (e) {} }
+      applyWorldFog(ud.castFxMount);
     }
     ud.castFxMount.visible = true;
     // body animation — rig manipulation (spin, leap, lunge, raise…)
     const animFn = Builders.CAST_ANIMS && Builders.CAST_ANIMS[cast.id];
     if (animFn) { try { animFn(prog, pm, ud, now, moving); } catch (e) {} }
+    // Older cast choreography positions a root-level weapon. Art-kit weapons
+    // now follow the wrist, so the animated arm owns their position instead.
+    if (ud.bakedArt) ud.weaponMount.position.copy(ud.weaponBasePosition);
     // drive flourish children by cast progress (deterministic 0..1)
     for (const ch of ud.castFxMount.children) if (ch.userData && ch.userData.castAnim) { try { ch.userData.castAnim(ch, prog, now); } catch (e) {} }
   } else if (ud.castFxUid != null) {
@@ -458,7 +383,7 @@ function makeTorch() {
   grd.addColorStop(1, 'rgba(255,150,70,0)');
   g.fillStyle = grd; g.fillRect(0, 0, 128, 128);
   const tex = new THREE.CanvasTexture(c);
-  const mat = new THREE.MeshBasicMaterial({ map: tex, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, fog: false });
+  const mat = new THREE.MeshBasicMaterial({ map: tex, transparent: true, opacity: 0.2, blending: THREE.AdditiveBlending, depthWrite: false, fog: false });
   const m = new THREE.Mesh(new THREE.PlaneGeometry(17, 17), mat);
   m.rotation.x = -Math.PI / 2;     // lie flat on the ground
   m.position.y = 0.04;
@@ -471,7 +396,24 @@ function updateTorch(game) {
   const p = game.world.player;
   const town = game.world.kind === 'town';
   torch.position.set(p.x, 0.04, p.y);
-  torch.scale.setScalar(town ? 1.6 : 1.0);
+  torch.scale.setScalar(town ? 1.05 : 0.8);
+}
+
+// One inexpensive contact-shadow draw anchors every visible character to the
+// floor. These are flat silhouettes, not real-time shadow maps.
+function updateGroundShadows(game) {
+  if(!groundShadows){
+    const geometry=new THREE.CircleGeometry(1,12);geometry.rotateX(-Math.PI/2);
+    const material=new THREE.MeshBasicMaterial({color:0x06080c,transparent:true,opacity:.32,depthWrite:false});
+    groundShadows=new THREE.InstancedMesh(geometry,material,96);groundShadows.frustumCulled=false;scene.add(groundShadows);
+  }
+  let count=0;
+  const add=(x,z,r)=>{if(count>=96||Math.abs(x-_viewCX)>HALF+2||Math.abs(z-_viewCZ)>HALF+3)return;shadowMatrix.makeScale(r,1,r*.72);shadowMatrix.setPosition(x,.037,z);groundShadows.setMatrixAt(count++,shadowMatrix);};
+  add(game.world.player.x,game.world.player.y,.43);
+  for(const e of game.enemies||[])if(e.hp>0)add(e.x,e.y,e.boss?.8:.4);
+  for(const e of game.world.npcs||[])add(e.x+.5,e.y+.5,.4);
+  for(const e of game.minions||[])add(e.x,e.y,.32);
+  groundShadows.count=count;groundShadows.instanceMatrix.needsUpdate=true;
 }
 
 // =============================================================
@@ -481,7 +423,21 @@ function updateTorch(game) {
 // =============================================================
 const _uidMap = new WeakMap(); let _uidSeq = 0;
 function uid(e) { let id = _uidMap.get(e); if (id === undefined) { id = ++_uidSeq; _uidMap.set(e, id); } return id; }
-function builderFor(fn) { return typeof Builders[fn] === 'function' ? Builders[fn] : Builders.buildPlaceholder; }
+function builderFor(fn) {
+  const original=typeof Builders[fn]==='function'?Builders[fn]:Builders.buildPlaceholder;
+  const named={buildEnemy_skeleton:'skeleton',buildEnemy_hunched:'ghoul',buildEnemy_ghost:'wraith',buildProp_shrine:'shrine'}[fn];
+  return opts=>{
+    if(fn==='buildProp_portal'&&artReady())return buildGate(opts.color)||compactBuilder(fn,original,opts);
+    if(fn==='buildNpc'&&artReady()){
+      if(opts.role==='waypoint'){const stone=artModel('shrine');if(stone){const g=new THREE.Group();g.add(stone);return g;}}
+      const roles={vendor:'ranger',stash:'mage',quests:'paladin',mystery:'summoner',mercenary:'warrior',gambler:'ranger'};
+      const classId=roles[opts.role]||'warrior';
+      return compactBuilder('npc-art-'+classId,()=>buildHero(classId),{});
+    }
+    if(named&&artReady()){const mesh=artModel(named);if(mesh){const g=new THREE.Group();g.add(mesh);return g;}}
+    return compactBuilder(fn,original,opts);
+  };
+}
 const _warned = new Set();
 const _proj = new THREE.Vector3();
 function projectToScreen(x, y, z) {
@@ -509,7 +465,7 @@ function makeLayer(sigFn, descFn, sync) {
           let obj;
           try { obj = d.factory ? d.factory(d.opts || {}) : builderFor(d.fn)(d.opts || {}); }
           catch (err) { if (!_warned.has(d.fn)) { _warned.add(d.fn); console.warn('[3D] builder failed:', d.fn, err.message); } obj = Builders.buildPlaceholder(d.opts || {}); }
-          scene.add(obj);
+          applyWorldFog(obj); scene.add(obj);
           slot = { obj, sig, lx: e.x, lz: e.y, phase: (id % 16) * 0.39 };
           pool.set(id, slot);
         }
@@ -552,7 +508,7 @@ const enemyLayer = makeLayer(
   e => (e.shape || 'skeleton') + (e.boss ? 'B' : '') + (e.elite ? 'E' : '') + (e.eliteColor || e.color || ''),
   e => ({ fn: 'buildEnemy_' + (e.shape || 'skeleton'), opts: { color: e.eliteColor || e.color || '#cfcfcf' } }),
   (slot, e, now) => {
-    place(slot, e, now, 0, e.shape === 'plant' ? 0 : 0.03);
+    place(slot, e, now, 0.055, e.shape === 'plant' ? 0 : 0.015);
     slot.obj.scale.setScalar(e.boss ? 1.6 : (e.champion ? 1.42 : (e.elite ? 1.18 : (e.hazard ? 0.85 : (e._isSplit ? 0.7 : 1)))));
   }
 );
@@ -580,8 +536,8 @@ const shrineLayer = makeLayer(
 );
 const npcLayer = makeLayer(
   e => 'npc' + (e.role || e.name || ''),
-  e => ({ fn: 'buildNpc', opts: { color: e.color || '#ffd9a0' } }),
-  (slot, e, now) => place(slot, e, now, 0, 0.025, 0.5, 0.5)   // NPC coords are tile corners -> center
+  e => ({ fn: 'buildNpc', opts: { role:e.role, color: e.color || '#ffd9a0' } }),
+  (slot, e, now) => place(slot, e, now, 0.055, 0.015, 0.5, 0.5)   // NPC coords are tile corners -> center
 );
 // projectiles — pooled glowing models, oriented to travel direction, mid-air
 const PROJ_FN = { arrow: 'buildProjectile_arrow', bolt: 'buildProjectile_bolt', bone: 'buildProjectile_bone' };
@@ -727,10 +683,8 @@ function buildTownFeatures(world) {
   // corner braziers (kept from before — extra warm light)
   for (const b of [[3, 3], [17, 3], [3, 13], [17, 13]]) place('buildDecor', b[0] + 0.5, b[1] + 0.5, 0, '#ff9a3c');
 
-  const anims = [];
-  g.traverse(o => { if (o.userData && o.userData.anim) anims.push(o); });
-  g.userData.tick = (now) => { for (const o of anims) o.userData.anim(o, now); };
-  return g;
+  // Static architecture: three blend groups replace hundreds of separate meshes.
+  return compactObject(g);
 }
 
 // ---- perf governor: drop expensive per-model anims + halve particles when busy ----
@@ -749,6 +703,21 @@ function updateGovernor(game) {
 function drawOverlays(game) {
   const octx = overlayCtx; if (!octx) return;
   octx.clearRect(0, 0, 600, 600);
+  updateOverlayBounds();
+  // Consistent role labels make the hub navigable without visiting every NPC
+  // to discover what each silhouette does. Short labels avoid crowded names.
+  if(GL.mask.npcs && game.world && game.world.kind==='town'){
+    const labels={vendor:'Trader',stash:'Vault',quests:'Bounties',waypoint:'Waystone',mystery:'Mystery',mercenary:'Hirelings',gambler:'Gambler'};
+    octx.font='600 12px sans-serif';octx.textAlign='center';octx.textBaseline='middle';
+    for(const npc of game.world.npcs||[]){
+      const label=labels[npc.role]||npc.name,p=projectToScreen(npc.x+.5,2.05,npc.y+.5);
+      if(!p.vis||p.x<20||p.x>580||p.y<44||p.y>440)continue;
+      const width=octx.measureText(label).width+10;
+      for(const box of overlayObstacles)if(p.x+width/2>box.left&&p.x-width/2<box.right&&p.y+9>box.top&&p.y-9<box.bottom)p.y=box.bottom+12;
+      octx.fillStyle='rgba(5,10,14,.86)';octx.fillRect(p.x-width/2,p.y-9,width,18);
+      octx.fillStyle='#ded3b2';octx.fillText(label,p.x,p.y);
+    }
+  }
   // --- enemy HP bars ---
   if (GL.mask.enemies && game.enemies) for (const e of game.enemies) {
     if (e.hp == null || !(e.hpMax > 0)) continue;                 // guard hpMax 0/undefined -> no NaN bar
@@ -787,6 +756,7 @@ function frame(game, now) {
   _frames++;
   updateGovernor(game);
   updateCamera3D(game);
+  updateGroundShadows(game);
   if (GL.mask.player) { syncPlayer(game, now); updateTorch(game); }
   else if (playerMesh) playerMesh.visible = false;
   if (GL.mask.enemies)     enemyLayer.reconcile(game.enemies, now);
@@ -806,8 +776,9 @@ function frame(game, now) {
 // =============================================================
 function dispose() {
   for (const L of ALL_LAYERS) L.clear();                 // disposes pooled telegraphs
-  if (townGroup) { scene.remove(townGroup); townGroup = null; }
+  if (townGroup) { scene.remove(townGroup); releaseCompact(townGroup); townGroup = null; }
   disposeWorld();
+  if(groundShadows){scene.remove(groundShadows);groundShadows.geometry.dispose();groundShadows.material.dispose();groundShadows=null;}
   if (particleSys) {
     scene.remove(particleSys); particleSys.geometry.dispose();
     if (particleSys.material.map) particleSys.material.map.dispose(); particleSys.material.dispose();
@@ -830,13 +801,8 @@ function dispose() {
   GL.enabled = false;
 }
 
-// ---- helpers ----
-function mul(hex, k) {
-  _color.set(hex).multiplyScalar(k);
-  return '#' + _color.getHexString();
-}
-
 // ---- self-init (don't rely on app.js to call us) ----
 if (RENDER3D) {
   try { init(); } catch (e) { console.error('[3D] init failed — staying on 2D', e); GL.enabled = false; }
+  GL.ready=loadArt().then(ok=>{const game=window.__hollowlight && window.__hollowlight.game;if(ok&&GL.enabled&&game&&game.world)onZoneChange(game.world);return ok;});
 }
