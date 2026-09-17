@@ -1,5 +1,5 @@
 /* Local presentation fixtures only; cloud and user profiles are never contacted. */
-const { chromium } = require(process.env.PLAYWRIGHT_PATH || 'C:/Users/kgood/.codex/skills/develop-web-game/node_modules/playwright');
+const { chromium } = require(process.env.PLAYWRIGHT_PATH || require('node:path').join(require('node:os').homedir(),'.codex/skills/develop-web-game/node_modules/playwright'));
 const fs = require('node:fs'), path = require('node:path');
 const out = process.env.SPIRE_EVIDENCE || path.resolve(__dirname, '../../.visual-review/spire-systems/experience/waypoint');
 fs.mkdirSync(out, { recursive: true });

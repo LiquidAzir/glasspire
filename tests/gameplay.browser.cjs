@@ -1,6 +1,6 @@
 /* Real DOM controls plus explicitly labelled local fixtures; never contacts cloud saves. */
 const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
-const {chromium}=require(process.env.PLAYWRIGHT_PATH||'C:/Users/kgood/.codex/skills/develop-web-game/node_modules/playwright');
+const {chromium}=require(process.env.PLAYWRIGHT_PATH||require('node:path').join(require('node:os').homedir(),'.codex/skills/develop-web-game/node_modules/playwright'));
 const URL=process.env.REALM_URL||'http://127.0.0.1:5251',OUT=process.env.REALM_EVIDENCE||path.resolve(__dirname,'../../.visual-review/hollowlight/gameplay');
 fs.mkdirSync(OUT,{recursive:true});
 (async()=>{

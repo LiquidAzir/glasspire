@@ -1,6 +1,6 @@
 // Regression guards for the camera/fog overhaul and both lightweight fallbacks.
 const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
-const {chromium}=require(process.env.PLAYWRIGHT_PATH||'C:/Users/kgood/.codex/skills/develop-web-game/node_modules/playwright');
+const {chromium}=require(process.env.PLAYWRIGHT_PATH||require('node:path').join(require('node:os').homedir(),'.codex/skills/develop-web-game/node_modules/playwright'));
 const url=process.env.REALM_URL||'http://127.0.0.1:5251';
 let browser;
 (async()=>{browser=await chromium.launch({headless:true});const checks=[],errors=[];

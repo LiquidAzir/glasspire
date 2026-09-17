@@ -2,7 +2,7 @@
    coordinate-free focused clicks and native mobile taps; no personal saves/cloud. */
 const assert = require('node:assert/strict');
 const fs = require('node:fs'), path = require('node:path');
-const { chromium } = require(process.env.PLAYWRIGHT_PATH || 'C:/Users/kgood/.codex/skills/develop-web-game/node_modules/playwright');
+const { chromium } = require(process.env.PLAYWRIGHT_PATH || require('node:path').join(require('node:os').homedir(),'.codex/skills/develop-web-game/node_modules/playwright'));
 const base = process.env.REALM_URL || 'http://127.0.0.1:5265';
 const out = process.env.REALM_EVIDENCE || path.resolve(__dirname, '../../.visual-review/spire-feel/actions/tests');
 fs.mkdirSync(out, { recursive: true });

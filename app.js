@@ -11772,11 +11772,22 @@
     }
   }
 
-  // ----- Short-code sync via dpaste.com (public free paste service) -----
-  // Export: POST save → service returns a short URL → extract slug → show to user
-  // Import: GET https://dpaste.com/<slug>.txt → install
-  // If the service is unavailable we fall back to suggesting the long-code path.
-  const SHORT_CODE_BASE = 'https://dpaste.com';
+  // ----- Short-code sync via our own cloud-save Worker -----
+  // Export: PUT the wrapped save under a random 7-char code (key "sc<code>") on the same
+  // Worker that backs cloud sync → show the code. Import: GET that key → install.
+  // Nothing is sent to a third-party paste service. If cloudUrl is unset or the Worker
+  // is unreachable we fall back to suggesting the long-code path.
+  const SHORT_CODE_BASE = ((window.HOLLOWLIGHT_CONFIG || {}).cloudUrl || '').replace(/\/+$/, '');
+  const SHORT_CODE_ALPHABET = 'abcdefghijklmnopqrstuvwxyz0123456789';
+  function shortCodeUrl(code) { return SHORT_CODE_BASE + '/v1/save?u=' + encodeURIComponent('sc' + code); }
+  function mintShortCode() {
+    let s = '';
+    const buf = new Uint8Array(7);
+    if (window.crypto && window.crypto.getRandomValues) window.crypto.getRandomValues(buf);
+    else for (let i = 0; i < buf.length; i++) buf[i] = Math.floor(Math.random() * 256);
+    for (let i = 0; i < buf.length; i++) s += SHORT_CODE_ALPHABET[buf[i] % SHORT_CODE_ALPHABET.length];
+    return s;
+  }
 
   function setShortCodeBox(text, isMuted) {
     const box = document.getElementById('sync-short-code');
@@ -11793,27 +11804,20 @@
       // Wrap with a header so import can validate it's a HollowLight save
       const wrapper = { app: 'hollowlight', v: 1, ts: Date.now(), payload: raw };
       const body = JSON.stringify(wrapper);
-      // dpaste.com API: POST form-encoded `content=...` to /api/v2/ → returns plain-text URL
-      const form = new URLSearchParams();
-      form.set('content', body);
-      form.set('syntax', 'text');
-      form.set('expiry_days', '30');
-      const resp = await fetch(SHORT_CODE_BASE + '/api/v2/', {
-        method: 'POST',
-        body: form,
+      if (!SHORT_CODE_BASE) throw new Error('Cloud sync is not configured');
+      const code = mintShortCode();
+      const resp = await fetch(shortCodeUrl(code), {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json' },
+        body,
       });
       if (!resp.ok) throw new Error('HTTP ' + resp.status);
-      const url = (await resp.text()).trim();
-      // The response is a URL like https://dpaste.com/AbC1234 — pull out the slug
-      const match = url.match(/dpaste\.com\/([A-Za-z0-9]+)/);
-      if (!match) throw new Error('Bad response: ' + url);
-      const code = match[1];
       setShortCodeBox(code, false);
       // Best-effort clipboard copy
       try {
         if (navigator.clipboard && navigator.clipboard.writeText) {
           await navigator.clipboard.writeText(code);
-          showHudToast(`Code ${code} copied. Expires in 30 days.`);
+          showHudToast(`Code ${code} copied. Anyone with it can import this save.`);
         } else {
           showHudToast(`Your code: ${code}`);
         }
@@ -11829,20 +11833,18 @@
     if (!input) return;
     let code = (input.value || '').trim();
     if (!code) { showHudToast('Enter a code first.'); return; }
-    // If user pasted a full URL, extract just the slug
-    const m = code.match(/dpaste\.com\/([A-Za-z0-9]+)/);
-    if (m) code = m[1];
-    // Slug is alphanumeric only — strip stray whitespace/punctuation
-    code = code.replace(/[^A-Za-z0-9]/g, '');
+    // Codes are lowercase letters/digits — strip stray whitespace/punctuation and case
+    code = code.replace(/[^A-Za-z0-9]/g, '').toLowerCase();
     if (!code) { showHudToast('Code looks invalid.'); return; }
+    if (!SHORT_CODE_BASE) { showHudToast('Cloud sync is off (set cloudUrl in config.js)'); return; }
     showHudToast('Fetching code ' + code + '...');
     try {
-      const resp = await fetch(`${SHORT_CODE_BASE}/${code}.txt`);
+      const resp = await fetch(shortCodeUrl(code), { cache: 'no-store' });
       if (!resp.ok) throw new Error('HTTP ' + resp.status);
-      const text = (await resp.text()).trim();
-      // Validate it's a HollowLight wrapper (accept the old 'glasspire' tag too)
+      // The Worker answers { t, data } where data is the wrapper we PUT on export
       let wrapper;
-      try { wrapper = JSON.parse(text); } catch (e) { wrapper = null; }
+      try { wrapper = (await resp.json()).data; } catch (e) { wrapper = null; }
+      // Validate it's a HollowLight wrapper (accept the old 'glasspire' tag too)
       if (!wrapper || !wrapper.payload || (wrapper.app !== 'hollowlight' && wrapper.app !== 'glasspire')) {
         showHudToast('Code did not return a valid HollowLight save.');
         return;
@@ -11866,7 +11868,7 @@
   }
 
   // ----- D-pad code picker (glasses-friendly text entry) -----
-  // dpaste.com codes use a-z A-Z 0-9 (case-sensitive). Order chosen so lowercase
+  // Short codes use a-z 0-9 (import lowercases input; uppercase kept for the cloud code path). Order chosen so lowercase
   // letters (the most common) sit at the start of the cycle.
   const PICKER_CHARS = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
   const PICKER_LEN = 7;
@@ -11887,7 +11889,7 @@
     const code = [];
     if (game._pickerMode === 'cloud') {
       // Start every slot BLANK — type your code left-to-right and leave any extra
-      // slots as · (so a 6-char code like "kevin7" works on the 7-slot picker).
+      // slots as · (so a 6-char code like "north4" works on the 7-slot picker).
       for (let i = 0; i < PICKER_LEN; i++) code.push(PICKER_BLANK);
     } else {
       const prefill = (document.getElementById('sync-short-input')?.value || '').trim();

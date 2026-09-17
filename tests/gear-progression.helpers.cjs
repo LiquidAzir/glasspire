@@ -1,5 +1,5 @@
 const fs=require('node:fs'),path=require('node:path');
-const {chromium}=require(process.env.PLAYWRIGHT_PATH||'C:/Users/kgood/.codex/skills/develop-web-game/node_modules/playwright');
+const {chromium}=require(process.env.PLAYWRIGHT_PATH||require('node:path').join(require('node:os').homedir(),'.codex/skills/develop-web-game/node_modules/playwright'));
 async function openHarness(name) {
   const out=process.env.REALM_EVIDENCE||path.resolve(__dirname,'../../.visual-review/spire-systems/progression');fs.mkdirSync(out,{recursive:true});
   const browser=await chromium.launch({headless:true,args:['--use-angle=swiftshader']});
