@@ -1172,10 +1172,18 @@
     const prev = game.history.pop();
     navigateTo(prev, { addToHistory: false });
   }
+  let menuFocusColumn = null;
   function focusableItems(container) {
-    return Array.from(container.querySelectorAll('.focusable:not([disabled]):not(.disabled):not(.locked):not([tabindex="-1"])')).filter(el => !el.closest('.hidden') && el.getClientRects().length);
+    if (!container) return [];
+    return Array.from(container.querySelectorAll('.focusable:not(:disabled):not(.disabled):not(.locked):not([tabindex="-1"])')).filter(el =>
+      !el.closest('.hidden, [hidden], [inert], [aria-hidden="true"]') && el.getClientRects().length && getComputedStyle(el).visibility === 'visible');
+  }
+  function focusMenuItem(el) {
+    el.focus({ preventScroll: true });
+    el.scrollIntoView({ block: 'nearest', inline: 'nearest' });
   }
   function focusFirst(container) {
+    menuFocusColumn = null;
     const list = focusableItems(container);
     const el = container.id === 'game' ? (container.querySelector('[data-action="game-interact"]') || container)
       : container.id === 'menu' ? (list.find(item => item.dataset.action === 'menu-resume') || list[0])
@@ -1195,10 +1203,11 @@
   }
   function listFocusRestore(listEl, idx) {
     if (!listEl || idx < 0) return;
-    const items = Array.from(listEl.querySelectorAll('.focusable:not([disabled])'));
+    const all = Array.from(listEl.querySelectorAll('.focusable'));
+    const items = focusableItems(listEl);
     if (!items.length) return;
-    const el = items[Math.min(idx, items.length - 1)];
-    if (el) { try { el.focus(); } catch (e) {} }
+    const el = items.find(item => all.indexOf(item) >= idx) || items[items.length - 1];
+    if (el) { try { focusMenuItem(el); } catch (e) {} }
   }
   function moveFocus(dir) {
     const container = screens[game.screen];
@@ -1206,14 +1215,48 @@
     const list = focusableItems(container);
     if (list.length === 0) return;
     const cur = document.activeElement;
-    let i = list.indexOf(cur);
-    if (i === -1) { list[0].focus(); return; }
-    const next = (dir === 'up' || dir === 'left')
-      ? (i > 0 ? i - 1 : list.length - 1)
-      : (i < list.length - 1 ? i + 1 : 0);
-    list[next].focus();
-    const sp = list[next].closest('.content, .inv-list');
-    if (sp) list[next].scrollIntoView({ block: 'nearest' });
+    if (!list.includes(cur)) { focusFirst(container); return; }
+    const vertical = dir === 'up' || dir === 'down';
+    const forward = dir === 'down' || dir === 'right';
+    const rect = cur.getBoundingClientRect();
+    const cx = (rect.left + rect.right) / 2;
+    // Preserve the chosen column through full-width rows and incomplete grids.
+    // Pointer/Tab focus or a horizontal swipe establishes a new column.
+    const column = vertical && menuFocusColumn && menuFocusColumn.el === cur ? menuFocusColumn.x : cx;
+    const regionFor = el => el.closest('.header, .content, .nav-bar') || container;
+    const region = regionFor(cur);
+    const entries = list.map(el => ({ el, rect: el.getBoundingClientRect(), region: regionFor(el) }));
+    const alignedDistance = r => Math.max(r.left - column, column - r.right, 0);
+    const candidates = entries.filter(item => {
+      if (item.el === cur || item.region !== region) return false;
+      const r = item.rect;
+      if (vertical) return forward ? r.top >= rect.bottom - 2 : r.bottom <= rect.top + 2;
+      // Left/right remain in the current visual row, never wrapping diagonally.
+      const overlap = Math.min(r.bottom, rect.bottom) - Math.max(r.top, rect.top);
+      return overlap > Math.min(r.height, rect.height) / 2 &&
+        (forward ? r.left >= rect.right - 2 : r.right <= rect.left + 2);
+    });
+    const gap = r => vertical ? (forward ? r.top - rect.bottom : rect.top - r.bottom)
+      : (forward ? r.left - rect.right : rect.left - r.right);
+    candidates.sort((a, b) => gap(a.rect) - gap(b.rect) || (vertical
+      ? alignedDistance(a.rect) - alignedDistance(b.rect) || Math.abs((a.rect.left + a.rect.right) / 2 - column) - Math.abs((b.rect.left + b.rect.right) / 2 - column)
+      : Math.abs((a.rect.top + a.rect.bottom - rect.top - rect.bottom) / 2) - Math.abs((b.rect.top + b.rect.bottom - rect.top - rect.bottom) / 2)));
+    let next = candidates[0];
+    if (!next && vertical) {
+      // Search a scrollable content region to its end before entering a fixed
+      // header/footer. Offscreen rows still belong to that content region.
+      const regions = [...new Set(entries.map(item => item.region))];
+      const adjacent = regions[regions.indexOf(region) + (forward ? 1 : -1)];
+      const boundary = entries.filter(item => item.region === adjacent);
+      boundary.sort((a, b) => (forward ? a.rect.top - b.rect.top : b.rect.bottom - a.rect.bottom) ||
+        alignedDistance(a.rect) - alignedDistance(b.rect) ||
+        Math.abs((a.rect.left + a.rect.right) / 2 - column) - Math.abs((b.rect.left + b.rect.right) / 2 - column));
+      next = boundary[0];
+    }
+    if (!next) return; // A swipe at an edge stays at that edge.
+    focusMenuItem(next.el);
+    const target = next.el.getBoundingClientRect();
+    menuFocusColumn = { el: next.el, x: vertical ? column : (target.left + target.right) / 2 };
   }
 
   // ============================================================
@@ -3293,7 +3336,7 @@
       if (slotFocused && key === 'ArrowDown')  { cyclePickerChar(-1); e.preventDefault(); return; }
       if (slotFocused && key === 'ArrowLeft')  { movePickerCursor(-1); e.preventDefault(); return; }
       if (slotFocused && key === 'ArrowRight') { movePickerCursor(+1); e.preventDefault(); return; }
-      if (key === 'Enter')      { if (document.activeElement && document.activeElement.classList.contains('focusable')) document.activeElement.click(); e.preventDefault(); return; }
+      if (key === 'Enter')      { if (focusableItems(screens[game.screen]).includes(document.activeElement)) document.activeElement.click(); e.preventDefault(); return; }
       if (key === 'Escape')     { navigateBack(); e.preventDefault(); return; }
       // Other keys (e.g. tab) — let them fall through to default
     }
@@ -3359,7 +3402,7 @@
       case 'ArrowLeft':  moveFocus('left');  e.preventDefault(); break;
       case 'ArrowRight': moveFocus('right'); e.preventDefault(); break;
       case 'Enter':
-        if (document.activeElement && document.activeElement.classList.contains('focusable')) {
+        if (focusableItems(screens[game.screen]).includes(document.activeElement)) {
           document.activeElement.click();
         }
         e.preventDefault();

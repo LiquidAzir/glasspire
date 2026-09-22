@@ -1,5 +1,7 @@
 # Gameplay and input verification
 
+Spatial menu regression: `node tests/spatial-navigation.browser.cjs` starts its own cloud-disabled loopback server and checks the current displayed geometry at 600x600 and 390x844. Its 23 checks cover two-dimensional grids, incomplete rows, wide-row column retention, no wrapping, scroll/footer boundaries, inaccessible controls, inventory, skills, dialogue, pinch/Back and save-code editing. All network destinations outside that server are blocked; fixtures use disposable heroes. `NAV_PORT=5486 node tests/spatial-navigation.browser.cjs --serve` leaves the same preview server running for manual or supplied-client review (set the environment variable using the current shell's syntax).
+
 Original prompt: Improve Glass Spire / HollowLight graphics, controls and enjoyment while preserving its lightweight Meta Display and phone experience.
 
 ## Run
